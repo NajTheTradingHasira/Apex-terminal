@@ -181,27 +181,14 @@ canvas.spark{display:block}
     </div>
   </div>
   <div class="page" id="page-watchlist">
-    <div class="card flex-col" style="height:100%">
-      <div class="flex" style="justify-content:space-between;align-items:center;margin-bottom:12px">
-        <div class="ch">Watchlist</div>
-        <button class="bs1" onclick="openAddStockModal()">+ Add Stock</button>
-      </div>
-      <div style="flex:1;overflow-y:auto">
-        <table class="w100">
-          <thead><tr>
-            <th class="tc">Ticker</th><th>Company</th><th>Sector</th>
-            <th class="tc">Stage</th><th class="tc">RS</th>
-            <th class="tr">Entry</th><th class="tr">Stop</th>
-            <th class="tc">Alert</th><th>Notes</th>
-            <th class="tc">Earnings</th><th class="tc">Actions</th>
-          </tr></thead>
-          <tbody id="watchlist-table">
-            <tr><td colspan="11" class="tc" style="padding:40px;color:var(--text3)">No stocks in watchlist. Click "+ Add Stock" to begin.</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
+   <div style="display:flex;gap:8px;padding:8px 12px;background:#111827;border-bottom:1px solid #1e2d45;flex-shrink:0">
+  <span style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:1px;align-self:center;margin-right:4px">INDICES</span>
+  <div id="idx-SPY" style="background:#131d2e;border:1px solid #1e2d45;border-radius:6px;padding:7px 14px;min-width:100px"><div style="font-size:11px;font-weight:800;color:#94a3b8">SPY</div><div id="idx-SPY-p" style="font-size:15px;font-weight:800;color:#e2e8f0;margin:2px 0">—</div><div id="idx-SPY-c" style="font-size:11px;font-weight:700;color:#ffd740">—</div></div>
+  <div id="idx-QQQ" style="background:#131d2e;border:1px solid #1e2d45;border-radius:6px;padding:7px 14px;min-width:100px"><div style="font-size:11px;font-weight:800;color:#94a3b8">QQQ</div><div id="idx-QQQ-p" style="font-size:15px;font-weight:800;color:#e2e8f0;margin:2px 0">—</div><div id="idx-QQQ-c" style="font-size:11px;font-weight:700;color:#ffd740">—</div></div>
+  <div id="idx-IWM" style="background:#131d2e;border:1px solid #1e2d45;border-radius:6px;padding:7px 14px;min-width:100px"><div style="font-size:11px;font-weight:800;color:#94a3b8">IWM</div><div id="idx-IWM-p" style="font-size:15px;font-weight:800;color:#e2e8f0;margin:2px 0">—</div><div id="idx-IWM-c" style="font-size:11px;font-weight:700;color:#ffd740">—</div></div>
+  <div id="idx-VIX" style="background:#131d2e;border:1px solid #1e2d45;border-radius:6px;padding:7px 14px;min-width:100px"><div style="font-size:11px;font-weight:800;color:#94a3b8">VIX</div><div id="idx-VIX-p" style="font-size:15px;font-weight:800;color:#e2e8f0;margin:2px 0">—</div><div id="idx-VIX-c" style="font-size:11px;font-weight:700;color:#ffd740">—</div></div>
+</div>
+
   <div class="page" id="page-optionsflow">
     <div class="subrow">
       <button class="stab active" data-subtab="flow">Options Flow</button>
@@ -752,3 +739,4 @@ if(!STATE.finnhubKey){
 </script>
 </body>
 </html>
+
