@@ -1,0 +1,2807 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>APEX Trading Terminal</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Courier New', 'Lucida Console', monospace;
+            background-color: #0a0e1a;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background-color: #0f1419;
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #3b82f6;
+            letter-spacing: 0.1em;
+        }
+
+        .ticker-strip {
+            display: flex;
+            gap: 1.5rem;
+            flex: 1;
+            overflow-x: auto;
+            font-size: 0.875rem;
+        }
+
+        .ticker-item { display: flex; align-items: center; gap: 0.5rem; white-space: nowrap; }
+        .ticker-symbol { font-weight: 600; color: #94a3b8; }
+        .ticker-price { font-weight: 700; }
+        .ticker-change { font-size: 0.8rem; padding: 0.125rem 0.375rem; border-radius: 0.25rem; }
+
+        .positive { color: #22c55e; background-color: rgba(34,197,94,0.1); }
+        .negative { color: #ef4444; background-color: rgba(239,68,68,0.1); }
+        .neutral { color: #94a3b8; }
+
+        .market-status { padding: 0.375rem 0.75rem; background-color: #dc2626; color: white; border-radius: 0.25rem; font-size: 0.875rem; font-weight: 600; }
+        .time { color: #64748b; font-size: 0.875rem; }
+
+        .nav {
+            background-color: #0f1419;
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid #1e293b;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .nav-btn {
+            padding: 0.5rem 1rem;
+            background-color: transparent;
+            color: #94a3b8;
+            border: none;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-radius: 0.25rem;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .nav-btn:hover { background-color: #1e293b; color: #e2e8f0; }
+        .nav-btn.active { background-color: #1e40af; color: white; }
+
+        .container { padding: 1.5rem; max-width: 1920px; margin: 0 auto; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric-card {
+            background-color: #1e293b;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            border: 1px solid #334155;
+        }
+
+        .metric-label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem; }
+        .metric-value { font-size: 1.5rem; font-weight: 700; color: #e2e8f0; }
+        .metric-subtitle { font-size: 0.875rem; color: #94a3b8; margin-top: 0.25rem; }
+
+        .section-title { font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.75rem; font-weight: 600; }
+
+        /* Heatmap */
+        .heatmap { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #334155; margin-bottom: 1.5rem; }
+        .heatmap-sector-block { margin-bottom: 0.5rem; border-radius: 0.375rem; overflow: hidden; border: 1px solid #1e293b; }
+        .heatmap-sector-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.5rem 0.875rem;
+            background-color: #0f172a;
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.15s;
+        }
+        .heatmap-sector-header:hover { background-color: #1a2538; }
+        .heatmap-sector-left { display: flex; align-items: center; gap: 0.625rem; }
+        .heatmap-sector-name {
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 0.08em; color: #94a3b8;
+        }
+        .heatmap-sector-avg {
+            font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.4rem;
+            border-radius: 0.2rem;
+        }
+        .heatmap-sector-avg.pos { color: #22c55e; background: rgba(34,197,94,0.12); }
+        .heatmap-sector-avg.neg { color: #ef4444; background: rgba(239,68,68,0.12); }
+        .heatmap-sector-avg.neu { color: #94a3b8; background: rgba(148,163,184,0.08); }
+        .heatmap-chevron {
+            font-size: 0.65rem; color: #475569;
+            transition: transform 0.2s;
+        }
+        .heatmap-chevron.open { transform: rotate(180deg); }
+        .heatmap-sector-body {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(95px, 1fr));
+            gap: 0.375rem;
+            padding: 0.5rem;
+            background-color: #141c2e;
+            overflow: hidden;
+            transition: max-height 0.25s ease, padding 0.25s ease;
+        }
+        .heatmap-sector-body.collapsed { max-height: 0 !important; padding-top: 0; padding-bottom: 0; }
+        .heatmap-cell { padding: 0.75rem 0.5rem; border-radius: 0.3rem; text-align: center; font-weight: 600; }
+        .heatmap-symbol { display: block; font-size: 0.8rem; margin-bottom: 0.2rem; }
+        .heatmap-change { display: block; font-size: 0.7rem; }
+
+        .hmm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+
+        .regime-card { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 2px solid #334155; }
+        .regime-card.active-regime { border-color: #3b82f6; box-shadow: 0 0 20px rgba(59,130,246,0.3); }
+        .regime-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .regime-name { font-size: 1.125rem; font-weight: 700; color: #e2e8f0; }
+        .regime-probability { font-size: 1.25rem; font-weight: 700; color: #3b82f6; }
+        .regime-indicator { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 0.5rem; }
+        .regime-bull { background-color: #22c55e; }
+        .regime-bear { background-color: #ef4444; }
+        .regime-ranging { background-color: #f59e0b; }
+        .regime-volatile { background-color: #8b5cf6; }
+        .regime-details { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.875rem; color: #94a3b8; }
+        .regime-stat { display: flex; justify-content: space-between; }
+        .regime-stat-label { color: #64748b; }
+        .regime-stat-value { color: #e2e8f0; font-weight: 600; }
+
+        .transition-matrix { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #334155; margin-bottom: 1.5rem; }
+        .matrix-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        .matrix-table th, .matrix-table td { padding: 0.75rem; text-align: center; border: 1px solid #334155; }
+        .matrix-table th { background-color: #0f172a; color: #94a3b8; font-weight: 600; }
+        .matrix-table td { color: #e2e8f0; }
+        .high-prob { background-color: rgba(34,197,94,0.15); color: #22c55e; font-weight: 700; }
+        .med-prob { background-color: rgba(245,158,11,0.15); color: #f59e0b; font-weight: 700; }
+        .low-prob { background-color: rgba(100,116,139,0.15); color: #64748b; }
+
+        .signals-panel { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #334155; }
+        .signal-item { display: flex; justify-content: space-between; align-items: center; padding: 1rem; background-color: #0f172a; border-radius: 0.375rem; margin-bottom: 0.75rem; border-left: 4px solid; }
+        .signal-item.bullish { border-left-color: #22c55e; }
+        .signal-item.bearish { border-left-color: #ef4444; }
+        .signal-item.neutral { border-left-color: #94a3b8; }
+        .signal-content { flex: 1; }
+        .signal-title { font-weight: 600; color: #e2e8f0; margin-bottom: 0.25rem; }
+        .signal-description { font-size: 0.875rem; color: #94a3b8; }
+        .signal-confidence { padding: 0.375rem 0.75rem; background-color: rgba(59,130,246,0.15); color: #3b82f6; border-radius: 0.25rem; font-size: 0.875rem; font-weight: 600; }
+
+        .alerts-section { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #334155; min-height: 150px; }
+        .alert-item { display: flex; align-items: center; gap: 1rem; padding: 1rem; background-color: #0f172a; border-radius: 0.375rem; margin-bottom: 0.75rem; border-left: 4px solid; }
+        .alert-item.regime-change { border-left-color: #8b5cf6; }
+        .alert-item.buy-signal { border-left-color: #22c55e; }
+        .alert-item.warning { border-left-color: #f59e0b; }
+        .alert-icon { width: 40px; height: 40px; border-radius: 0.375rem; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; }
+        .alert-icon.regime-icon { background-color: rgba(139,92,246,0.15); }
+        .alert-icon.buy-icon { background-color: rgba(34,197,94,0.15); }
+        .alert-icon.warn-icon { background-color: rgba(245,158,11,0.15); }
+        .alert-details { flex: 1; }
+        .alert-title { font-weight: 600; color: #e2e8f0; margin-bottom: 0.25rem; }
+        .alert-message { font-size: 0.875rem; color: #94a3b8; }
+        .alert-time { color: #64748b; font-size: 0.75rem; margin-top: 0.25rem; }
+        .no-alerts { text-align: center; color: #64748b; padding: 2rem; }
+
+        /* ── Alert Engine ── */
+        .alerts-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+        .alerts-header .section-title { margin-bottom: 0; }
+        .btn-add-alert { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); padding: 0.35rem 0.85rem; border-radius: 0.375rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+        .btn-add-alert:hover { background: rgba(34,197,94,0.25); }
+        .alert-item .alert-dismiss { margin-left: auto; background: none; border: none; color: #475569; font-size: 1rem; cursor: pointer; padding: 0 0.25rem; flex-shrink: 0; }
+        .alert-item .alert-dismiss:hover { color: #ef4444; }
+        .alert-item .alert-tag { font-size: 0.65rem; font-weight: 700; letter-spacing: .05em; padding: 2px 6px; border-radius: 3px; margin-left: 0.5rem; vertical-align: middle; }
+        .alert-tag.price-above { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .alert-tag.price-below { background: rgba(239,68,68,0.12); color: #ef4444; }
+        .alert-tag.pct-up { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .alert-tag.pct-down { background: rgba(239,68,68,0.12); color: #ef4444; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 9999; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: #1e293b; border: 1px solid #334155; border-radius: 0.75rem; padding: 1.75rem; width: 420px; max-width: 95vw; }
+        .modal-title { font-size: 1.05rem; font-weight: 700; color: #e2e8f0; margin-bottom: 1.25rem; }
+        .modal-row { margin-bottom: 1rem; }
+        .modal-label { font-size: 0.78rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 0.35rem; }
+        .modal-input, .modal-select { width: 100%; background: #0f172a; border: 1px solid #334155; color: #e2e8f0; padding: 0.55rem 0.75rem; border-radius: 0.375rem; font-size: 0.9rem; box-sizing: border-box; }
+        .modal-input:focus, .modal-select:focus { outline: none; border-color: #3b82f6; }
+        .modal-select option { background: #1e293b; }
+        .modal-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; justify-content: flex-end; }
+        .btn-modal-cancel { background: #334155; color: #94a3b8; border: none; padding: 0.5rem 1.1rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.875rem; }
+        .btn-modal-cancel:hover { background: #475569; }
+        .btn-modal-save { background: #3b82f6; color: #fff; border: none; padding: 0.5rem 1.1rem; border-radius: 0.375rem; cursor: pointer; font-weight: 600; font-size: 0.875rem; }
+        .btn-modal-save:hover { background: #2563eb; }
+        .modal-error { color: #ef4444; font-size: 0.8rem; margin-top: 0.5rem; display: none; }
+
+        .chart-container { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #334155; margin-bottom: 1.5rem; min-height: 400px; }
+        .chart-placeholder { display: flex; align-items: center; justify-content: center; height: 350px; color: #64748b; font-size: 0.875rem; text-align: center; }
+
+        .movers-section { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #334155; }
+        .movers-table { width: 100%; border-collapse: collapse; }
+        .movers-table th { text-align: left; padding: 0.75rem; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #334155; }
+        .movers-table td { padding: 0.75rem; border-bottom: 1px solid #334155; font-size: 0.875rem; }
+        .movers-table tr:hover { background-color: rgba(59,130,246,0.05); }
+
+        .ai-summary { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #334155; min-height: 200px; }
+        .ai-prompt { color: #64748b; font-size: 0.875rem; text-align: center; padding: 2rem; }
+        .api-btn { display: block; margin: 1rem auto 0; padding: 0.5rem 1.5rem; background-color: #1e40af; color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.875rem; transition: background-color 0.2s; font-family: inherit; }
+        .api-btn:hover { background-color: #1e3a8a; }
+
+        /* HMM Runner */
+        .runner-panel { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #334155; margin-bottom: 1.5rem; }
+        .runner-row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+        .runner-input {
+            padding: 0.5rem 0.75rem;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            font-family: inherit;
+            text-transform: uppercase;
+            width: 120px;
+        }
+        .runner-input:focus { outline: none; border-color: #3b82f6; }
+        .runner-select {
+            padding: 0.5rem 0.75rem;
+            background-color: #0f172a;
+            color: #e2e8f0;
+            border: 1px solid #334155;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            font-family: inherit;
+            cursor: pointer;
+        }
+        .runner-btn {
+            padding: 0.5rem 1.25rem;
+            background-color: #1e40af;
+            color: white;
+            border: none;
+            border-radius: 0.25rem;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 600;
+            font-family: inherit;
+            transition: background-color 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .runner-btn:hover { background-color: #1d4ed8; }
+        .runner-btn:active { background-color: #1e3a8a; }
+        .runner-btn.running { background-color: #334155; cursor: not-allowed; }
+
+        .runner-output { background-color: #0f172a; border-radius: 0.375rem; padding: 1rem; border: 1px solid #334155; min-height: 80px; }
+        .runner-status { font-size: 0.75rem; color: #64748b; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .runner-result { font-size: 0.875rem; color: #e2e8f0; line-height: 1.6; }
+
+        /* Watchlist */
+        .wl-panels { display: flex; flex-direction: column; gap: 1.5rem; }
+        .wl-panel { background-color: #1e293b; border-radius: 0.5rem; border: 1px solid #334155; overflow: hidden; }
+        .wl-panel-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.875rem 1.25rem;
+            border-bottom: 1px solid #334155;
+        }
+        .wl-panel-title {
+            display: flex; align-items: center; gap: 0.625rem;
+            font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+        }
+        .wl-panel-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .wl-panel-dot.weekly  { background-color: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.6); }
+        .wl-panel-dot.daily   { background-color: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
+        .wl-panel-dot.ondeck  { background-color: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.6); }
+        .wl-panel-title span  { color: #e2e8f0; }
+        .wl-panel-title small { color: #64748b; font-size: 0.7rem; font-weight: 400; text-transform: none; letter-spacing: 0; }
+        .wl-add-row { display: flex; gap: 0.5rem; align-items: center; }
+        .wl-input { padding: 0.375rem 0.625rem; background-color: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 0.25rem; font-size: 0.8rem; font-family: inherit; text-transform: uppercase; width: 90px; }
+        .wl-input:focus { outline: none; border-color: #3b82f6; }
+        .wl-add-btn { padding: 0.375rem 0.75rem; background-color: #1e40af; color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.75rem; font-family: inherit; font-weight: 700; letter-spacing: 0.04em; }
+        .wl-add-btn:hover { background-color: #1d4ed8; }
+        .wl-badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 700; margin-left: 0.5rem; }
+        .wl-remove { background: none; border: none; color: #334155; cursor: pointer; font-size: 0.9rem; padding: 0 0.25rem; font-family: inherit; transition: color 0.15s; }
+        .wl-remove:hover { color: #ef4444; }
+        .wl-count { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background-color: #334155; color: #94a3b8; font-size: 0.7rem; font-weight: 700; margin-left: 0.375rem; }
+        .wl-table { width: 100%; border-collapse: collapse; }
+        .wl-table th { text-align: left; padding: 0.5rem 1rem; color: #475569; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #1e293b; background-color: #0f172a; font-weight: 600; }
+        .wl-table th.right { text-align: right; }
+        .wl-table td { padding: 0.625rem 1rem; border-bottom: 1px solid rgba(51,65,85,0.4); font-size: 0.8rem; vertical-align: middle; }
+        .wl-table tr:last-child td { border-bottom: none; }
+        .wl-table tr:hover td { background-color: rgba(59,130,246,0.04); }
+        .wl-table td.right { text-align: right; }
+        .wl-sym { font-weight: 700; font-size: 0.875rem; color: #f1f5f9; letter-spacing: 0.04em; }
+        .wl-price { color: #e2e8f0; font-weight: 600; }
+        .wl-chg { font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 0.2rem; font-size: 0.75rem; }
+        .wl-chg.pos { color: #22c55e; background: rgba(34,197,94,0.1); }
+        .wl-chg.neg { color: #ef4444; background: rgba(239,68,68,0.1); }
+        .wl-chg.neu { color: #94a3b8; background: rgba(148,163,184,0.08); }
+        .wl-stage { display: inline-block; padding: 0.125rem 0.45rem; border-radius: 0.2rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+        .wl-stage.s1 { color: #94a3b8; background: rgba(148,163,184,0.12); }
+        .wl-stage.s2 { color: #22c55e; background: rgba(34,197,94,0.12); }
+        .wl-stage.s3 { color: #f59e0b; background: rgba(245,158,11,0.12); }
+        .wl-stage.s4 { color: #ef4444; background: rgba(239,68,68,0.12); }
+        .wl-rs { font-weight: 700; font-size: 0.8rem; }
+        .wl-notes { color: #64748b; font-size: 0.75rem; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .wl-empty { padding: 2rem; text-align: center; color: #475569; font-size: 0.8rem; }
+
+        /* Scanner */
+        .scanner-filters { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
+        .scanner-filter-btn { padding: 0.375rem 0.875rem; border-radius: 0.25rem; border: 1px solid #334155; background-color: #0f172a; color: #94a3b8; cursor: pointer; font-size: 0.8rem; font-family: inherit; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; transition: all 0.15s; }
+        .scanner-filter-btn:hover { border-color: #3b82f6; color: #e2e8f0; }
+        .scanner-filter-btn.active { background-color: #1e40af; color: white; border-color: #1e40af; }
+
+        /* Journal */
+        .journal-form { background-color: #1e293b; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #334155; margin-bottom: 1.5rem; }
+        .journal-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem; }
+        .journal-field { display: flex; flex-direction: column; gap: 0.25rem; }
+        .journal-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+        .journal-input { padding: 0.5rem 0.75rem; background-color: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 0.25rem; font-size: 0.875rem; font-family: inherit; }
+        .journal-input:focus { outline: none; border-color: #3b82f6; }
+        .journal-select { padding: 0.5rem 0.75rem; background-color: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 0.25rem; font-size: 0.875rem; font-family: inherit; cursor: pointer; }
+        .journal-textarea { padding: 0.5rem 0.75rem; background-color: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 0.25rem; font-size: 0.875rem; font-family: inherit; resize: vertical; min-height: 80px; width: 100%; }
+        .journal-textarea:focus { outline: none; border-color: #3b82f6; }
+        .journal-submit { padding: 0.5rem 1.5rem; background-color: #1e40af; color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.875rem; font-family: inherit; font-weight: 600; margin-top: 0.5rem; }
+        .journal-submit:hover { background-color: #1d4ed8; }
+
+        .journal-entry { background-color: #0f172a; border-radius: 0.375rem; padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid #334155; }
+        .journal-entry.long-win { border-left-color: #22c55e; }
+        .journal-entry.long-loss { border-left-color: #ef4444; }
+        .journal-entry.short-win { border-left-color: #22c55e; }
+        .journal-entry.short-loss { border-left-color: #ef4444; }
+        .journal-entry-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem; }
+        .journal-entry-title { font-weight: 700; color: #e2e8f0; font-size: 0.95rem; }
+        .journal-entry-meta { font-size: 0.75rem; color: #64748b; }
+        .journal-stats { display: flex; gap: 1.5rem; font-size: 0.8rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
+        .journal-stat-item { display: flex; flex-direction: column; gap: 0.1rem; }
+        .journal-stat-lbl { color: #64748b; font-size: 0.7rem; text-transform: uppercase; }
+        .journal-stat-val { color: #e2e8f0; font-weight: 600; }
+        .journal-notes { font-size: 0.8rem; color: #94a3b8; font-style: italic; margin-top: 0.25rem; }
+
+        /* PnL Summary strip */
+        .pnl-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+        .pnl-card { background-color: #1e293b; padding: 0.875rem 1rem; border-radius: 0.375rem; border: 1px solid #334155; }
+        .pnl-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
+        .pnl-val { font-size: 1.25rem; font-weight: 700; }
+
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #334155; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .tag { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 0.2rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+        .tag-buy { background-color: rgba(34,197,94,0.15); color: #22c55e; }
+        .tag-sell { background-color: rgba(239,68,68,0.15); color: #ef4444; }
+        .tag-hold { background-color: rgba(245,158,11,0.15); color: #f59e0b; }
+        .tag-watch { background-color: rgba(59,130,246,0.15); color: #3b82f6; }
+
+        input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div class="logo"><span>⚡</span><span>APEX</span></div>
+    <div class="ticker-strip">
+        <div class="ticker-item"><span class="ticker-symbol">SPY</span><span class="ticker-price">568.84</span><span class="ticker-change negative">▼2.09%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">QQQ</span><span class="ticker-price">478.18</span><span class="ticker-change negative">▼2.64%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">IWM</span><span class="ticker-price">208.14</span><span class="ticker-change negative">▼2.91%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">DIA</span><span class="ticker-price">425.05</span><span class="ticker-change negative">▼1.97%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">VIX</span><span class="ticker-price">29.42</span><span class="ticker-change positive">▲22.4%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">AAPL</span><span class="ticker-price">221.53</span><span class="ticker-change negative">▼1.46%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">TSLA</span><span class="ticker-price">274.68</span><span class="ticker-change negative">▼10.2%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">NVDA</span><span class="ticker-price">107.49</span><span class="ticker-change negative">▼5.74%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">AMZN</span><span class="ticker-price">196.03</span><span class="ticker-change negative">▼3.15%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">META</span><span class="ticker-price">582.77</span><span class="ticker-change negative">▼3.88%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">MSFT</span><span class="ticker-price">388.45</span><span class="ticker-change negative">▼1.62%</span></div>
+        <div class="ticker-item"><span class="ticker-symbol">GOOGL</span><span class="ticker-price">163.90</span><span class="ticker-change negative">▼2.04%</span></div>
+    </div>
+    <div class="market-status" id="marketStatus">CLOSED</div>
+    <div class="time" id="clockEl">00:00:00 ET</div>
+</div>
+
+<!-- Navigation -->
+<div class="nav">
+    <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+    <button class="nav-btn" data-tab="watchlist">Watchlist</button>
+    <button class="nav-btn" data-tab="hmm">HMM Analysis</button>
+    <button class="nav-btn" data-tab="hybrid">HMM-LSTM Hybrid</button>
+    <button class="nav-btn" data-tab="options">Options / COT</button>
+    <button class="nav-btn" data-tab="scanner">Scanner</button>
+    <button class="nav-btn" data-tab="journal">Journal</button>
+    <button class="nav-btn" data-tab="breadth">Market Breadth</button>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     MAIN CONTAINER
+═══════════════════════════════════════════════════════ -->
+<div class="container">
+
+<!-- ── DASHBOARD ─────────────────────────────────────── -->
+<div class="tab-content active" id="dashboard">
+    <div class="dashboard-grid">
+        <div class="metric-card">
+            <div class="metric-label">Market Breadth</div>
+            <div class="metric-value negative">1,847 / 3,112</div>
+            <div class="metric-subtitle">Adv/Dec · NYSE</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">VIX</div>
+            <div class="metric-value positive">29.42</div>
+            <div class="metric-subtitle">+22.4% · Fear Elevated</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Put/Call Ratio</div>
+            <div class="metric-value">1.14</div>
+            <div class="metric-subtitle">Bearish · 30d avg 0.84</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Sector Leader</div>
+            <div class="metric-value">Utilities</div>
+            <div class="metric-subtitle">XLU +0.31% (defensive bid)</div>
+        </div>
+    </div>
+
+    <div class="heatmap">
+        <div class="section-title">Market Heatmap</div>
+        <div id="heatmapContainer"></div>
+    </div>
+
+    <div class="alerts-header">
+        <div class="section-title" id="alertsSectionTitle">Active Alerts</div>
+        <button class="btn-add-alert" onclick="openAlertModal()">＋ Add Alert</button>
+    </div>
+    <div class="alerts-section" id="alertsContainer">
+        <div class="alert-item regime-change">
+            <div class="alert-icon regime-icon">📊</div>
+            <div class="alert-details">
+                <div class="alert-title">Regime Deterioration — SPY / QQQ</div>
+                <div class="alert-message">HMM model detects Bull → Ranging transition. SPY bull confidence dropped from 68% to 41%. Two-layer HMM flags macro risk-off shift.</div>
+                <div class="alert-time">1 hour ago</div>
+            </div>
+        </div>
+        <div class="alert-item warning">
+            <div class="alert-icon warn-icon">⚠️</div>
+            <div class="alert-details">
+                <div class="alert-title">VIX Spike — Fear Regime</div>
+                <div class="alert-message">VIX printed 29.42 (+22.4%). HV/IV compression reversing rapidly. Elevated realized vol suggests options are now cheap on a forward basis — consider long gamma.</div>
+                <div class="alert-time">3 hours ago</div>
+            </div>
+        </div>
+        <div class="alert-item buy-signal">
+            <div class="alert-icon buy-icon">🎯</div>
+            <div class="alert-details">
+                <div class="alert-title">Stage 2 Breakout Candidate — GLD</div>
+                <div class="alert-message">GLD holding Stage 2 uptrend through market selloff. RS vs SPY accelerating. Weinstein relative strength line at 52-week high.</div>
+                <div class="alert-time">5 hours ago</div>
+            </div>
+        </div>
+    </div>
+
+    <br>
+    <div class="section-title">Top Movers — Today</div>
+    <div class="movers-section">
+        <table class="movers-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th>Change</th>
+                    <th>Volume</th>
+                    <th>Rel Vol</th>
+                    <th>Signal</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td style="font-weight:700">TSLA</td><td>$274.68</td><td class="negative">▼ -10.21%</td><td>112.4M</td><td style="color:#f59e0b">3.8×</td><td><span class="tag tag-sell">SHORT</span></td></tr>
+                <tr><td style="font-weight:700">NVDA</td><td>$107.49</td><td class="negative">▼ -5.74%</td><td>87.2M</td><td style="color:#f59e0b">2.9×</td><td><span class="tag tag-sell">SHORT</span></td></tr>
+                <tr><td style="font-weight:700">META</td><td>$582.77</td><td class="negative">▼ -3.88%</td><td>24.1M</td><td style="color:#94a3b8">1.7×</td><td><span class="tag tag-watch">WATCH</span></td></tr>
+                <tr><td style="font-weight:700">AMZN</td><td>$196.03</td><td class="negative">▼ -3.15%</td><td>41.8M</td><td style="color:#94a3b8">1.5×</td><td><span class="tag tag-watch">WATCH</span></td></tr>
+                <tr><td style="font-weight:700">GLD</td><td>$262.11</td><td class="positive">▲ +0.88%</td><td>9.3M</td><td style="color:#22c55e">2.1×</td><td><span class="tag tag-buy">BUY</span></td></tr>
+                <tr><td style="font-weight:700">XLU</td><td>$81.44</td><td class="positive">▲ +0.31%</td><td>7.6M</td><td style="color:#22c55e">1.9×</td><td><span class="tag tag-buy">HOLD+</span></td></tr>
+                <tr><td style="font-weight:700">AAPL</td><td>$221.53</td><td class="negative">▼ -1.46%</td><td>58.2M</td><td style="color:#94a3b8">1.2×</td><td><span class="tag tag-watch">WATCH</span></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ── WATCHLIST ──────────────────────────────────────── -->
+<div class="tab-content" id="watchlist">
+<div class="wl-panels">
+
+    <!-- WEEKLY WATCHLIST -->
+    <div class="wl-panel">
+        <div class="wl-panel-header">
+            <div class="wl-panel-title">
+                <div class="wl-panel-dot weekly"></div>
+                <span>Weekly Watchlist</span>
+                <small>— swing setups · 1–4 week holding horizon</small>
+                <span class="wl-count" id="wlWeeklyCount">0</span>
+            </div>
+            <div class="wl-add-row">
+                <input class="wl-input" id="wlWeeklyInput" type="text" placeholder="TICKER" maxlength="6">
+                <button class="wl-add-btn" onclick="addToWatchlist('weekly')">+ Add</button>
+            </div>
+        </div>
+        <table class="wl-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th class="right">Day %</th>
+                    <th class="right">Week %</th>
+                    <th class="right">Month %</th>
+                    <th>Stage</th>
+                    <th class="right">RS</th>
+                    <th>Setup / Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="wlWeeklyBody"></tbody>
+        </table>
+    </div>
+
+    <!-- DAILY WATCHLIST -->
+    <div class="wl-panel">
+        <div class="wl-panel-header">
+            <div class="wl-panel-title">
+                <div class="wl-panel-dot daily"></div>
+                <span>Daily Watchlist</span>
+                <small>— active setups · near-term catalyst or entry</small>
+                <span class="wl-count" id="wlDailyCount">0</span>
+            </div>
+            <div class="wl-add-row">
+                <input class="wl-input" id="wlDailyInput" type="text" placeholder="TICKER" maxlength="6">
+                <button class="wl-add-btn" onclick="addToWatchlist('daily')">+ Add</button>
+            </div>
+        </div>
+        <table class="wl-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th class="right">Day %</th>
+                    <th class="right">Week %</th>
+                    <th class="right">Month %</th>
+                    <th>Stage</th>
+                    <th class="right">RS</th>
+                    <th>Setup / Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="wlDailyBody"></tbody>
+        </table>
+    </div>
+
+    <!-- ON DECK WATCHLIST -->
+    <div class="wl-panel">
+        <div class="wl-panel-header">
+            <div class="wl-panel-title">
+                <div class="wl-panel-dot ondeck"></div>
+                <span>On Deck</span>
+                <small>— building / basing · not yet actionable</small>
+                <span class="wl-count" id="wlOndeckCount">0</span>
+            </div>
+            <div class="wl-add-row">
+                <input class="wl-input" id="wlOndeckInput" type="text" placeholder="TICKER" maxlength="6">
+                <button class="wl-add-btn" onclick="addToWatchlist('ondeck')">+ Add</button>
+            </div>
+        </div>
+        <table class="wl-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th class="right">Day %</th>
+                    <th class="right">Week %</th>
+                    <th class="right">Month %</th>
+                    <th>Stage</th>
+                    <th class="right">RS</th>
+                    <th>Setup / Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="wlOndeckBody"></tbody>
+        </table>
+    </div>
+
+</div>
+</div>
+
+<!-- ── HMM ANALYSIS ──────────────────────────────────── -->
+<div class="tab-content" id="hmm">
+
+    <!-- INDEX-LEVEL RUNNER -->
+    <div class="runner-panel">
+        <div class="section-title">📊 Run HMM — Index Level (Macro Regime Filter)</div>
+        <div class="runner-row">
+            <input class="runner-input" id="hmmIndexInput" type="text" placeholder="SPY" value="SPY" maxlength="6">
+            <select class="runner-select" id="hmmIndexLookback">
+                <option value="60">60 days</option>
+                <option value="120" selected>120 days</option>
+                <option value="252">252 days</option>
+            </select>
+            <button class="runner-btn" id="hmmIndexBtn" onclick="runHMM('index')">▶ Run HMM</button>
+        </div>
+        <div class="runner-output">
+            <div class="runner-status">Output</div>
+            <div class="runner-result" id="hmmIndexOutput" style="color:#64748b">Enter a ticker and click Run HMM to classify the current market regime.</div>
+        </div>
+    </div>
+
+    <!-- STOCK-LEVEL RUNNER -->
+    <div class="runner-panel">
+        <div class="section-title">📈 Run HMM — Stock Level (Bottom-Up Signal)</div>
+        <div class="runner-row">
+            <input class="runner-input" id="hmmStockInput" type="text" placeholder="NVDA" value="NVDA" maxlength="6">
+            <select class="runner-select" id="hmmStockLookback">
+                <option value="60">60 days</option>
+                <option value="120" selected>120 days</option>
+                <option value="252">252 days</option>
+            </select>
+            <button class="runner-btn" id="hmmStockBtn" onclick="runHMM('stock')">▶ Run HMM</button>
+        </div>
+        <div class="runner-output">
+            <div class="runner-status">Output</div>
+            <div class="runner-result" id="hmmStockOutput" style="color:#64748b">Enter any ticker to analyze its individual regime state.</div>
+        </div>
+    </div>
+
+    <!-- STATIC INDEX REGIME CARDS -->
+    <div style="margin-bottom:2rem">
+        <h3 style="color:#3b82f6;font-size:1.125rem;margin-bottom:1rem;">Current Index Regimes (Last Run)</h3>
+        <div class="hmm-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+            <div class="regime-card" style="border-color:#ef4444">
+                <div class="regime-header">
+                    <div class="regime-name" style="font-size:0.875rem"><span class="regime-indicator regime-ranging"></span>SPY — Ranging</div>
+                    <div class="regime-probability" style="font-size:1rem;color:#f59e0b">41%</div>
+                </div>
+                <div class="regime-details" style="font-size:0.75rem">
+                    <div class="regime-stat"><span class="regime-stat-label">Prior regime:</span><span class="regime-stat-value">Bull (12d)</span></div>
+                    <div class="regime-stat"><span class="regime-stat-label">Bear prob:</span><span class="regime-stat-value negative">28%</span></div>
+                </div>
+            </div>
+            <div class="regime-card" style="border-color:#ef4444">
+                <div class="regime-header">
+                    <div class="regime-name" style="font-size:0.875rem"><span class="regime-indicator regime-ranging"></span>QQQ — Ranging</div>
+                    <div class="regime-probability" style="font-size:1rem;color:#f59e0b">39%</div>
+                </div>
+                <div class="regime-details" style="font-size:0.75rem">
+                    <div class="regime-stat"><span class="regime-stat-label">Prior regime:</span><span class="regime-stat-value">Bull (18d)</span></div>
+                    <div class="regime-stat"><span class="regime-stat-label">Bear prob:</span><span class="regime-stat-value negative">33%</span></div>
+                </div>
+            </div>
+            <div class="regime-card" style="border-color:#ef4444">
+                <div class="regime-header">
+                    <div class="regime-name" style="font-size:0.875rem"><span class="regime-indicator regime-bear"></span>IWM — Bear</div>
+                    <div class="regime-probability" style="font-size:1rem;color:#ef4444">61%</div>
+                </div>
+                <div class="regime-details" style="font-size:0.75rem">
+                    <div class="regime-stat"><span class="regime-stat-label">Duration:</span><span class="regime-stat-value">6 days</span></div>
+                    <div class="regime-stat"><span class="regime-stat-label">Trend:</span><span class="regime-stat-value negative">Deteriorating</span></div>
+                </div>
+            </div>
+        </div>
+        <p style="color:#64748b;font-size:0.875rem;margin-top:1rem;padding:0.75rem;background-color:#1e293b;border-radius:0.375rem;border-left:3px solid #ef4444">
+            ⚠️ <strong>Trade Signal:</strong> Macro regime deteriorating. SPY/QQQ in Ranging with rising Bear probability. IWM confirmed Bear. Reduce long exposure — favor hedges and defensive sectors.
+        </p>
+    </div>
+
+    <!-- 4-STATE REGIME DETAIL -->
+    <div class="hmm-grid">
+        <div class="regime-card active-regime">
+            <div class="regime-header"><div class="regime-name"><span class="regime-indicator regime-ranging"></span>Ranging Regime</div><div class="regime-probability">41%</div></div>
+            <div class="regime-details">
+                <div class="regime-stat"><span class="regime-stat-label">Avg Return:</span><span class="regime-stat-value neutral">+0.04% daily</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Volatility:</span><span class="regime-stat-value">Moderate (18% ann.)</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Duration:</span><span class="regime-stat-value">3 days</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Strength:</span><span class="regime-stat-value">Transitioning</span></div>
+            </div>
+        </div>
+        <div class="regime-card">
+            <div class="regime-header"><div class="regime-name"><span class="regime-indicator regime-bear"></span>Bear Regime</div><div class="regime-probability">28%</div></div>
+            <div class="regime-details">
+                <div class="regime-stat"><span class="regime-stat-label">Avg Return:</span><span class="regime-stat-value negative">-0.9% daily</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Volatility:</span><span class="regime-stat-value">High (31% ann.)</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Last Active:</span><span class="regime-stat-value">3 days ago</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Strength:</span><span class="regime-stat-value negative">Rising</span></div>
+            </div>
+        </div>
+        <div class="regime-card">
+            <div class="regime-header"><div class="regime-name"><span class="regime-indicator regime-bull"></span>Bull Regime</div><div class="regime-probability">22%</div></div>
+            <div class="regime-details">
+                <div class="regime-stat"><span class="regime-stat-label">Avg Return:</span><span class="regime-stat-value positive">+1.1% daily</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Volatility:</span><span class="regime-stat-value">Low (11% ann.)</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Last Active:</span><span class="regime-stat-value">3 days ago</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Strength:</span><span class="regime-stat-value">Fading</span></div>
+            </div>
+        </div>
+        <div class="regime-card">
+            <div class="regime-header"><div class="regime-name"><span class="regime-indicator regime-volatile"></span>High Volatility</div><div class="regime-probability">9%</div></div>
+            <div class="regime-details">
+                <div class="regime-stat"><span class="regime-stat-label">Avg Return:</span><span class="regime-stat-value neutral">-0.3% daily</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Volatility:</span><span class="regime-stat-value">Extreme (48% ann.)</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Last Active:</span><span class="regime-stat-value">45 days ago</span></div>
+                <div class="regime-stat"><span class="regime-stat-label">Strength:</span><span class="regime-stat-value">Increasing</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="transition-matrix">
+        <div class="section-title">State Transition Probabilities</div>
+        <table class="matrix-table">
+            <thead><tr><th>From / To</th><th>Bull</th><th>Bear</th><th>Ranging</th><th>Volatile</th></tr></thead>
+            <tbody>
+                <tr><th>Bull</th><td class="high-prob">85%</td><td class="low-prob">5%</td><td class="low-prob">8%</td><td class="low-prob">2%</td></tr>
+                <tr><th>Bear</th><td class="low-prob">10%</td><td class="high-prob">75%</td><td class="low-prob">12%</td><td class="low-prob">3%</td></tr>
+                <tr><th>Ranging</th><td class="med-prob">35%</td><td class="med-prob">28%</td><td class="med-prob">34%</td><td class="low-prob">3%</td></tr>
+                <tr><th>Volatile</th><td class="low-prob">18%</td><td class="med-prob">32%</td><td class="med-prob">25%</td><td class="med-prob">25%</td></tr>
+            </tbody>
+        </table>
+        <p style="color:#64748b;font-size:0.875rem;margin-top:1rem">From Ranging, Bear probability is now 28% — elevated vs historical avg (15%). Regime persistence is weakening.</p>
+    </div>
+
+    <div class="signals-panel">
+        <div class="section-title">HMM-Derived Trading Signals</div>
+        <div class="signal-item bearish">
+            <div class="signal-content"><div class="signal-title">Macro Regime Breakdown</div><div class="signal-description">SPY/QQQ transitioned Bull → Ranging. Transition matrix shows 28% Bear probability from current state. Risk-off positioning warranted.</div></div>
+            <div class="signal-confidence" style="color:#ef4444;background:rgba(239,68,68,0.1)">High Risk</div>
+        </div>
+        <div class="signal-item bearish">
+            <div class="signal-content"><div class="signal-title">Small-Cap Confirmed Bear</div><div class="signal-description">IWM HMM Bear regime at 61% probability. Avoid small-cap longs. Stage 4 breakdown confirms distribution phase.</div></div>
+            <div class="signal-confidence" style="color:#ef4444;background:rgba(239,68,68,0.1)">Bear Signal</div>
+        </div>
+        <div class="signal-item neutral">
+            <div class="signal-content"><div class="signal-title">Defensive Rotation Active</div><div class="signal-description">GLD and XLU holding positive while broad market sells. Defensive bid confirms risk-off regime — consider reducing beta.</div></div>
+            <div class="signal-confidence">Neutral</div>
+        </div>
+    </div>
+</div>
+
+<!-- ── HMM-LSTM HYBRID ───────────────────────────────── -->
+<div class="tab-content" id="hybrid">
+
+    <!-- HYBRID RUNNER -->
+    <div class="runner-panel">
+        <div class="section-title">🧠 Run HMM-LSTM Hybrid Model</div>
+        <div class="runner-row">
+            <input class="runner-input" id="hybridInput" type="text" placeholder="SPY" value="SPY" maxlength="6">
+            <select class="runner-select" id="hybridHorizon">
+                <option value="3">3-day forecast</option>
+                <option value="5" selected>5-day forecast</option>
+                <option value="10">10-day forecast</option>
+            </select>
+            <select class="runner-select" id="hybridLookback">
+                <option value="60">60d training</option>
+                <option value="120" selected>120d training</option>
+                <option value="252">252d training</option>
+            </select>
+            <button class="runner-btn" id="hybridBtn" onclick="runHybrid()">▶ Run Hybrid Model</button>
+        </div>
+        <div class="runner-output">
+            <div class="runner-status">Output</div>
+            <div class="runner-result" id="hybridOutput" style="color:#64748b">Enter a ticker and click Run Hybrid Model to generate an HMM regime + LSTM price forecast.</div>
+        </div>
+    </div>
+
+    <div style="background-color:#1e293b;padding:1.5rem;border-radius:0.5rem;border:1px solid #334155;margin-bottom:1.5rem">
+        <h3 style="color:#3b82f6;font-size:1rem;margin-bottom:0.75rem">🧠 Model Architecture</h3>
+        <p style="color:#cbd5e1;font-size:0.875rem;line-height:1.6">
+            The hybrid model combines <strong>HMM regime detection</strong> with <strong>LSTM neural networks</strong> to improve prediction accuracy. 
+            HMM identifies market states (Bull / Bear / Ranging / Volatile). Those regime labels become input features for the LSTM alongside 
+            technical indicators (RSI, MACD, ATR, 20/50/200 MA). LSTM learns regime-conditioned price patterns and generates directional forecasts with confidence bounds.
+        </p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+        <div style="background-color:#1e293b;padding:1.5rem;border-radius:0.5rem;border:1px solid #334155">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+                <div style="width:40px;height:40px;background-color:rgba(59,130,246,0.15);border-radius:0.375rem;display:flex;align-items:center;justify-content:center;font-size:1.25rem">🎯</div>
+                <div><div style="color:#e2e8f0;font-weight:600;font-size:0.875rem">Current Regime State</div><div style="color:#64748b;font-size:0.75rem">From HMM Layer</div></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:1rem;background-color:#0f172a;border-radius:0.375rem;border-left:4px solid #f59e0b">
+                <span style="color:#e2e8f0;font-size:1.125rem;font-weight:700">Ranging Regime</span>
+                <span style="color:#f59e0b;font-size:1.5rem;font-weight:700">41%</span>
+            </div>
+            <div style="margin-top:0.75rem;padding:0.75rem;background-color:rgba(245,158,11,0.1);border-radius:0.375rem">
+                <div style="color:#f59e0b;font-size:0.875rem;font-weight:600;margin-bottom:0.25rem">⚠ Regime Transitioning</div>
+                <div style="color:#94a3b8;font-size:0.75rem">Bear probability rising — LSTM confidence reduced</div>
+            </div>
+        </div>
+        <div style="background-color:#1e293b;padding:1.5rem;border-radius:0.5rem;border:1px solid #334155">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem">
+                <div style="width:40px;height:40px;background-color:rgba(139,92,246,0.15);border-radius:0.375rem;display:flex;align-items:center;justify-content:center;font-size:1.25rem">📊</div>
+                <div><div style="color:#e2e8f0;font-weight:600;font-size:0.875rem">LSTM Price Forecast</div><div style="color:#64748b;font-size:0.75rem">Next 5 Trading Days · SPY</div></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:1rem;background-color:#0f172a;border-radius:0.375rem;border-left:4px solid #ef4444">
+                <span style="color:#e2e8f0;font-size:1.125rem;font-weight:700">SPY Target</span>
+                <span style="color:#ef4444;font-size:1.5rem;font-weight:700">$551</span>
+            </div>
+            <div style="margin-top:0.75rem;padding:0.75rem;background-color:rgba(239,68,68,0.1);border-radius:0.375rem">
+                <div style="color:#ef4444;font-size:0.875rem;font-weight:600;margin-bottom:0.25rem">-3.1% Expected Move (Bearish)</div>
+                <div style="color:#94a3b8;font-size:0.75rem">Confidence: 58% | Regime headwind degrading LSTM signal</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="background-color:#1e293b;padding:1.5rem;border-radius:0.5rem;border:1px solid #334155;margin-bottom:1.5rem">
+        <div class="section-title">Model Performance Metrics</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem">
+            <div style="padding:1rem;background-color:#0f172a;border-radius:0.375rem">
+                <div style="color:#64748b;font-size:0.75rem;text-transform:uppercase;margin-bottom:0.5rem">LSTM Accuracy Improvement</div>
+                <div style="color:#22c55e;font-size:1.5rem;font-weight:700">-18.5%</div>
+                <div style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem">MSE vs standalone LSTM</div>
+            </div>
+            <div style="padding:1rem;background-color:#0f172a;border-radius:0.375rem">
+                <div style="color:#64748b;font-size:0.75rem;text-transform:uppercase;margin-bottom:0.5rem">Sharpe Ratio</div>
+                <div style="color:#22c55e;font-size:1.5rem;font-weight:700">1.93</div>
+                <div style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem">12-month backtest</div>
+            </div>
+            <div style="padding:1rem;background-color:#0f172a;border-radius:0.375rem">
+                <div style="color:#64748b;font-size:0.75rem;text-transform:uppercase;margin-bottom:0.5rem">Cumulative Return</div>
+                <div style="color:#22c55e;font-size:1.5rem;font-weight:700">+58%</div>
+                <div style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem">12-month backtest</div>
+            </div>
+            <div style="padding:1rem;background-color:#0f172a;border-radius:0.375rem">
+                <div style="color:#64748b;font-size:0.75rem;text-transform:uppercase;margin-bottom:0.5rem">Max Drawdown</div>
+                <div style="color:#22c55e;font-size:1.5rem;font-weight:700">-8.3%</div>
+                <div style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem">Risk controlled</div>
+            </div>
+        </div>
+    </div>
+
+    <div style="background-color:#1e293b;padding:1.5rem;border-radius:0.5rem;border:1px solid #334155;margin-bottom:1.5rem">
+        <div class="section-title">Hybrid Model Trading Signals</div>
+        <div style="display:flex;align-items:center;gap:1rem;padding:1rem;background-color:#0f172a;border-radius:0.375rem;margin-bottom:0.75rem;border-left:4px solid #ef4444">
+            <div style="width:48px;height:48px;background-color:rgba(239,68,68,0.15);border-radius:0.375rem;display:flex;align-items:center;justify-content:center;font-size:1.5rem">📉</div>
+            <div style="flex:1">
+                <div style="color:#e2e8f0;font-weight:600;margin-bottom:0.25rem">Bearish Signal — SPY</div>
+                <div style="color:#94a3b8;font-size:0.875rem">Ranging regime (41%) + Bear prob rising (28%) + LSTM forecasting -3.1% → Entry short: $568 | Target: $551 | Stop: $577</div>
+                <div style="color:#64748b;font-size:0.75rem;margin-top:0.25rem">Confidence: Medium | R:R 2.1:1 | Regime headwind confirmed</div>
+            </div>
+            <div style="padding:0.375rem 0.75rem;background-color:rgba(239,68,68,0.15);color:#ef4444;border-radius:0.25rem;font-size:0.875rem;font-weight:600">BEAR</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:1rem;padding:1rem;background-color:#0f172a;border-radius:0.375rem;margin-bottom:0.75rem;border-left:4px solid #ef4444">
+            <div style="width:48px;height:48px;background-color:rgba(239,68,68,0.15);border-radius:0.375rem;display:flex;align-items:center;justify-content:center;font-size:1.5rem">⚡</div>
+            <div style="flex:1">
+                <div style="color:#e2e8f0;font-weight:600;margin-bottom:0.25rem">Momentum Breakdown — IWM</div>
+                <div style="color:#94a3b8;font-size:0.875rem">Bear regime (61%) + LSTM confirming downtrend continuation → Avoid all small-cap longs</div>
+                <div style="color:#64748b;font-size:0.75rem;margin-top:0.25rem">Confidence: High | Expected duration: 10–15 days</div>
+            </div>
+            <div style="padding:0.375rem 0.75rem;background-color:rgba(239,68,68,0.15);color:#ef4444;border-radius:0.25rem;font-size:0.875rem;font-weight:600">AVOID</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:1rem;padding:1rem;background-color:#0f172a;border-radius:0.375rem;border-left:4px solid #22c55e">
+            <div style="width:48px;height:48px;background-color:rgba(34,197,94,0.15);border-radius:0.375rem;display:flex;align-items:center;justify-content:center;font-size:1.5rem">🥇</div>
+            <div style="flex:1">
+                <div style="color:#e2e8f0;font-weight:600;margin-bottom:0.25rem">Defensive Outperformance — GLD</div>
+                <div style="color:#94a3b8;font-size:0.875rem">Risk-off regime + LSTM showing continued upside in GLD as safe haven bid strengthens vs risk assets</div>
+                <div style="color:#64748b;font-size:0.75rem;margin-top:0.25rem">Confidence: High | Regime tailwind confirmed</div>
+            </div>
+            <div style="padding:0.375rem 0.75rem;background-color:rgba(34,197,94,0.15);color:#22c55e;border-radius:0.25rem;font-size:0.875rem;font-weight:600">BUY</div>
+        </div>
+    </div>
+
+    <div style="background-color:rgba(59,130,246,0.1);padding:1rem;border-radius:0.5rem;border-left:3px solid #3b82f6">
+        <div style="color:#3b82f6;font-weight:600;margin-bottom:0.5rem">💡 How the Hybrid Model Works</div>
+        <div style="color:#cbd5e1;font-size:0.875rem;line-height:1.6">
+            <strong>Step 1:</strong> HMM analyzes OHLCV data to classify current regime (Bull / Bear / Ranging / Volatile)<br>
+            <strong>Step 2:</strong> Regime labels become categorical input features for the LSTM alongside RSI, MACD, ATR, and moving averages<br>
+            <strong>Step 3:</strong> LSTM learns regime-conditioned price patterns and generates directional forecasts with confidence bounds<br>
+            <strong>Step 4:</strong> Combined output delivers market state awareness + quantified price targets with regime-adjusted R:R
+        </div>
+    </div>
+</div>
+
+<!-- ── OPTIONS / COT ─────────────────────────────────── -->
+<div class="tab-content" id="options">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem">
+        <div class="metric-card"><div class="metric-label">Put/Call Ratio (Equity)</div><div class="metric-value">1.14</div><div class="metric-subtitle">Bearish · 10d avg 0.82</div></div>
+        <div class="metric-card"><div class="metric-label">SPY IV Percentile</div><div class="metric-value positive">78th</div><div class="metric-subtitle">HV30: 22.4% | IV30: 28.1%</div></div>
+        <div class="metric-card"><div class="metric-label">GEX (SPX)</div><div class="metric-value negative">-$1.2B</div><div class="metric-subtitle">Negative → Amplifies moves</div></div>
+        <div class="metric-card"><div class="metric-label">Dark Pool Volume %</div><div class="metric-value">38.4%</div><div class="metric-subtitle">Elevated institutional activity</div></div>
+    </div>
+
+    <div class="movers-section" style="margin-bottom:1.5rem">
+        <div class="section-title">Unusual Options Flow — Today</div>
+        <table class="movers-table">
+            <thead><tr><th>Time</th><th>Ticker</th><th>Strike / Exp</th><th>Type</th><th>Premium</th><th>OI</th><th>Sentiment</th></tr></thead>
+            <tbody>
+                <tr><td style="color:#64748b">09:34</td><td style="font-weight:700">SPY</td><td>$550P / Mar 21</td><td>PUT</td><td style="color:#ef4444">$4.2M</td><td>48,200</td><td><span class="tag tag-sell">BEARISH SWEEP</span></td></tr>
+                <tr><td style="color:#64748b">09:51</td><td style="font-weight:700">QQQ</td><td>$460P / Mar 28</td><td>PUT</td><td style="color:#ef4444">$2.8M</td><td>31,400</td><td><span class="tag tag-sell">BEARISH SWEEP</span></td></tr>
+                <tr><td style="color:#64748b">10:12</td><td style="font-weight:700">GLD</td><td>$270C / Apr 17</td><td>CALL</td><td style="color:#22c55e">$1.9M</td><td>14,800</td><td><span class="tag tag-buy">BULLISH BLOCK</span></td></tr>
+                <tr><td style="color:#64748b">10:28</td><td style="font-weight:700">TSLA</td><td>$240P / Mar 14</td><td>PUT</td><td style="color:#ef4444">$3.1M</td><td>62,100</td><td><span class="tag tag-sell">BEARISH SWEEP</span></td></tr>
+                <tr><td style="color:#64748b">11:05</td><td style="font-weight:700">VIX</td><td>$35C / Mar 19</td><td>CALL</td><td style="color:#ef4444">$890K</td><td>22,600</td><td><span class="tag tag-sell">HEDGE FLOW</span></td></tr>
+                <tr><td style="color:#64748b">11:42</td><td style="font-weight:700">XLU</td><td>$82.5C / Apr 17</td><td>CALL</td><td style="color:#22c55e">$640K</td><td>9,300</td><td><span class="tag tag-buy">BULLISH BLOCK</span></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="movers-section">
+        <div class="section-title">COT Report — Large Spec Positioning (Most Recent)</div>
+        <table class="movers-table">
+            <thead><tr><th>Contract</th><th>Net Long</th><th>Wk Change</th><th>% of OI</th><th>Signal</th></tr></thead>
+            <tbody>
+                <tr><td style="font-weight:700">E-Mini S&P 500</td><td class="negative">-42,318</td><td class="negative">▼ -8,104</td><td>-11.2%</td><td><span class="tag tag-sell">NET SHORT</span></td></tr>
+                <tr><td style="font-weight:700">Nasdaq 100</td><td class="negative">-18,441</td><td class="negative">▼ -4,230</td><td>-8.8%</td><td><span class="tag tag-sell">NET SHORT</span></td></tr>
+                <tr><td style="font-weight:700">Russell 2000</td><td class="negative">-31,207</td><td class="negative">▼ -6,018</td><td>-14.1%</td><td><span class="tag tag-sell">NET SHORT</span></td></tr>
+                <tr><td style="font-weight:700">Gold (COMEX)</td><td class="positive">+188,402</td><td class="positive">▲ +12,340</td><td>+22.4%</td><td><span class="tag tag-buy">NET LONG</span></td></tr>
+                <tr><td style="font-weight:700">VIX Futures</td><td class="negative">-28,140</td><td class="negative">▼ -5,600</td><td>-9.3%</td><td><span class="tag tag-hold">MIXED</span></td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ── SCANNER ────────────────────────────────────────── -->
+<div class="tab-content" id="scanner">
+    <div class="movers-section">
+        <div class="section-title">Stock Scanner</div>
+        <div class="scanner-filters">
+            <span style="color:#94a3b8;font-size:0.8rem;font-weight:600;text-transform:uppercase">Preset:</span>
+            <button class="scanner-filter-btn active" onclick="filterScanner('stage2')">Stage 2 Breakouts</button>
+            <button class="scanner-filter-btn" onclick="filterScanner('stage4')">Stage 4 Breakdowns</button>
+            <button class="scanner-filter-btn" onclick="filterScanner('highrs')">High RS Leaders</button>
+            <button class="scanner-filter-btn" onclick="filterScanner('options')">High IV / Unusual OI</button>
+        </div>
+        <table class="movers-table" id="scannerTable">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th>Change</th>
+                    <th>Stage</th>
+                    <th>RS Rank</th>
+                    <th>Vol vs Avg</th>
+                    <th>Setup Quality</th>
+                    <th>Signal</th>
+                </tr>
+            </thead>
+            <tbody id="scannerBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ── JOURNAL ───────────────────────────────────────── -->
+<div class="tab-content" id="journal">
+
+    <div class="pnl-strip" id="journalPnlStrip">
+        <div class="pnl-card"><div class="pnl-label">Total Realized P&L</div><div class="pnl-val positive" id="jPnl">+$0</div></div>
+        <div class="pnl-card"><div class="pnl-label">Win Rate</div><div class="pnl-val" id="jWinRate">—</div></div>
+        <div class="pnl-card"><div class="pnl-label">Avg Win</div><div class="pnl-val positive" id="jAvgWin">—</div></div>
+        <div class="pnl-card"><div class="pnl-label">Avg Loss</div><div class="pnl-val negative" id="jAvgLoss">—</div></div>
+        <div class="pnl-card"><div class="pnl-label">Profit Factor</div><div class="pnl-val" id="jPF">—</div></div>
+        <div class="pnl-card"><div class="pnl-label">Total Trades</div><div class="pnl-val" id="jTotal">0</div></div>
+    </div>
+
+    <div class="journal-form">
+        <div class="section-title">Log New Trade</div>
+        <div class="journal-row">
+            <div class="journal-field"><span class="journal-label">Ticker</span><input class="journal-input" id="jTicker" placeholder="AAPL" maxlength="6"></div>
+            <div class="journal-field"><span class="journal-label">Direction</span>
+                <select class="journal-select" id="jDir"><option value="long">Long</option><option value="short">Short</option></select>
+            </div>
+            <div class="journal-field"><span class="journal-label">Type</span>
+                <select class="journal-select" id="jType"><option value="equity">Equity</option><option value="call">Call</option><option value="put">Put</option><option value="spread">Spread</option></select>
+            </div>
+            <div class="journal-field"><span class="journal-label">Entry Price</span><input class="journal-input" id="jEntry" type="number" placeholder="0.00"></div>
+            <div class="journal-field"><span class="journal-label">Exit Price</span><input class="journal-input" id="jExit" type="number" placeholder="0.00"></div>
+            <div class="journal-field"><span class="journal-label">Size ($)</span><input class="journal-input" id="jSize" type="number" placeholder="1000"></div>
+            <div class="journal-field"><span class="journal-label">Date</span><input class="journal-input" id="jDate" type="date"></div>
+            <div class="journal-field"><span class="journal-label">Stage</span>
+                <select class="journal-select" id="jStage"><option>Stage 2</option><option>Stage 3</option><option>Stage 4</option><option>Stage 1</option><option>N/A</option></select>
+            </div>
+        </div>
+        <div class="journal-field" style="margin-bottom:0.75rem"><span class="journal-label">Notes / Thesis</span><textarea class="journal-textarea" id="jNotes" placeholder="Setup rationale, Weinstein stage, Kell system criteria, exit reason..."></textarea></div>
+        <button class="journal-submit" onclick="addJournalEntry()">+ Log Trade</button>
+    </div>
+
+    <div class="movers-section">
+        <div class="section-title">Trade Log</div>
+        <div id="journalEntries">
+            <!-- pre-seeded entries -->
+            <div class="journal-entry long-win">
+                <div class="journal-entry-header">
+                    <div><span class="journal-entry-title">GLD — Long Call</span><span class="wl-badge positive">+$840</span></div>
+                    <div class="journal-entry-meta">Feb 24, 2026 · Stage 2 · Equity</div>
+                </div>
+                <div class="journal-stats">
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$255.40</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$262.11</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$5,000</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">2.8:1</span></div>
+                </div>
+                <div class="journal-notes">Stage 2 uptrend with RS line breaking to 52-week high vs SPY. Kell trend intact above 10/20 EMA. Risk-off macro regime confirms. HMM Bull on GLD.</div>
+            </div>
+            <div class="journal-entry short-win">
+                <div class="journal-entry-header">
+                    <div><span class="journal-entry-title">TSLA — Short</span><span class="wl-badge positive">+$1,230</span></div>
+                    <div class="journal-entry-meta">Mar 04, 2026 · Stage 4 · Equity</div>
+                </div>
+                <div class="journal-stats">
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$306.40</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$274.68</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$6,000</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">3.4:1</span></div>
+                </div>
+                <div class="journal-notes">Weinstein Stage 4 breakdown confirmed. 30-week MA acting as resistance. IWM HMM Bear regime macro tailwind. High relative volume on breakdown day. COT net short growing.</div>
+            </div>
+            <div class="journal-entry long-loss">
+                <div class="journal-entry-header">
+                    <div><span class="journal-entry-title">NVDA — Long Call</span><span class="wl-badge negative">-$420</span></div>
+                    <div class="journal-entry-meta">Feb 10, 2026 · Stage 3 · Call</div>
+                </div>
+                <div class="journal-stats">
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$138.20</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$124.80</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$2,800</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">0.6:1</span></div>
+                </div>
+                <div class="journal-notes">Entered too early before base confirmed. Stock still in Stage 3 distribution. Lesson: wait for Stage 1 basing and volume dry-up before re-entry.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+</div><!-- /container -->
+
+<!-- ── MARKET BREADTH ─────────────────────────────────── -->
+<!-- NOTE: rendered outside .container for full-width but kept inside body flow -->
+<div class="tab-content" id="breadth" style="padding:1.5rem;max-width:1920px;margin:0 auto">
+
+    <!-- TOP METRICS STRIP -->
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem;margin-bottom:1.5rem" id="breadthMetrics">
+        <!-- populated by JS -->
+    </div>
+
+    <!-- ROW 1: Adv/Dec + McClellan -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+
+        <!-- Advance / Decline -->
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1.25rem">
+            <div class="section-title">NYSE Advance / Decline</div>
+            <div style="display:flex;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap">
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">Advancing</div><div style="color:#22c55e;font-size:1.4rem;font-weight:700" id="bdAdvancing">—</div></div>
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">Declining</div><div style="color:#ef4444;font-size:1.4rem;font-weight:700" id="bdDeclining">—</div></div>
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">Unchanged</div><div style="color:#94a3b8;font-size:1.4rem;font-weight:700" id="bdUnchanged">—</div></div>
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">A/D Ratio</div><div style="font-size:1.4rem;font-weight:700" id="bdADRatio">—</div></div>
+            </div>
+            <!-- Adv/Dec bar -->
+            <div style="margin-bottom:.5rem">
+                <div style="display:flex;border-radius:.25rem;overflow:hidden;height:10px" id="bdADBar">
+                    <div style="background:#22c55e;width:37%"></div>
+                    <div style="background:#64748b;width:5%"></div>
+                    <div style="background:#ef4444;width:58%"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:.3rem;font-size:.7rem;color:#64748b">
+                    <span id="bdAdvPct">—% adv</span><span id="bdDecPct">—% dec</span>
+                </div>
+            </div>
+            <!-- Cumulative A/D line chart (canvas) -->
+            <canvas id="bdADCanvas" height="90" style="width:100%;margin-top:.5rem"></canvas>
+        </div>
+
+        <!-- McClellan Oscillator -->
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1.25rem">
+            <div class="section-title">McClellan Oscillator &amp; Summation Index</div>
+            <div style="display:flex;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap">
+                <div>
+                    <div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">McClellan Osc.</div>
+                    <div style="font-size:1.4rem;font-weight:700" id="bdMcClellan">—</div>
+                    <div style="font-size:.7rem;color:#64748b;margin-top:.15rem" id="bdMcClellanSig">—</div>
+                </div>
+                <div>
+                    <div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">Summation Index</div>
+                    <div style="font-size:1.4rem;font-weight:700" id="bdSummation">—</div>
+                    <div style="font-size:.7rem;color:#64748b;margin-top:.15rem" id="bdSummationSig">—</div>
+                </div>
+                <div>
+                    <div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">19-day EMA (Net)</div>
+                    <div style="font-size:1.4rem;font-weight:700;color:#94a3b8" id="bdEMA19">—</div>
+                </div>
+                <div>
+                    <div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.2rem">39-day EMA (Net)</div>
+                    <div style="font-size:1.4rem;font-weight:700;color:#94a3b8" id="bdEMA39">—</div>
+                </div>
+            </div>
+            <canvas id="bdMcClellanCanvas" height="90" style="width:100%;margin-top:.5rem"></canvas>
+        </div>
+    </div>
+
+    <!-- ROW 2: New Highs/Lows + Above MA -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+
+        <!-- 52-Week New Highs / Lows -->
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1.25rem">
+            <div class="section-title">52-Week New Highs vs New Lows</div>
+            <div style="display:flex;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap">
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;margin-bottom:.2rem">New Highs</div><div style="color:#22c55e;font-size:1.4rem;font-weight:700" id="bdNewHighs">—</div></div>
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;margin-bottom:.2rem">New Lows</div><div style="color:#ef4444;font-size:1.4rem;font-weight:700" id="bdNewLows">—</div></div>
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;margin-bottom:.2rem">HL Ratio</div><div style="font-size:1.4rem;font-weight:700" id="bdHLRatio">—</div></div>
+            </div>
+            <canvas id="bdHLCanvas" height="90" style="width:100%"></canvas>
+            <div style="margin-top:.75rem;padding:.6rem .75rem;background:#0f172a;border-radius:.3rem;border-left:3px solid #334155" id="bdHLSignal">
+                <span style="font-size:.75rem;color:#94a3b8">Signal loading...</span>
+            </div>
+        </div>
+
+        <!-- % Above Key Moving Averages -->
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1.25rem">
+            <div class="section-title">% of S&amp;P 500 Stocks Above Key MAs</div>
+            <div style="display:flex;flex-direction:column;gap:.6rem" id="bdMABars">
+                <!-- populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ROW 3: Sector Breadth + Up/Down Volume -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+
+        <!-- Sector Breadth Heatmap -->
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1.25rem">
+            <div class="section-title">Sector Breadth — % Stocks Above 50-Day MA</div>
+            <div style="display:flex;flex-direction:column;gap:.5rem" id="bdSectorBreadth">
+                <!-- populated by JS -->
+            </div>
+        </div>
+
+        <!-- Up/Down Volume -->
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1.25rem">
+            <div class="section-title">NYSE Up Volume vs Down Volume</div>
+            <div style="display:flex;gap:1.5rem;margin-bottom:1rem;flex-wrap:wrap">
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;margin-bottom:.2rem">Up Volume</div><div style="color:#22c55e;font-size:1.4rem;font-weight:700" id="bdUpVol">—</div></div>
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;margin-bottom:.2rem">Down Volume</div><div style="color:#ef4444;font-size:1.4rem;font-weight:700" id="bdDownVol">—</div></div>
+                <div><div style="color:#64748b;font-size:0.7rem;text-transform:uppercase;margin-bottom:.2rem">Vol Ratio</div><div style="font-size:1.4rem;font-weight:700" id="bdVolRatio">—</div></div>
+            </div>
+            <canvas id="bdVolCanvas" height="90" style="width:100%"></canvas>
+            <div style="margin-top:.75rem;padding:.6rem .75rem;background:#0f172a;border-radius:.3rem;border-left:3px solid #334155" id="bdVolSignal">
+                <span style="font-size:.75rem;color:#94a3b8">Signal loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ROW 4: ARMS Index + Breadth Interpretation -->
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:1rem;margin-bottom:1rem">
+
+        <!-- ARMS / TRIN -->
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1.25rem">
+            <div class="section-title">TRIN (Arms Index)</div>
+            <div style="text-align:center;padding:1rem 0">
+                <div style="font-size:3rem;font-weight:700;letter-spacing:-.02em" id="bdTRIN">—</div>
+                <div style="font-size:.8rem;color:#64748b;margin-top:.25rem" id="bdTRINLabel">—</div>
+            </div>
+            <div style="font-size:.75rem;color:#64748b;line-height:1.5;border-top:1px solid #334155;padding-top:.75rem">
+                <strong style="color:#94a3b8">TRIN Guide:</strong><br>
+                &lt; 0.75 → Overbought / strong buying<br>
+                0.75–1.25 → Neutral<br>
+                1.25–2.0 → Selling pressure<br>
+                &gt; 2.0 → Panic / potential reversal
+            </div>
+        </div>
+
+        <!-- Breadth Summary & Interpretation -->
+        <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1.25rem">
+            <div class="section-title">Breadth Interpretation &amp; Regime Signal</div>
+            <div style="display:flex;flex-direction:column;gap:.6rem" id="bdInterpretation">
+                <!-- populated by JS -->
+            </div>
+        </div>
+    </div>
+
+</div><!-- /breadth tab -->
+
+
+
+<script>
+// ══════════════════════════════════════════════════════════════
+// TAB NAVIGATION
+// ══════════════════════════════════════════════════════════════
+document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById(tabId).classList.add('active');
+    });
+});
+
+// ══════════════════════════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════════════════════════
+function updateClock() {
+    const now = new Date();
+    const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    const h = et.getHours(), m = et.getMinutes(), s = et.getSeconds();
+    document.getElementById('clockEl').textContent =
+        `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} ET`;
+    const isWeekday = et.getDay() > 0 && et.getDay() < 6;
+    const isMarketHours = isWeekday && (h > 9 || (h === 9 && m >= 30)) && h < 16;
+    const statusEl = document.getElementById('marketStatus');
+    statusEl.textContent = isMarketHours ? 'OPEN' : 'CLOSED';
+    statusEl.style.backgroundColor = isMarketHours ? '#16a34a' : '#dc2626';
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ══════════════════════════════════════════════════════════════
+// ── Railway backend URL ──────────────────────────────────────
+const RAILWAY_URL = 'https://nexus-terminal-production-9d34.up.railway.app';
+
+// HMM RUNNER — wired to live Railway backend
+// ══════════════════════════════════════════════════════════════
+const HMM_RESULTS = {
+    regimes: ['Bull','Bear','Ranging','High Volatility'],
+    colors:  ['#22c55e','#ef4444','#f59e0b','#8b5cf6'],
+    signals: {
+        Bull:     'Long positions favored. Trail stops above 10-day EMA. Options: consider calls / call spreads on pullbacks.',
+        Bear:     'Avoid longs. Short candidates with Stage 4 breakdown preferred. Options: buy puts / bear put spreads.',
+        Ranging:  'Range-bound strategies preferred. Iron condors / credit spreads. Await regime confirmation before directional trades.',
+        'High Volatility': 'Elevated realized vol — hedge existing positions. Long gamma / straddles may be appropriate. Reduce position size.'
+    }
+};
+
+function runHMM(mode) {
+    const inputId  = mode === 'index' ? 'hmmIndexInput'  : 'hmmStockInput';
+    const lbId     = mode === 'index' ? 'hmmIndexLookback': 'hmmStockLookback';
+    const outId    = mode === 'index' ? 'hmmIndexOutput'  : 'hmmStockOutput';
+    const btnId    = mode === 'index' ? 'hmmIndexBtn'     : 'hmmStockBtn';
+
+    const ticker   = document.getElementById(inputId).value.trim().toUpperCase() || 'SPY';
+    const lookback = document.getElementById(lbId).value;
+    const outEl    = document.getElementById(outId);
+    const btnEl    = document.getElementById(btnId);
+
+    document.getElementById(inputId).value = ticker;
+    btnEl.classList.add('running');
+    btnEl.textContent = '⏳ Running...';
+    outEl.innerHTML = '<span class="spinner"></span> Fetching data and computing HMM states...';
+
+    fetch(`${RAILWAY_URL}/api/hmm?ticker=${encodeURIComponent(ticker)}&lookback=${lookback}`)
+        .then(r => {
+            if (!r.ok) return r.json().then(e => { throw new Error(e.detail || r.statusText); });
+            return r.json();
+        })
+        .then(d => {
+            const bearColor = d.bear_probability > 25 ? '#ef4444' : '#94a3b8';
+            outEl.innerHTML = `
+<div style="margin-bottom:0.75rem">
+  <span style="color:${d.color};font-size:1rem;font-weight:700">${d.ticker} — ${d.regime} Regime</span>
+  <span style="color:#64748b;font-size:0.8rem;margin-left:0.75rem">lookback: ${d.lookback}d · live</span>
+</div>
+<table style="font-size:0.8rem;border-collapse:collapse;margin-bottom:0.75rem">
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Regime Probability</td><td style="color:${d.color};font-weight:700">${d.probability}%</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Bear Probability</td><td style="color:${bearColor};font-weight:700">${d.bear_probability}%</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Bull Probability</td><td style="color:#22c55e;font-weight:600">${d.bull_probability}%</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Regime Duration</td><td style="color:#e2e8f0;font-weight:600">${d.duration_days} days</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Daily Ret / Vol</td><td style="color:#e2e8f0">${d.ret_mean_daily_pct > 0 ? '+' : ''}${d.ret_mean_daily_pct}% / ${d.ret_std_daily_pct}%</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">HMM States (N=4)</td><td style="color:#e2e8f0">Bull / Bear / Ranging / High Vol</td></tr>
+</table>
+<div style="padding:0.75rem;background-color:#1e293b;border-radius:0.375rem;border-left:3px solid ${d.color}">
+  <span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em">Trade Signal</span><br>
+  <span style="color:#e2e8f0;font-size:0.875rem">${d.signal}</span>
+</div>`;
+        })
+        .catch(err => {
+            outEl.innerHTML = `<span style="color:#ef4444">⚠ Error: ${err.message}</span>`;
+        })
+        .finally(() => {
+            btnEl.classList.remove('running');
+            btnEl.textContent = '▶ Run HMM';
+        });
+}
+
+// ══════════════════════════════════════════════════════════════
+// HYBRID MODEL RUNNER
+// ══════════════════════════════════════════════════════════════
+function runHybrid() {
+    const ticker   = document.getElementById('hybridInput').value.trim().toUpperCase() || 'SPY';
+    const horizon  = document.getElementById('hybridHorizon').value;
+    const lookback = document.getElementById('hybridLookback').value;
+    const outEl    = document.getElementById('hybridOutput');
+    const btnEl    = document.getElementById('hybridBtn');
+
+    document.getElementById('hybridInput').value = ticker;
+    btnEl.classList.add('running');
+    btnEl.textContent = '⏳ Running...';
+    outEl.innerHTML = '<span class="spinner"></span> Running HMM regime detection + LSTM inference...';
+
+    fetch(`${RAILWAY_URL}/api/hybrid?ticker=${encodeURIComponent(ticker)}&horizon=${horizon}&lookback=${lookback}`)
+        .then(r => {
+            if (!r.ok) return r.json().then(e => { throw new Error(e.detail || r.statusText); });
+            return r.json();
+        })
+        .then(d => {
+            outEl.innerHTML = `
+<div style="margin-bottom:0.75rem">
+  <span style="color:#e2e8f0;font-size:1rem;font-weight:700">${d.ticker}</span>
+  <span style="color:${d.regime_color};font-size:0.875rem;margin-left:0.75rem">[HMM: ${d.regime} ${d.regime_probability}%]</span>
+  <span style="color:${d.direction_color};font-size:0.875rem;margin-left:0.75rem">[LSTM: ${d.direction}]</span>
+  <span style="color:#64748b;font-size:0.8rem;margin-left:0.75rem">horizon: ${d.horizon_days}d | lookback: ${d.lookback_days}d · live</span>
+</div>
+<table style="font-size:0.8rem;border-collapse:collapse;margin-bottom:0.75rem">
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Regime (HMM)</td><td style="color:${d.regime_color};font-weight:700">${d.regime} — ${d.regime_probability}% probability</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">LSTM Direction</td><td style="color:${d.direction_color};font-weight:700">${d.direction}</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Expected Move (${d.horizon_days}d)</td><td style="color:${d.direction_color};font-weight:700">${d.expected_move_pct > 0 ? '+' : ''}${d.expected_move_pct}%</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Model Confidence</td><td style="color:#e2e8f0;font-weight:600">${d.confidence_pct}%</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Backtest Sharpe</td><td style="color:#e2e8f0;font-weight:600">${d.sharpe_annualized}</td></tr>
+  <tr><td style="color:#64748b;padding:0.2rem 1rem 0.2rem 0">Model R²</td><td style="color:#e2e8f0;font-weight:600">${d.r2}</td></tr>
+</table>
+<div style="padding:0.75rem;background-color:#1e293b;border-radius:0.375rem;border-left:3px solid ${d.direction_color}">
+  <span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em">Recommended Action</span><br>
+  <span style="color:${d.direction_color};font-size:0.875rem;font-weight:700">${d.action}</span>
+  <span style="color:#94a3b8;font-size:0.875rem"> — ${d.signal}</span>
+</div>`;
+        })
+        .catch(err => {
+            outEl.innerHTML = `<span style="color:#ef4444">⚠ Error: ${err.message}</span>`;
+        })
+        .finally(() => {
+            btnEl.classList.remove('running');
+            btnEl.textContent = '▶ Run Hybrid Model';
+        });
+}
+
+// ══════════════════════════════════════════════════════════════
+// WATCHLIST — three panels: weekly / daily / ondeck
+// ══════════════════════════════════════════════════════════════
+
+// Seed data: { sym, price, day, week, month, stage, rs, notes }
+const WL_SEED = {
+    weekly: [
+        { sym:'GLD',  price:'262.11', day:'+0.88', week:'+2.14', month:'+5.31', stage:'s2', rs:97, notes:'RS 52-wk high / defensive bid / risk-off tailwind' },
+        { sym:'MSFT', price:'388.45', day:'-1.62', week:'-3.44', month:'-4.11', stage:'s2', rs:68, notes:'Constructive above 30-wk MA · await pullback entry' },
+        { sym:'XLU',  price:'81.44',  day:'+0.31', week:'+1.08', month:'+3.72', stage:'s2', rs:88, notes:'Defensive rotation active · stage 2 breakout' },
+    ],
+    daily: [
+        { sym:'TSLA', price:'274.68', day:'-10.21', week:'-14.3', month:'-21.8', stage:'s4', rs:12, notes:'Stage 4 breakdown / high vol / COT net short rising' },
+        { sym:'NVDA', price:'107.49', day:'-5.74',  week:'-9.18', month:'-22.4', stage:'s3', rs:44, notes:'Distribution / failed breakout · watch for Stage 1 base' },
+    ],
+    ondeck: [
+        { sym:'AAPL', price:'221.53', day:'-1.46', week:'-4.22', month:'-8.11', stage:'s3', rs:55, notes:'Basing under 30-wk MA · wait for volume contraction' },
+        { sym:'GOOGL',price:'163.90', day:'-2.04', week:'-5.12', month:'-9.44', stage:'s2', rs:71, notes:'RS holding vs peers · needs broader market stabilization' },
+    ]
+};
+
+function chgClass(val) {
+    const n = parseFloat(val);
+    if (n > 0) return 'pos';
+    if (n < 0) return 'neg';
+    return 'neu';
+}
+
+function chgLabel(val) {
+    const n = parseFloat(val);
+    const sign = n > 0 ? '▲ +' : n < 0 ? '▼ ' : '';
+    return `${sign}${val}%`;
+}
+
+function stageLabel(s) {
+    const map = { s1:'Stage 1', s2:'Stage 2', s3:'Stage 3', s4:'Stage 4' };
+    return map[s] || '—';
+}
+
+function rsColor(rs) {
+    if (rs >= 80) return '#22c55e';
+    if (rs >= 50) return '#f59e0b';
+    return '#ef4444';
+}
+
+function buildRow(item, listKey) {
+    const tr = document.createElement('tr');
+    tr.dataset.sym = item.sym;
+    tr.dataset.list = listKey;
+    tr.innerHTML = `
+        <td class="wl-sym">${item.sym}</td>
+        <td class="wl-price">$${item.price}</td>
+        <td class="right"><span class="wl-chg ${chgClass(item.day)}">${chgLabel(item.day)}</span></td>
+        <td class="right"><span class="wl-chg ${chgClass(item.week)}">${chgLabel(item.week)}</span></td>
+        <td class="right"><span class="wl-chg ${chgClass(item.month)}">${chgLabel(item.month)}</span></td>
+        <td><span class="wl-stage ${item.stage}">${stageLabel(item.stage)}</span></td>
+        <td class="right"><span class="wl-rs" style="color:${rsColor(item.rs)}">${item.rs}</span></td>
+        <td class="wl-notes" title="${item.notes}">${item.notes}</td>
+        <td><button class="wl-remove" onclick="removeWatchlistRow(this)">✕</button></td>`;
+    return tr;
+}
+
+function updateCount(listKey) {
+    const body = document.getElementById(`wl${cap(listKey)}Body`);
+    const countEl = document.getElementById(`wl${cap(listKey)}Count`);
+    const n = body.querySelectorAll('tr').length;
+    countEl.textContent = n;
+    if (!n) {
+        const empty = document.createElement('tr');
+        empty.className = 'wl-empty-row';
+        empty.innerHTML = `<td colspan="9" class="wl-empty">No tickers added yet.</td>`;
+        body.appendChild(empty);
+    } else {
+        body.querySelectorAll('.wl-empty-row').forEach(r => r.remove());
+    }
+}
+
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function initWatchlists() {
+    ['weekly','daily','ondeck'].forEach(key => {
+        const tbody = document.getElementById(`wl${cap(key)}Body`);
+        (WL_SEED[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
+        updateCount(key);
+
+        document.getElementById(`wl${cap(key)}Input`).addEventListener('keydown', e => {
+            if (e.key === 'Enter') addToWatchlist(key);
+        });
+    });
+}
+
+function addToWatchlist(listKey) {
+    const inputEl = document.getElementById(`wl${cap(listKey)}Input`);
+    const ticker  = inputEl.value.trim().toUpperCase();
+    if (!ticker) return;
+    inputEl.value = '';
+
+    const tbody = document.getElementById(`wl${cap(listKey)}Body`);
+    if (tbody.querySelector(`tr[data-sym="${ticker}"]`)) return; // dedupe within panel
+
+    // Add row immediately with loading state
+    const item = { sym: ticker, price: '…', day: '0', week: '0', month: '0', stage: 's1', rs: 0, notes: 'Fetching data…' };
+    const newRow = buildRow(item, listKey);
+    tbody.appendChild(newRow);
+    updateCount(listKey);
+
+    // Fetch live price and populate the row
+    fetchYahooPrices([ticker]).then(() => {
+        const d = PRICE_CACHE[ticker];
+        if (!d) {
+            // Ticker not found — mark as invalid
+            const cells = newRow.querySelectorAll('td');
+            if (cells[1]) cells[1].textContent = 'N/A';
+            const notesCell = cells[7];
+            if (notesCell) notesCell.textContent = 'Symbol not found';
+            return;
+        }
+        // Populate price cells
+        const cells = newRow.querySelectorAll('td');
+        if (cells[1]) cells[1].textContent = `$${d.price}`;
+
+        const daySpan = cells[2]?.querySelector('.wl-chg');
+        if (daySpan) {
+            daySpan.textContent = fmtPct(d.dayPct);
+            daySpan.className = `wl-chg ${parseFloat(d.dayPct) >= 0 ? 'pos' : 'neg'}`;
+        }
+        const weekSpan = cells[3]?.querySelector('.wl-chg');
+        if (weekSpan) {
+            weekSpan.textContent = fmtPct(d.weekPct);
+            weekSpan.className = `wl-chg ${parseFloat(d.weekPct) >= 0 ? 'pos' : 'neg'}`;
+        }
+        const monthSpan = cells[4]?.querySelector('.wl-chg');
+        if (monthSpan) {
+            monthSpan.textContent = fmtPct(d.monthPct);
+            monthSpan.className = `wl-chg ${parseFloat(d.monthPct) >= 0 ? 'pos' : 'neg'}`;
+        }
+        const notesCell = cells[7];
+        if (notesCell) notesCell.textContent = 'Added — edit notes as needed';
+    }).catch(() => {
+        const cells = newRow.querySelectorAll('td');
+        if (cells[7]) cells[7].textContent = 'Fetch error — check ticker';
+    });
+}
+
+function removeWatchlistRow(btn) {
+    const tr      = btn.closest('tr');
+    const listKey = tr.dataset.list;
+    tr.remove();
+    updateCount(listKey);
+}
+
+initWatchlists();
+
+// ══════════════════════════════════════════════════════════════
+// SCANNER DATA
+// ══════════════════════════════════════════════════════════════
+const SCANNER_DATA = {
+    stage2: [
+        { sym:'GLD',  price:'$262.11', chg:'+0.88%', pos:true, stage:'Stage 2', rs:97, vol:'2.1×', setup:'RS 52-wk high / defensive bid', sig:'BUY' },
+        { sym:'XLU',  price:'$81.44',  chg:'+0.31%', pos:true, stage:'Stage 2', rs:88, vol:'1.9×', setup:'Breakout above 30-wk MA',       sig:'BUY' },
+        { sym:'TLT',  price:'$91.22',  chg:'+0.14%', pos:true, stage:'Stage 2', rs:81, vol:'1.4×', setup:'Basing complete / rate sensitivity', sig:'WATCH' },
+        { sym:'MSFT', price:'$388.45', chg:'-1.62%', pos:false, stage:'Stage 2', rs:68, vol:'1.2×', setup:'Constructive above 30-wk MA',   sig:'WATCH' },
+    ],
+    stage4: [
+        { sym:'TSLA', price:'$274.68', chg:'-10.21%', pos:false, stage:'Stage 4', rs:12, vol:'3.8×', setup:'30-wk MA breakdown / high vol',   sig:'SHORT' },
+        { sym:'NVDA', price:'$107.49', chg:'-5.74%',  pos:false, stage:'Stage 4', rs:44, vol:'2.9×', setup:'Distribution / failed breakout',  sig:'SHORT' },
+        { sym:'IWM',  price:'$208.14', chg:'-2.91%',  pos:false, stage:'Stage 4', rs:18, vol:'2.1×', setup:'Index breakdown / bear regime',   sig:'SHORT' },
+        { sym:'BAC',  price:'$41.22',  chg:'-4.01%',  pos:false, stage:'Stage 4', rs:21, vol:'1.8×', setup:'Financials sector rollover',      sig:'AVOID' },
+    ],
+    highrs: [
+        { sym:'GLD',  price:'$262.11', chg:'+0.88%', pos:true, stage:'Stage 2', rs:97, vol:'2.1×', setup:'Top RS vs SPY — 52-wk high',     sig:'BUY' },
+        { sym:'XLU',  price:'$81.44',  chg:'+0.31%', pos:true, stage:'Stage 2', rs:88, vol:'1.9×', setup:'Defensive sector RS expanding',  sig:'BUY' },
+        { sym:'GOOGL',price:'$163.90', chg:'-2.04%', pos:false, stage:'Stage 2', rs:71, vol:'1.3×', setup:'RS holding vs tech peers',       sig:'WATCH' },
+        { sym:'MSFT', price:'$388.45', chg:'-1.62%', pos:false, stage:'Stage 2', rs:68, vol:'1.2×', setup:'RS above 50% vs SPY',           sig:'WATCH' },
+    ],
+    options: [
+        { sym:'SPY',  price:'$568.84', chg:'-2.09%', pos:false, stage:'—',       rs:38, vol:'2.4×', setup:'IV%ile 78 / Put sweep $4.2M',   sig:'BEAR' },
+        { sym:'QQQ',  price:'$478.18', chg:'-2.64%', pos:false, stage:'—',       rs:34, vol:'2.6×', setup:'IV%ile 81 / Put sweep $2.8M',   sig:'BEAR' },
+        { sym:'TSLA', price:'$274.68', chg:'-10.21%',pos:false, stage:'Stage 4', rs:12, vol:'3.8×', setup:'IV%ile 91 / Put sweep $3.1M',   sig:'SHORT' },
+        { sym:'GLD',  price:'$262.11', chg:'+0.88%', pos:true,  stage:'Stage 2', rs:97, vol:'2.1×', setup:'IV%ile 44 / Call block $1.9M',  sig:'BUY' },
+    ]
+};
+
+function filterScanner(preset) {
+    document.querySelectorAll('.scanner-filter-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+    renderScanner(SCANNER_DATA[preset]);
+}
+
+function renderScanner(rows) {
+    const tbody = document.getElementById('scannerBody');
+    tbody.innerHTML = '';
+    rows.forEach(r => {
+        const tr = document.createElement('tr');
+        const sigClass = { BUY:'tag-buy', SHORT:'tag-sell', WATCH:'tag-watch', BEAR:'tag-sell', AVOID:'tag-sell', HOLD:'tag-hold' };
+        tr.innerHTML = `
+            <td style="font-weight:700">${r.sym}</td>
+            <td>${r.price}</td>
+            <td class="${r.pos?'positive':'negative'}">${r.pos?'▲':'▼'} ${r.chg}</td>
+            <td><span class="tag ${r.pos?'tag-buy':'tag-sell'}">${r.stage}</span></td>
+            <td style="color:${r.rs>70?'#22c55e':r.rs>40?'#f59e0b':'#ef4444'}">${r.rs}</td>
+            <td style="color:${parseFloat(r.vol)>2?'#f59e0b':'#94a3b8'}">${r.vol}</td>
+            <td style="font-size:0.8rem;color:#94a3b8">${r.setup}</td>
+            <td><span class="tag ${sigClass[r.sig]||'tag-watch'}">${r.sig}</span></td>`;
+        tbody.appendChild(tr);
+    });
+}
+
+// ══════════════════════════════════════════════════════════════
+// HEATMAP — sector-grouped, collapsible
+// ══════════════════════════════════════════════════════════════
+const HEATMAP_DATA = [
+    { sector: 'Technology', stocks: [
+        { sym:'AAPL',  chg:-1.46 }, { sym:'MSFT',  chg:-1.62 }, { sym:'NVDA',  chg:-5.74 },
+        { sym:'GOOGL', chg:-2.04 }, { sym:'META',  chg:-3.88 }, { sym:'TSLA',  chg:-10.21 },
+        { sym:'AMD',   chg:-6.12 }, { sym:'INTC',  chg:-3.44 },
+    ]},
+    { sector: 'Consumer Disc.', stocks: [
+        { sym:'AMZN', chg:-3.15 }, { sym:'HD',   chg:-2.58 }, { sym:'NKE',  chg:-2.41 },
+        { sym:'MCD',  chg:-1.23 }, { sym:'SBUX', chg:-1.88 },
+    ]},
+    { sector: 'Healthcare', stocks: [
+        { sym:'JNJ',  chg:-1.12 }, { sym:'UNH',  chg:-0.88 }, { sym:'PFE',  chg:-0.77 },
+        { sym:'ABBV', chg:-1.03 }, { sym:'MRK',  chg:-1.44 },
+    ]},
+    { sector: 'Financials', stocks: [
+        { sym:'JPM', chg:-3.22 }, { sym:'BAC', chg:-4.01 }, { sym:'GS',  chg:-2.86 },
+        { sym:'MS',  chg:-3.54 }, { sym:'V',   chg:-1.18 }, { sym:'MA',  chg:-1.32 },
+    ]},
+    { sector: 'Energy', stocks: [
+        { sym:'XOM', chg:-1.77 }, { sym:'CVX', chg:-1.55 }, { sym:'COP', chg:-2.08 },
+        { sym:'SLB', chg:-2.44 }, { sym:'OXY', chg:-2.91 },
+    ]},
+    { sector: 'Industrials', stocks: [
+        { sym:'CAT', chg:-2.34 }, { sym:'BA',  chg:-3.11 }, { sym:'HON', chg:-1.67 },
+        { sym:'UNP', chg:-1.44 }, { sym:'GE',  chg:-2.88 },
+    ]},
+    { sector: 'Utilities', stocks: [
+        { sym:'XLU', chg:+0.31 }, { sym:'NEE', chg:+0.18 }, { sym:'DUK', chg:+0.22 },
+    ]},
+    { sector: 'Materials / Macro', stocks: [
+        { sym:'GLD', chg:+0.88 }, { sym:'SLV', chg:+1.14 }, { sym:'TLT', chg:+0.04 },
+        { sym:'DXY', chg:+0.33 },
+    ]},
+];
+
+function hmCellColor(chg) {
+    if (chg <= -8)  return '#7f1010';
+    if (chg <= -4)  return '#991b1b';
+    if (chg <= -2)  return '#7f1d1d';
+    if (chg <   0)  return '#4c1414';
+    if (chg === 0)  return '#1e293b';
+    if (chg <  +2)  return '#14401e';
+    if (chg <  +4)  return '#14532d';
+    return '#166534';
+}
+
+function hmAvgClass(avg) {
+    if (avg > 0.05) return 'pos';
+    if (avg < -0.05) return 'neg';
+    return 'neu';
+}
+
+function buildHeatmap() {
+    const container = document.getElementById('heatmapContainer');
+    container.innerHTML = '';
+
+    HEATMAP_DATA.forEach((sector, i) => {
+        const avg = sector.stocks.reduce((s, st) => s + st.chg, 0) / sector.stocks.length;
+        const avgStr = (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%';
+        const avgCls = hmAvgClass(avg);
+        const isOpen = true; // all expanded by default
+
+        const block = document.createElement('div');
+        block.className = 'heatmap-sector-block';
+
+        const header = document.createElement('div');
+        header.className = 'heatmap-sector-header';
+        header.innerHTML = `
+            <div class="heatmap-sector-left">
+                <span class="heatmap-sector-name">${sector.sector}</span>
+                <span class="heatmap-sector-avg ${avgCls}">${avgStr} avg</span>
+            </div>
+            <span class="heatmap-chevron open">▼</span>`;
+
+        const body = document.createElement('div');
+        body.className = 'heatmap-sector-body';
+
+        sector.stocks.forEach(st => {
+            const sign = st.chg > 0 ? '+' : '';
+            const cell = document.createElement('div');
+            cell.className = 'heatmap-cell';
+            cell.style.backgroundColor = hmCellColor(st.chg);
+            cell.innerHTML = `<span class="heatmap-symbol">${st.sym}</span><span class="heatmap-change">${sign}${st.chg}%</span>`;
+            body.appendChild(cell);
+        });
+
+        // measure and set max-height for transition
+        block.appendChild(header);
+        block.appendChild(body);
+        container.appendChild(block);
+
+        // after render, lock max-height to current scrollHeight
+        requestAnimationFrame(() => {
+            body.style.maxHeight = body.scrollHeight + 'px';
+        });
+
+        header.addEventListener('click', () => {
+            const chevron = header.querySelector('.heatmap-chevron');
+            const isCollapsed = body.classList.contains('collapsed');
+            if (isCollapsed) {
+                body.classList.remove('collapsed');
+                body.style.maxHeight = body.scrollHeight + 'px';
+                chevron.classList.add('open');
+            } else {
+                body.style.maxHeight = body.scrollHeight + 'px'; // pin before collapsing
+                requestAnimationFrame(() => {
+                    body.classList.add('collapsed');
+                    chevron.classList.remove('open');
+                });
+            }
+        });
+    });
+}
+
+buildHeatmap();
+
+
+
+// ══════════════════════════════════════════════════════════════
+// JOURNAL
+// ══════════════════════════════════════════════════════════════
+let journalTrades = [
+    { dir:'long',  pnl: 840,  win: true },
+    { dir:'short', pnl: 1230, win: true },
+    { dir:'long',  pnl:-420,  win: false }
+];
+
+function updateJournalStats() {
+    const wins   = journalTrades.filter(t => t.win);
+    const losses = journalTrades.filter(t => !t.win);
+    const totalPnl = journalTrades.reduce((s, t) => s + t.pnl, 0);
+    const winRate  = journalTrades.length ? (wins.length / journalTrades.length * 100).toFixed(0) : '—';
+    const avgWin   = wins.length   ? (wins.reduce((s,t)=>s+t.pnl,0)/wins.length).toFixed(0)     : '—';
+    const avgLoss  = losses.length ? (losses.reduce((s,t)=>s+t.pnl,0)/losses.length).toFixed(0) : '—';
+    const grossW   = wins.reduce((s,t)=>s+t.pnl,0);
+    const grossL   = Math.abs(losses.reduce((s,t)=>s+t.pnl,0));
+    const pf       = grossL > 0 ? (grossW / grossL).toFixed(2) : wins.length ? '∞' : '—';
+
+    document.getElementById('jPnl').textContent    = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toLocaleString();
+    document.getElementById('jPnl').className      = 'pnl-val ' + (totalPnl >= 0 ? 'positive' : 'negative');
+    document.getElementById('jWinRate').textContent = wins.length ? winRate + '%' : '—';
+    document.getElementById('jAvgWin').textContent  = avgWin !== '—' ? '+$' + avgWin : '—';
+    document.getElementById('jAvgLoss').textContent = avgLoss !== '—' ? '-$' + Math.abs(avgLoss) : '—';
+    document.getElementById('jPF').textContent      = pf;
+    document.getElementById('jTotal').textContent   = journalTrades.length;
+}
+
+function addJournalEntry() {
+    const ticker = document.getElementById('jTicker').value.trim().toUpperCase();
+    const dir    = document.getElementById('jDir').value;
+    const type   = document.getElementById('jType').value;
+    const entry  = parseFloat(document.getElementById('jEntry').value);
+    const exit   = parseFloat(document.getElementById('jExit').value);
+    const size   = parseFloat(document.getElementById('jSize').value);
+    const date   = document.getElementById('jDate').value;
+    const stage  = document.getElementById('jStage').value;
+    const notes  = document.getElementById('jNotes').value;
+
+    if (!ticker || isNaN(entry) || isNaN(exit) || isNaN(size)) return;
+
+    const pctMove = dir === 'long' ? (exit - entry) / entry : (entry - exit) / entry;
+    const pnl     = Math.round(pctMove * size);
+    const win     = pnl >= 0;
+
+    journalTrades.push({ dir, pnl, win });
+    updateJournalStats();
+
+    const pnlClass = win ? 'positive' : 'negative';
+    const entryClass = (dir === 'long' && win) || (dir === 'short' && win) ? 'long-win' : 'long-loss';
+
+    const div = document.createElement('div');
+    div.className = `journal-entry ${entryClass}`;
+    div.innerHTML = `
+        <div class="journal-entry-header">
+            <div><span class="journal-entry-title">${ticker} — ${dir.charAt(0).toUpperCase()+dir.slice(1)} ${type.charAt(0).toUpperCase()+type.slice(1)}</span>
+            <span class="wl-badge ${pnlClass}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toLocaleString()}</span></div>
+            <div class="journal-entry-meta">${date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'Today'} · ${stage} · ${type}</div>
+        </div>
+        <div class="journal-stats">
+            <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$${entry.toFixed(2)}</span></div>
+            <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$${exit.toFixed(2)}</span></div>
+            <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$${size.toLocaleString()}</span></div>
+            <div class="journal-stat-item"><span class="journal-stat-lbl">P&L %</span><span class="journal-stat-val ${pnlClass}">${(pctMove*100).toFixed(2)}%</span></div>
+        </div>
+        ${notes ? `<div class="journal-notes">${notes}</div>` : ''}`;
+    document.getElementById('journalEntries').prepend(div);
+
+    ['jTicker','jEntry','jExit','jSize','jNotes'].forEach(id => document.getElementById(id).value = '');
+}
+
+// init journal stats
+
+// ══════════════════════════════════════════════════════════════
+// MARKET BREADTH
+// ══════════════════════════════════════════════════════════════
+const BD = {
+    advancing: 1847, declining: 3112, unchanged: 218,
+    newHighs: 48, newLows: 312,
+    upVol: 1.24, downVol: 6.88, // billions
+    trin: 2.14,
+    mcclellan: -87.4,
+    summation: -312,
+    ema19: -41.2, ema39: -18.6,
+    aboveMA: [
+        { label: '20-Day MA',  pct: 28 },
+        { label: '50-Day MA',  pct: 31 },
+        { label: '100-Day MA', pct: 38 },
+        { label: '200-Day MA', pct: 44 },
+    ],
+    sectorBreadth: [
+        { name: 'Utilities',        pct: 72 },
+        { name: 'Healthcare',       pct: 51 },
+        { name: 'Consumer Staples', pct: 48 },
+        { name: 'Materials',        pct: 41 },
+        { name: 'Energy',           pct: 38 },
+        { name: 'Industrials',      pct: 34 },
+        { name: 'Financials',       pct: 29 },
+        { name: 'Technology',       pct: 22 },
+        { name: 'Consumer Disc.',   pct: 19 },
+        { name: 'Comm. Services',   pct: 18 },
+    ],
+    // 20-day sparkline data (most recent last)
+    adLine:       [410,398,412,420,415,408,388,372,360,341,328,318,302,291,274,258,242,231,218,204],
+    mcLine:       [-12,-18,-24,-31,-38,-42,-51,-58,-64,-71,-74,-78,-82,-85,-87,-88,-87,-87,-87,-87],
+    hlLine:       [210,188,174,158,142,128,112,98,84,74,66,58,54,52,50,49,49,48,48,48],
+    llLine:       [88, 101,114,128,144,158,172,186,200,218,234,248,264,278,290,302,310,311,312,312],
+    upVolLine:    [4.2,3.8,3.5,3.2,2.9,2.7,2.4,2.2,2.0,1.9,1.8,1.7,1.7,1.6,1.5,1.4,1.4,1.3,1.2,1.24],
+    downVolLine:  [2.8,3.1,3.4,3.7,4.0,4.3,4.6,5.0,5.3,5.6,5.8,6.0,6.2,6.4,6.5,6.6,6.7,6.8,6.88,6.88],
+};
+
+function bdColor(val, good, warn) {
+    // good = direction where val is bullish (high or low)
+    return val > warn ? (good === 'high' ? '#22c55e' : '#ef4444')
+         : val < good ? (good === 'high' ? '#ef4444' : '#22c55e')
+         : '#f59e0b';
+}
+
+function bdBarColor(pct) {
+    if (pct >= 60) return '#22c55e';
+    if (pct >= 40) return '#f59e0b';
+    return '#ef4444';
+}
+
+function renderSparkline(canvasId, datasets, opts = {}) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    canvas.width = canvas.offsetWidth || canvas.parentElement.offsetWidth || 400;
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+
+    datasets.forEach(({ data, color, fill }) => {
+        if (!data || !data.length) return;
+        const min = Math.min(...data), max = Math.max(...data);
+        const range = max - min || 1;
+        const pts = data.map((v, i) => ({
+            x: (i / (data.length - 1)) * W,
+            y: H - ((v - min) / range) * (H - 8) - 4
+        }));
+
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        if (fill) {
+            ctx.lineTo(pts[pts.length-1].x, H);
+            ctx.lineTo(pts[0].x, H);
+            ctx.closePath();
+            ctx.fillStyle = fill;
+            ctx.fill();
+        }
+    });
+
+    // zero line if data crosses zero
+    datasets.forEach(({ data, color }) => {
+        if (!data) return;
+        const min = Math.min(...data), max = Math.max(...data);
+        if (min < 0 && max > 0) {
+            const range = max - min;
+            const zeroY = H - ((0 - min) / range) * (H - 8) - 4;
+            ctx.beginPath();
+            ctx.setLineDash([3, 4]);
+            ctx.moveTo(0, zeroY);
+            ctx.lineTo(W, zeroY);
+            ctx.strokeStyle = 'rgba(100,116,139,0.4)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+    });
+}
+
+function buildBreadthMetrics() {
+    const total = BD.advancing + BD.declining + BD.unchanged;
+    const advPct = ((BD.advancing / total) * 100).toFixed(1);
+    const decPct = ((BD.declining / total) * 100).toFixed(1);
+    const adRatio = (BD.advancing / BD.declining).toFixed(2);
+    const hlRatio = (BD.newHighs / BD.newLows).toFixed(2);
+    const volRatio = (BD.upVol / BD.downVol).toFixed(2);
+
+    // Top metrics cards
+    const metrics = [
+        { label: 'A/D Ratio (NYSE)',    val: adRatio,                color: parseFloat(adRatio) >= 1 ? '#22c55e' : '#ef4444', sub: `${BD.advancing.toLocaleString()} adv / ${BD.declining.toLocaleString()} dec` },
+        { label: 'New High / New Low',  val: hlRatio,                color: parseFloat(hlRatio) >= 1 ? '#22c55e' : '#ef4444', sub: `${BD.newHighs} NH · ${BD.newLows} NL` },
+        { label: 'Up/Down Vol Ratio',   val: volRatio,               color: parseFloat(volRatio) >= 1 ? '#22c55e' : '#ef4444', sub: `${BD.upVol}B up · ${BD.downVol}B dn` },
+        { label: 'TRIN (Arms Index)',   val: BD.trin.toFixed(2),     color: BD.trin > 2 ? '#8b5cf6' : BD.trin > 1.25 ? '#ef4444' : BD.trin < 0.75 ? '#22c55e' : '#f59e0b', sub: BD.trin > 2 ? 'Panic selling' : BD.trin > 1.25 ? 'Selling pressure' : 'Neutral' },
+        { label: 'McClellan Osc.',      val: BD.mcclellan.toFixed(1),color: BD.mcclellan > 0 ? '#22c55e' : BD.mcclellan < -80 ? '#8b5cf6' : '#ef4444', sub: BD.mcclellan < -80 ? 'Oversold territory' : 'Bearish' },
+        { label: '% Above 200-Day MA', val: '44%',                  color: '#ef4444', sub: 'S&P 500 constituents' },
+    ];
+
+    document.getElementById('breadthMetrics').innerHTML = metrics.map(m => `
+        <div style="background:#1e293b;padding:1rem;border-radius:.5rem;border:1px solid #334155">
+            <div style="font-size:.7rem;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:.4rem">${m.label}</div>
+            <div style="font-size:1.5rem;font-weight:700;color:${m.color}">${m.val}</div>
+            <div style="font-size:.75rem;color:#94a3b8;margin-top:.2rem">${m.sub}</div>
+        </div>`).join('');
+
+    // Adv/Dec numbers
+    document.getElementById('bdAdvancing').textContent = BD.advancing.toLocaleString();
+    document.getElementById('bdDeclining').textContent = BD.declining.toLocaleString();
+    document.getElementById('bdUnchanged').textContent = BD.unchanged.toLocaleString();
+    const adRatioEl = document.getElementById('bdADRatio');
+    adRatioEl.textContent = adRatio;
+    adRatioEl.style.color = parseFloat(adRatio) >= 1 ? '#22c55e' : '#ef4444';
+    document.getElementById('bdAdvPct').textContent = advPct + '% adv';
+    document.getElementById('bdDecPct').textContent = decPct + '% dec';
+
+    // A/D bar
+    document.getElementById('bdADBar').innerHTML = `
+        <div style="background:#22c55e;width:${advPct}%"></div>
+        <div style="background:#64748b;width:${(BD.unchanged/total*100).toFixed(1)}%"></div>
+        <div style="background:#ef4444;flex:1"></div>`;
+
+    // McClellan
+    const mcEl = document.getElementById('bdMcClellan');
+    mcEl.textContent = BD.mcclellan.toFixed(1);
+    mcEl.style.color = BD.mcclellan > 0 ? '#22c55e' : '#ef4444';
+    document.getElementById('bdMcClellanSig').textContent = BD.mcclellan < -80 ? '⚠ Oversold' : BD.mcclellan > 80 ? '⚡ Overbought' : 'Bearish momentum';
+    document.getElementById('bdSummation').textContent = BD.summation.toLocaleString();
+    document.getElementById('bdSummation').style.color = BD.summation < 0 ? '#ef4444' : '#22c55e';
+    document.getElementById('bdSummationSig').textContent = BD.summation < -200 ? 'Deeply negative' : BD.summation < 0 ? 'Below zero' : 'Positive';
+    document.getElementById('bdEMA19').textContent = BD.ema19.toFixed(1);
+    document.getElementById('bdEMA39').textContent = BD.ema39.toFixed(1);
+
+    // New Highs / Lows
+    document.getElementById('bdNewHighs').textContent = BD.newHighs;
+    document.getElementById('bdNewLows').textContent = BD.newLows;
+    const hlEl = document.getElementById('bdHLRatio');
+    hlEl.textContent = hlRatio;
+    hlEl.style.color = parseFloat(hlRatio) >= 1 ? '#22c55e' : '#ef4444';
+    document.getElementById('bdHLSignal').innerHTML = BD.newLows > BD.newHighs
+        ? `<span style="color:#ef4444;font-size:.75rem;font-weight:700">⚠ BEARISH — </span><span style="font-size:.75rem;color:#94a3b8">New Lows (${BD.newLows}) vastly outnumber New Highs (${BD.newHighs}). Distribution phase confirmed across broad market.</span>`
+        : `<span style="color:#22c55e;font-size:.75rem;font-weight:700">✓ BULLISH — </span><span style="font-size:.75rem;color:#94a3b8">New Highs leading. Broad participation in uptrend.</span>`;
+
+    // Up/Down Volume
+    document.getElementById('bdUpVol').textContent = BD.upVol + 'B';
+    document.getElementById('bdDownVol').textContent = BD.downVol + 'B';
+    const volRatioEl = document.getElementById('bdVolRatio');
+    volRatioEl.textContent = volRatio;
+    volRatioEl.style.color = parseFloat(volRatio) >= 1 ? '#22c55e' : '#ef4444';
+    document.getElementById('bdVolSignal').innerHTML = BD.downVol > BD.upVol * 2
+        ? `<span style="color:#ef4444;font-size:.75rem;font-weight:700">⚠ BEARISH — </span><span style="font-size:.75rem;color:#94a3b8">Down volume ${(BD.downVol/BD.upVol).toFixed(1)}× up volume. Heavy institutional distribution detected.</span>`
+        : `<span style="color:#f59e0b;font-size:.75rem;font-weight:700">NEUTRAL — </span><span style="font-size:.75rem;color:#94a3b8">Mixed volume signals.</span>`;
+
+    // TRIN
+    const trinEl = document.getElementById('bdTRIN');
+    trinEl.textContent = BD.trin.toFixed(2);
+    trinEl.style.color = BD.trin > 2 ? '#8b5cf6' : BD.trin > 1.25 ? '#ef4444' : BD.trin < 0.75 ? '#22c55e' : '#f59e0b';
+    document.getElementById('bdTRINLabel').textContent = BD.trin > 2 ? '🔴 Panic / extreme selling' : BD.trin > 1.25 ? '⚠ Selling pressure dominant' : BD.trin < 0.75 ? '✓ Buying pressure' : 'Neutral';
+
+    // % Above MA bars
+    document.getElementById('bdMABars').innerHTML = BD.aboveMA.map(m => `
+        <div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:.25rem">
+                <span style="font-size:.75rem;color:#94a3b8">${m.label}</span>
+                <span style="font-size:.75rem;font-weight:700;color:${bdBarColor(m.pct)}">${m.pct}%</span>
+            </div>
+            <div style="background:#0f172a;border-radius:.2rem;height:8px;overflow:hidden">
+                <div style="background:${bdBarColor(m.pct)};width:${m.pct}%;height:100%;border-radius:.2rem;transition:width .4s ease"></div>
+            </div>
+        </div>`).join('');
+
+    // Sector breadth bars
+    document.getElementById('bdSectorBreadth').innerHTML = BD.sectorBreadth.map(s => `
+        <div style="display:flex;align-items:center;gap:.75rem">
+            <div style="width:130px;font-size:.72rem;color:#94a3b8;flex-shrink:0">${s.name}</div>
+            <div style="flex:1;background:#0f172a;border-radius:.2rem;height:7px;overflow:hidden">
+                <div style="background:${bdBarColor(s.pct)};width:${s.pct}%;height:100%;border-radius:.2rem"></div>
+            </div>
+            <div style="width:36px;text-align:right;font-size:.72rem;font-weight:700;color:${bdBarColor(s.pct)}">${s.pct}%</div>
+        </div>`).join('');
+
+    // Interpretation panel
+    const signals = [
+        {
+            title: 'A/D Ratio — Bearish',
+            color: '#ef4444',
+            body: `NYSE advancing issues (${BD.advancing.toLocaleString()}) represent only ${advPct}% of total issues. Broad market participation is severely lacking — this is a hallmark of distribution, not a healthy selloff.`
+        },
+        {
+            title: 'McClellan Oscillator — Oversold Watch',
+            color: '#8b5cf6',
+            body: `At ${BD.mcclellan.toFixed(1)}, the McClellan Oscillator is approaching oversold territory (<-100). Summation Index at ${BD.summation} confirms persistent downward pressure. Watch for a bounce signal if Osc reaches -150 with positive divergence.`
+        },
+        {
+            title: 'New Lows Dominating — Distribution Confirmed',
+            color: '#ef4444',
+            body: `52-week new lows (${BD.newLows}) are outnumbering new highs (${BD.newHighs}) by ${(BD.newLows / BD.newHighs).toFixed(1)}:1. This level of new-low expansion is consistent with Stage 4 deterioration across the broad market.`
+        },
+        {
+            title: 'TRIN > 2.0 — Panic Selling / Potential Exhaustion',
+            color: '#8b5cf6',
+            body: `TRIN at ${BD.trin.toFixed(2)} signals extreme selling pressure relative to volume. Historically, TRIN > 2.0 on high-volume days can mark short-term capitulation. Watch for intraday reversal or next-day bounce potential.`
+        },
+        {
+            title: '% Above 200-Day MA — Structural Bear Risk',
+            color: '#ef4444',
+            body: `Only 44% of S&P 500 constituents remain above their 200-day MA. A reading below 40% has historically coincided with bear market confirmation. Stage analysis: macro regime is late Stage 3 / early Stage 4 deterioration.`
+        },
+    ];
+
+    document.getElementById('bdInterpretation').innerHTML = signals.map(s => `
+        <div style="padding:.75rem;background:#0f172a;border-radius:.3rem;border-left:3px solid ${s.color}">
+            <div style="font-size:.75rem;font-weight:700;color:${s.color};margin-bottom:.25rem">${s.title}</div>
+            <div style="font-size:.78rem;color:#94a3b8;line-height:1.5">${s.body}</div>
+        </div>`).join('');
+}
+
+function renderBreadthCharts() {
+    renderSparkline('bdADCanvas',
+        [{ data: BD.adLine, color: '#3b82f6', fill: 'rgba(59,130,246,0.08)' }]);
+    renderSparkline('bdMcClellanCanvas',
+        [{ data: BD.mcLine, color: '#8b5cf6', fill: 'rgba(139,92,246,0.08)' }]);
+    renderSparkline('bdHLCanvas', [
+        { data: BD.hlLine,  color: '#22c55e', fill: 'rgba(34,197,94,0.07)'  },
+        { data: BD.llLine,  color: '#ef4444', fill: 'rgba(239,68,68,0.07)'  },
+    ]);
+    renderSparkline('bdVolCanvas', [
+        { data: BD.upVolLine,   color: '#22c55e', fill: 'rgba(34,197,94,0.07)'  },
+        { data: BD.downVolLine, color: '#ef4444', fill: 'rgba(239,68,68,0.07)'  },
+    ]);
+}
+
+// ══════════════════════════════════════════════════════════════
+// LIVE BREADTH LOADER — fetches from Railway backend
+// ══════════════════════════════════════════════════════════════
+async function loadBreadthData() {
+    const metricEl = document.getElementById('breadthMetrics');
+    if (metricEl) metricEl.innerHTML = '<div style="color:#64748b;padding:1rem;">⏳ Loading live breadth data...</div>';
+
+    try {
+        const resp = await fetch(`${RAILWAY_URL}/api/market-breadth`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const d = await resp.json();
+
+        // Overwrite BD with live data
+        BD.advancing    = d.advancing;
+        BD.declining    = d.declining;
+        BD.unchanged    = d.unchanged;
+        BD.newHighs     = d.newHighs;
+        BD.newLows      = d.newLows;
+        BD.upVol        = d.upVol;
+        BD.downVol      = d.downVol;
+        BD.trin         = d.trin;
+        BD.mcclellan    = d.mcclellan;
+        BD.summation    = d.summation;
+        BD.ema19        = d.ema19;
+        BD.ema39        = d.ema39;
+        BD.aboveMA      = d.aboveMA;
+        BD.sectorBreadth= d.sectorBreadth;
+        BD.adLine       = d.adLine;
+        BD.mcLine       = d.mcLine;
+        BD.hlLine       = d.hlLine;
+        BD.llLine       = d.llLine;
+        BD.upVolLine    = d.upVolLine;
+        BD.downVolLine  = d.downVolLine;
+
+        buildBreadthMetrics();
+        setTimeout(renderBreadthCharts, 50);
+
+        // Show live badge
+        const hdr = document.querySelector('#breadth .section-title');
+        if (hdr && !hdr.querySelector('.live-badge')) {
+            const badge = document.createElement('span');
+            badge.className = 'live-badge';
+            badge.style.cssText = 'margin-left:0.75rem;font-size:0.7rem;color:#22c55e;font-weight:600;';
+            badge.textContent = `● LIVE · ${d.as_of} · ${d.ticker_count} tickers`;
+            hdr.appendChild(badge);
+        }
+    } catch(err) {
+        console.warn('Breadth fetch failed, using cached data:', err.message);
+        buildBreadthMetrics();
+        setTimeout(renderBreadthCharts, 50);
+        const metricEl2 = document.getElementById('breadthMetrics');
+        if (metricEl2) {
+            const warn = document.createElement('div');
+            warn.style.cssText = 'color:#f59e0b;font-size:0.75rem;padding:0.5rem 0;';
+            warn.textContent = '⚠ Live fetch failed — showing cached data';
+            metricEl2.prepend(warn);
+        }
+    }
+}
+
+// Init on tab click so canvas widths are correct
+document.querySelectorAll('.nav-btn').forEach(btn => {
+    if (btn.dataset.tab === 'breadth') {
+        btn.addEventListener('click', () => {
+            loadBreadthData();
+        });
+    }
+});
+
+buildBreadthMetrics();
+
+// ══════════════════════════════════════════════════════════════
+// LIVE DATA ENGINE  v1.0
+// Sources:
+//   Prices/Changes → Yahoo Finance query1 JSON (no key, 15-min delay)
+//   COT            → CFTC Public Reporting API (no key, weekly Fridays)
+// ══════════════════════════════════════════════════════════════
+
+// ── 1. TICKER MASTER LIST ────────────────────────────────────
+// All symbols we need prices for across the entire terminal
+const LIVE_TICKERS = [
+    // Ticker strip + ETFs
+    'SPY','QQQ','IWM','DIA','^VIX',
+    // Heatmap — Technology
+    'AAPL','MSFT','NVDA','GOOGL','META','TSLA','AMD','INTC',
+    // Heatmap — Consumer Disc
+    'AMZN','HD','NKE','MCD','SBUX',
+    // Heatmap — Healthcare
+    'JNJ','UNH','PFE','ABBV','MRK',
+    // Heatmap — Financials
+    'JPM','BAC','GS','MS','V','MA',
+    // Heatmap — Energy
+    'XOM','CVX','COP','SLB','OXY',
+    // Heatmap — Industrials
+    'CAT','BA','HON','UNP','GE',
+    // Heatmap — Utilities
+    'XLU','NEE','DUK',
+    // Heatmap — Macro
+    'GLD','SLV','TLT','DX-Y.NYB'
+];
+
+// Cache: symbol → { price, dayChg, dayChgPct, weekChgPct, monthChgPct, volume }
+const PRICE_CACHE = {};
+
+// Status flag
+let liveDataActive = false;
+
+// ── 2. YAHOO FINANCE FETCH ───────────────────────────────────
+// Uses Yahoo Finance v8 quote endpoint — returns JSON, no API key needed
+// CORS proxy used because GitHub Pages is a different origin than Yahoo
+async function fetchYahooPrices(symbols) {
+    // Chunk into batches of 10 to avoid URL length limits
+    const chunks = [];
+    for (let i = 0; i < symbols.length; i += 10) {
+        chunks.push(symbols.slice(i, i + 10));
+    }
+
+    for (const chunk of chunks) {
+        const syms = chunk.join(',');
+        // Use allorigins CORS proxy to bypass browser CORS restriction
+        const url = `https://api.allorigins.win/get?url=${encodeURIComponent(
+            `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${syms}&range=1mo&interval=1d`
+        )}`;
+
+        try {
+            const resp = await fetch(url, { cache: 'no-store' });
+            if (!resp.ok) continue;
+            const wrapper = await resp.json();
+            const data = JSON.parse(wrapper.contents);
+
+            // Also fetch quote data for price + day change
+            const quoteUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(
+                `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketVolume,regularMarketPreviousClose`
+            )}`;
+            const quoteResp = await fetch(quoteUrl, { cache: 'no-store' });
+            if (!quoteResp.ok) continue;
+            const quoteWrapper = await quoteResp.json();
+            const quoteData = JSON.parse(quoteWrapper.contents);
+
+            const quotes = quoteData?.quoteResponse?.result || [];
+            quotes.forEach(q => {
+                const sym = q.symbol;
+                const price = q.regularMarketPrice;
+                const dayPct = q.regularMarketChangePercent;
+                const vol = q.regularMarketVolume;
+
+                // Get spark data for week/month %
+                const spark = data?.spark?.result?.find(r => r.symbol === sym);
+                let weekPct = null, monthPct = null;
+                if (spark?.response?.[0]?.meta) {
+                    const closes = spark.response[0].indicators?.quote?.[0]?.close || [];
+                    const valid = closes.filter(v => v !== null && v !== undefined);
+                    if (valid.length >= 5) {
+                        const wkAgo = valid[valid.length - 6] || valid[0];
+                        weekPct = wkAgo ? ((price - wkAgo) / wkAgo) * 100 : null;
+                    }
+                    if (valid.length >= 20) {
+                        const moAgo = valid[0];
+                        monthPct = moAgo ? ((price - moAgo) / moAgo) * 100 : null;
+                    }
+                }
+
+                PRICE_CACHE[sym] = {
+                    price: price?.toFixed(2),
+                    dayPct: dayPct?.toFixed(2),
+                    weekPct: weekPct?.toFixed(2),
+                    monthPct: monthPct?.toFixed(2),
+                    volume: vol
+                };
+            });
+        } catch (e) {
+            console.warn('[APEX Live] Yahoo fetch failed for chunk:', syms, e.message);
+        }
+    }
+}
+
+// ── 3. RENDER FUNCTIONS ──────────────────────────────────────
+
+function fmtPct(val) {
+    if (val === null || val === undefined || val === 'null') return '—';
+    const n = parseFloat(val);
+    if (isNaN(n)) return '—';
+    const sign = n > 0 ? '▲ +' : n < 0 ? '▼ ' : '';
+    return `${sign}${Math.abs(n).toFixed(2)}%`;
+}
+
+function pctClass(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return '';
+    return n > 0 ? 'positive' : n < 0 ? 'negative' : '';
+}
+
+// Ticker strip
+function updateTickerStrip() {
+    const stripMap = {
+        'SPY': 'SPY', 'QQQ': 'QQQ', 'IWM': 'IWM', 'DIA': 'DIA',
+        'VIX': '^VIX', 'AAPL': 'AAPL', 'TSLA': 'TSLA',
+        'NVDA': 'NVDA', 'AMZN': 'AMZN', 'META': 'META',
+        'MSFT': 'MSFT', 'GOOGL': 'GOOGL'
+    };
+
+    document.querySelectorAll('.ticker-item').forEach(item => {
+        const dispSym = item.querySelector('.ticker-symbol')?.textContent?.trim();
+        const cacheSym = stripMap[dispSym] || dispSym;
+        const d = PRICE_CACHE[cacheSym];
+        if (!d) return;
+
+        const priceEl = item.querySelector('.ticker-price');
+        const changeEl = item.querySelector('.ticker-change');
+        if (priceEl) priceEl.textContent = d.price;
+        if (changeEl) {
+            const n = parseFloat(d.dayPct);
+            changeEl.textContent = fmtPct(d.dayPct);
+            changeEl.className = `ticker-change ${n >= 0 ? 'positive' : 'negative'}`;
+        }
+    });
+}
+
+// Dashboard metric cards (VIX card)
+function updateDashboardCards() {
+    const vix = PRICE_CACHE['^VIX'];
+    if (vix) {
+        const vixCard = document.querySelector('#dashboard .metric-card:nth-child(2)');
+        if (vixCard) {
+            vixCard.querySelector('.metric-value').textContent = vix.price;
+            const pct = parseFloat(vix.dayPct);
+            const label = pct > 20 ? 'Fear Extreme' : pct > 10 ? 'Fear Elevated' : pct > 0 ? 'Fear Rising' : 'Fear Neutral';
+            vixCard.querySelector('.metric-subtitle').textContent = `${fmtPct(vix.dayPct)} · ${label}`;
+            vixCard.querySelector('.metric-value').className = `metric-value ${pct >= 0 ? 'positive' : 'negative'}`;
+        }
+    }
+
+    // Sector leader — find the best performing heatmap sector
+    let bestSector = null, bestAvg = -Infinity;
+    HEATMAP_DATA.forEach(sector => {
+        const vals = sector.stocks.map(s => {
+            const d = PRICE_CACHE[s.sym];
+            return d ? parseFloat(d.dayPct) : s.chg;
+        });
+        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+        if (avg > bestAvg) { bestAvg = avg; bestSector = sector.sector; }
+    });
+    if (bestSector) {
+        const sectorCard = document.querySelector('#dashboard .metric-card:nth-child(4)');
+        if (sectorCard) {
+            sectorCard.querySelector('.metric-value').textContent = bestSector;
+            sectorCard.querySelector('.metric-subtitle').textContent = `Avg ${fmtPct(bestAvg.toFixed(2))} today`;
+        }
+    }
+}
+
+// Heatmap — update chg values from cache then re-render
+function updateHeatmap() {
+    let anyUpdated = false;
+    HEATMAP_DATA.forEach(sector => {
+        sector.stocks.forEach(s => {
+            const d = PRICE_CACHE[s.sym] || PRICE_CACHE[s.sym.replace('^','')];
+            if (d && d.dayPct !== undefined) {
+                s.chg = parseFloat(d.dayPct) || s.chg;
+                anyUpdated = true;
+            }
+        });
+    });
+    if (anyUpdated) buildHeatmap();
+}
+
+// Top Movers table — re-render with live data
+function updateMovers() {
+    const moversSyms = ['TSLA','NVDA','META','AMZN','GLD','XLU','AAPL','SPY','QQQ'];
+    const rows = moversSyms.map(sym => {
+        const d = PRICE_CACHE[sym];
+        if (!d) return null;
+        const pct = parseFloat(d.dayPct);
+        const sig = pct <= -5 ? 'SHORT' : pct <= -2 ? 'WATCH' : pct >= 1 ? 'BUY' : 'WATCH';
+        const sigClass = sig === 'BUY' ? 'tag-buy' : sig === 'SHORT' ? 'tag-sell' : 'tag-watch';
+        const vol = d.volume ? (d.volume / 1e6).toFixed(1) + 'M' : '—';
+        return `<tr>
+            <td style="font-weight:700">${sym}</td>
+            <td>$${d.price}</td>
+            <td class="${pct >= 0 ? 'positive' : 'negative'}">${fmtPct(d.dayPct)}</td>
+            <td>${vol}</td>
+            <td style="color:#94a3b8">—</td>
+            <td><span class="tag ${sigClass}">${sig}</span></td>
+        </tr>`;
+    }).filter(Boolean);
+
+    const tbody = document.querySelector('#dashboard .movers-table tbody');
+    if (tbody && rows.length) tbody.innerHTML = rows.join('');
+}
+
+// Watchlist — update price, day%, week%, month% for all visible rows
+function updateWatchlistPrices() {
+    document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
+        const sym = tr.dataset.sym;
+        const d = PRICE_CACHE[sym];
+        if (!d) return;
+
+        const cells = tr.querySelectorAll('td');
+        if (cells[1]) cells[1].textContent = `$${d.price}`;
+
+        const daySpan = cells[2]?.querySelector('.wl-chg');
+        if (daySpan) {
+            daySpan.textContent = fmtPct(d.dayPct);
+            daySpan.className = `wl-chg ${d.dayPct >= 0 ? 'pos' : 'neg'}`;
+        }
+        const weekSpan = cells[3]?.querySelector('.wl-chg');
+        if (weekSpan) {
+            weekSpan.textContent = fmtPct(d.weekPct);
+            weekSpan.className = `wl-chg ${parseFloat(d.weekPct) >= 0 ? 'pos' : 'neg'}`;
+        }
+        const monthSpan = cells[4]?.querySelector('.wl-chg');
+        if (monthSpan) {
+            monthSpan.textContent = fmtPct(d.monthPct);
+            monthSpan.className = `wl-chg ${parseFloat(d.monthPct) >= 0 ? 'pos' : 'neg'}`;
+        }
+    });
+}
+
+// Scanner — update prices in currently visible rows
+function updateScannerPrices() {
+    document.querySelectorAll('#scanner .movers-table tbody tr').forEach(tr => {
+        const symCell = tr.querySelector('td:first-child');
+        if (!symCell) return;
+        const sym = symCell.textContent.trim();
+        const d = PRICE_CACHE[sym];
+        if (!d) return;
+        const priceCell = tr.querySelector('td:nth-child(2)');
+        const chgCell   = tr.querySelector('td:nth-child(3)');
+        if (priceCell) priceCell.textContent = `$${d.price}`;
+        if (chgCell) {
+            const n = parseFloat(d.dayPct);
+            chgCell.textContent = fmtPct(d.dayPct);
+            chgCell.className = n >= 0 ? 'positive' : 'negative';
+        }
+    });
+}
+
+// ── 4. COT DATA — CFTC API ───────────────────────────────────
+// Contract IDs for TFF report (financial futures):
+// These are the CFTC market_and_exchange_names for key futures
+const COT_CONTRACTS = [
+    { label: 'E-Mini S&P 500',  name: 'E-MINI S&P 500 STOCK INDEX - CHICAGO MERCANTILE EXCHANGE' },
+    { label: 'Nasdaq 100',      name: 'NASDAQ-100 STOCK INDEX (MINI) - CHICAGO MERCANTILE EXCHANGE' },
+    { label: 'Russell 2000',    name: 'E-MINI RUSSELL 2000 INDEX - CHICAGO MERCANTILE EXCHANGE' },
+    { label: 'Gold (COMEX)',    name: 'GOLD - COMMODITY EXCHANGE INC.' },
+    { label: 'VIX Futures',     name: 'CBOE VOLATILITY INDEX - CBOE FUTURES EXCHANGE' },
+];
+
+async function fetchCOTData() {
+    try {
+        // CFTC Public Reporting API — legacy futures only, most recent 5 reports
+        // No token required per CFTC documentation
+        const baseUrl = 'https://publicreporting.cftc.gov/resource/6dca-aqww.json';
+        const params = new URLSearchParams({
+            '$limit': '50',
+            '$order': 'report_date_as_yyyy_mm_dd DESC',
+            '$where': `market_and_exchange_names IN(${COT_CONTRACTS.map(c => `'${c.name}'`).join(',')})`
+        });
+
+        const resp = await fetch(`${baseUrl}?${params}`);
+        if (!resp.ok) throw new Error(`CFTC API ${resp.status}`);
+        const rows = await resp.json();
+
+        if (!rows.length) return;
+
+        // Most recent report date
+        const latestDate = rows[0].report_date_as_yyyy_mm_dd;
+
+        // Build table HTML
+        const tableRows = COT_CONTRACTS.map(contract => {
+            // Most recent + previous week for change
+            const all = rows.filter(r => r.market_and_exchange_names === contract.name)
+                            .sort((a,b) => b.report_date_as_yyyy_mm_dd.localeCompare(a.report_date_as_yyyy_mm_dd));
+            if (!all.length) return null;
+
+            const cur  = all[0];
+            const prev = all[1];
+
+            // Large Spec Net = noncommercial_positions_long_all - noncommercial_positions_short_all
+            const netLong  = parseInt(cur.noncommercial_positions_long_all  || 0)
+                           - parseInt(cur.noncommercial_positions_short_all || 0);
+            const prevNet  = prev ? (parseInt(prev.noncommercial_positions_long_all  || 0)
+                                   - parseInt(prev.noncommercial_positions_short_all || 0)) : null;
+            const wkChg    = prevNet !== null ? netLong - prevNet : null;
+            const oi       = parseInt(cur.open_interest_all || 1);
+            const pctOI    = ((netLong / oi) * 100).toFixed(1);
+
+            const netFmt   = netLong >= 0
+                ? `<span class="positive">+${netLong.toLocaleString()}</span>`
+                : `<span class="negative">${netLong.toLocaleString()}</span>`;
+
+            const chgFmt   = wkChg === null ? '—'
+                : wkChg >= 0
+                    ? `<span class="positive">▲ +${wkChg.toLocaleString()}</span>`
+                    : `<span class="negative">▼ ${wkChg.toLocaleString()}</span>`;
+
+            const sig      = netLong > 0 ? '<span class="tag tag-buy">NET LONG</span>'
+                           : netLong < 0 ? '<span class="tag tag-sell">NET SHORT</span>'
+                           : '<span class="tag tag-hold">MIXED</span>';
+
+            return `<tr>
+                <td style="font-weight:700">${contract.label}</td>
+                <td>${netFmt}</td>
+                <td>${chgFmt}</td>
+                <td>${pctOI}%</td>
+                <td>${sig}</td>
+            </tr>`;
+        }).filter(Boolean);
+
+        if (!tableRows.length) return;
+
+        const tbody = document.querySelector('#options .movers-table:last-of-type tbody');
+        if (tbody) {
+            tbody.innerHTML = tableRows.join('');
+            // Update section title with report date
+            const title = document.querySelector('#options .movers-section:last-of-type .section-title');
+            if (title) title.textContent = `COT Report — Large Spec Positioning (as of ${latestDate})`;
+        }
+
+        console.log('[APEX Live] COT data loaded for', latestDate);
+    } catch (e) {
+        console.warn('[APEX Live] COT fetch failed:', e.message);
+        // Leave static fallback data in place
+    }
+}
+
+// ── 5. STATUS INDICATOR ──────────────────────────────────────
+function setLiveStatus(active, lastUpdated) {
+    // Update market status badge to show live/stale
+    const badge = document.getElementById('marketStatus');
+    if (!badge) return;
+
+    // We'll append a small LIVE dot next to the existing market status
+    const liveEl = document.getElementById('liveDataBadge');
+    if (!liveEl) {
+        const dot = document.createElement('span');
+        dot.id = 'liveDataBadge';
+        dot.style.cssText = `
+            font-size:0.6rem; margin-left:8px; padding:2px 6px;
+            border-radius:3px; font-weight:700; letter-spacing:.04em;
+            vertical-align:middle;
+        `;
+        badge.parentElement.appendChild(dot);
+    }
+    const dotEl = document.getElementById('liveDataBadge');
+    if (dotEl) {
+        dotEl.textContent = active ? '● LIVE' : '○ STALE';
+        dotEl.style.background = active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.1)';
+        dotEl.style.color = active ? '#22c55e' : '#ef4444';
+        dotEl.title = lastUpdated ? `Last updated: ${lastUpdated}` : 'Data not yet loaded';
+    }
+}
+
+// ── 6. MAIN REFRESH CYCLE ────────────────────────────────────
+async function refreshAllLiveData() {
+    console.log('[APEX Live] Fetching prices...');
+    setLiveStatus(false, null);
+
+    await fetchYahooPrices(LIVE_TICKERS);
+
+    // Apply to all panels
+    updateTickerStrip();
+    updateDashboardCards();
+    updateHeatmap();
+    updateMovers();
+    updateWatchlistPrices();
+    updateScannerPrices();
+
+    liveDataActive = true;
+    const now = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false });
+    setLiveStatus(true, `${now} ET`);
+    console.log('[APEX Live] All prices updated at', now);
+    // Check alert rules against fresh PRICE_CACHE
+    if (typeof checkAlertRules === 'function') checkAlertRules();
+}
+
+// ── 7. COT — fetch once on load (updates Fridays only) ───────
+async function initCOT() {
+    console.log('[APEX Live] Fetching COT data from CFTC...');
+    await fetchCOTData();
+}
+
+// ── 8. BOOT SEQUENCE ─────────────────────────────────────────
+// Initial load — stagger COT and price fetches to avoid hammering
+setTimeout(() => {
+    refreshAllLiveData();
+    initCOT();
+}, 800);
+
+// Auto-refresh prices every 5 minutes
+setInterval(refreshAllLiveData, 5 * 60 * 1000);
+
+// Also refresh watchlist prices when that tab is opened
+document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        if ((tab === 'watchlist' || tab === 'scanner') && liveDataActive) {
+            setTimeout(() => {
+                updateWatchlistPrices();
+                updateScannerPrices();
+            }, 100);
+        }
+    });
+});
+
+console.log('[APEX Live] Data engine initialized. Prices refresh every 5 min. COT refreshes on page load.');
+
+// ═══════════════════════════════════════════════════════════════
+// ALERT ENGINE — Real price/% threshold alerts using PRICE_CACHE
+// ═══════════════════════════════════════════════════════════════
+
+// Rule store: persists in sessionStorage so alerts survive tab refresh
+let ALERT_RULES = [];
+let FIRED_ALERTS = []; // historical fired alerts shown in panel
+
+function loadAlertRules() {
+    try {
+        const saved = sessionStorage.getItem('apexAlertRules');
+        if (saved) ALERT_RULES = JSON.parse(saved);
+        const fired = sessionStorage.getItem('apexFiredAlerts');
+        if (fired) FIRED_ALERTS = JSON.parse(fired);
+    } catch(e) {}
+}
+
+function saveAlertRules() {
+    try {
+        sessionStorage.setItem('apexAlertRules', JSON.stringify(ALERT_RULES));
+        sessionStorage.setItem('apexFiredAlerts', JSON.stringify(FIRED_ALERTS));
+    } catch(e) {}
+}
+
+// ── Modal controls ──
+function openAlertModal() {
+    document.getElementById('alertModal').classList.add('open');
+    document.getElementById('alertTicker').focus();
+    syncAlertLabel();
+}
+
+function closeAlertModal() {
+    document.getElementById('alertModal').classList.remove('open');
+    document.getElementById('alertTicker').value = '';
+    document.getElementById('alertValue').value = '';
+    document.getElementById('alertNote').value = '';
+    document.getElementById('alertError').style.display = 'none';
+}
+
+function syncAlertLabel() {
+    const cond = document.getElementById('alertCondition').value;
+    const label = document.getElementById('alertValueLabel');
+    if (cond === 'price_above' || cond === 'price_below') {
+        label.textContent = 'Target Price ($)';
+        document.getElementById('alertValue').placeholder = '0.00';
+    } else {
+        label.textContent = 'Threshold (%)';
+        document.getElementById('alertValue').placeholder = '2.5';
+    }
+}
+// Attach modal listeners after DOM is ready
+function initAlertModalListeners() {
+    const condEl = document.getElementById('alertCondition');
+    const tickerEl = document.getElementById('alertTicker');
+    const overlayEl = document.getElementById('alertModal');
+    if (condEl) condEl.addEventListener('change', syncAlertLabel);
+    if (tickerEl) tickerEl.addEventListener('input', function() { this.value = this.value.toUpperCase(); });
+    if (overlayEl) overlayEl.addEventListener('click', function(e) { if (e.target === this) closeAlertModal(); });
+}
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAlertModalListeners);
+} else {
+    initAlertModalListeners();
+}
+
+function saveAlert() {
+    const ticker = document.getElementById('alertTicker').value.trim().toUpperCase();
+    const condition = document.getElementById('alertCondition').value;
+    const value = parseFloat(document.getElementById('alertValue').value);
+    const note = document.getElementById('alertNote').value.trim();
+    const errEl = document.getElementById('alertError');
+
+    if (!ticker || isNaN(value) || value <= 0) {
+        errEl.style.display = 'block';
+        return;
+    }
+    errEl.style.display = 'none';
+
+    const rule = {
+        id: Date.now(),
+        ticker,
+        condition,  // price_above | price_below | pct_up | pct_down
+        value,
+        note,
+        createdAt: new Date().toISOString(),
+        fired: false,
+        active: true
+    };
+
+    ALERT_RULES.push(rule);
+    saveAlertRules();
+    renderAlertRulesBadge();
+    closeAlertModal();
+
+    // Immediately check against current PRICE_CACHE
+    checkAlertRules();
+}
+
+function dismissAlert(firedId) {
+    FIRED_ALERTS = FIRED_ALERTS.filter(a => a.id !== firedId);
+    saveAlertRules();
+    renderAlertsPanel();
+}
+
+function deleteRule(ruleId) {
+    ALERT_RULES = ALERT_RULES.filter(r => r.id !== ruleId);
+    saveAlertRules();
+    renderAlertsPanel();
+}
+
+// ── Core check — runs on every price refresh ──
+function checkAlertRules() {
+    let anyFired = false;
+
+    ALERT_RULES.forEach(rule => {
+        if (!rule.active) return;
+        const d = PRICE_CACHE[rule.ticker];
+        if (!d) return;
+
+        const price = parseFloat(d.price);
+        const dayPct = parseFloat(d.dayPct);
+        if (isNaN(price)) return;
+
+        let triggered = false;
+        let triggerMsg = '';
+
+        if (rule.condition === 'price_above' && price >= rule.value) {
+            triggered = true;
+            triggerMsg = `${rule.ticker} trading at $${price.toFixed(2)} — crossed above target $${rule.value.toFixed(2)}`;
+        } else if (rule.condition === 'price_below' && price <= rule.value) {
+            triggered = true;
+            triggerMsg = `${rule.ticker} trading at $${price.toFixed(2)} — dropped below target $${rule.value.toFixed(2)}`;
+        } else if (rule.condition === 'pct_up' && dayPct >= rule.value) {
+            triggered = true;
+            triggerMsg = `${rule.ticker} up ${dayPct >= 0 ? '+' : ''}${dayPct.toFixed(2)}% today — exceeded +${rule.value}% threshold`;
+        } else if (rule.condition === 'pct_down' && dayPct <= -Math.abs(rule.value)) {
+            triggered = true;
+            triggerMsg = `${rule.ticker} down ${dayPct.toFixed(2)}% today — exceeded -${rule.value}% threshold`;
+        }
+
+        if (triggered && !rule.fired) {
+            rule.fired = true;
+            rule.active = false; // one-shot: deactivate after firing
+            anyFired = true;
+
+            const condLabels = {
+                price_above: 'PRICE ABOVE', price_below: 'PRICE BELOW',
+                pct_up: 'DAY % UP', pct_down: 'DAY % DOWN'
+            };
+            const condTypes = {
+                price_above: 'buy-signal', price_below: 'warning',
+                pct_up: 'buy-signal', pct_down: 'warning'
+            };
+
+            FIRED_ALERTS.unshift({
+                id: Date.now() + Math.random(),
+                ruleId: rule.id,
+                ticker: rule.ticker,
+                condition: rule.condition,
+                condLabel: condLabels[rule.condition],
+                condType: condTypes[rule.condition],
+                message: triggerMsg + (rule.note ? ` · ${rule.note}` : ''),
+                firedAt: new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false }) + ' ET',
+            });
+        }
+    });
+
+    if (anyFired) {
+        saveAlertRules();
+        renderAlertsPanel();
+    }
+}
+
+// ── Render fired alerts + pending rules in dashboard panel ──
+function renderAlertsPanel() {
+    const container = document.getElementById('alertsContainer');
+    const titleEl = document.getElementById('alertsSectionTitle');
+    const pendingRules = ALERT_RULES.filter(r => r.active);
+    const total = FIRED_ALERTS.length + pendingRules.length;
+    titleEl.textContent = `Active Alerts (${total})`;
+
+    let html = '';
+
+    // Fired alerts first
+    FIRED_ALERTS.forEach(a => {
+        const tagClass = a.condition.replace('_', '-');
+        html += `
+        <div class="alert-item ${a.condType}" id="fired-${a.id}">
+            <div class="alert-icon ${a.condType === 'buy-signal' ? 'buy-icon' : 'warn-icon'}">
+                ${a.condType === 'buy-signal' ? '🎯' : '⚠️'}
+            </div>
+            <div class="alert-details">
+                <div class="alert-title">
+                    ${a.ticker} — Alert Triggered
+                    <span class="alert-tag ${tagClass}">${a.condLabel}</span>
+                </div>
+                <div class="alert-message">${a.message}</div>
+                <div class="alert-time">${a.firedAt}</div>
+            </div>
+            <button class="alert-dismiss" title="Dismiss" onclick="dismissAlert(${a.id})">✕</button>
+        </div>`;
+    });
+
+    // Pending rules (watching)
+    pendingRules.forEach(r => {
+        const condText = {
+            price_above: `Price &gt; $${r.value.toFixed(2)}`,
+            price_below: `Price &lt; $${r.value.toFixed(2)}`,
+            pct_up: `Day change &gt; +${r.value}%`,
+            pct_down: `Day change &gt; -${r.value}%`
+        }[r.condition];
+        html += `
+        <div class="alert-item regime-change">
+            <div class="alert-icon regime-icon">🔔</div>
+            <div class="alert-details">
+                <div class="alert-title">${r.ticker} — Watching</div>
+                <div class="alert-message">${condText}${r.note ? ` · ${r.note}` : ''}</div>
+                <div class="alert-time">Set ${new Date(r.createdAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}</div>
+            </div>
+            <button class="alert-dismiss" title="Delete rule" onclick="deleteRule(${r.id})">✕</button>
+        </div>`;
+    });
+
+    if (!html) {
+        html = `<div class="no-alerts">No alerts set. Click <strong>＋ Add Alert</strong> to create a price or % trigger.</div>`;
+    }
+
+    container.innerHTML = html;
+}
+
+function renderAlertRulesBadge() {
+    renderAlertsPanel();
+}
+
+// ── Hook into refresh cycle ──
+const _origRefresh = refreshAllLiveData;
+// Patch: after each refresh, run alert checks
+const _origSetInterval = window._alertPatchDone;
+if (!window._alertPatchDone) {
+    window._alertPatchDone = true;
+    const origFn = window.refreshAllLiveData;
+    window.refreshAllLiveData = async function() {
+        await origFn();
+        checkAlertRules();
+    };
+}
+
+// ── Init ──
+loadAlertRules();
+renderAlertsPanel();
+
+</script>
+<!-- ── ALERT ENGINE MODAL ──────────────────────────────────── -->
+<div class="modal-overlay" id="alertModal">
+    <div class="modal-box">
+        <div class="modal-title">🔔 Create Price Alert</div>
+        <div class="modal-row">
+            <div class="modal-label">Ticker Symbol</div>
+            <input class="modal-input" id="alertTicker" placeholder="e.g. SPY, NVDA, GLD" autocomplete="off" style="text-transform:uppercase">
+        </div>
+        <div class="modal-row">
+            <div class="modal-label">Condition</div>
+            <select class="modal-select" id="alertCondition">
+                <option value="price_above">Price crosses ABOVE $</option>
+                <option value="price_below">Price crosses BELOW $</option>
+                <option value="pct_up">Day change UP more than %</option>
+                <option value="pct_down">Day change DOWN more than %</option>
+            </select>
+        </div>
+        <div class="modal-row">
+            <div class="modal-label" id="alertValueLabel">Target Value ($)</div>
+            <input class="modal-input" id="alertValue" type="number" step="0.01" placeholder="0.00">
+        </div>
+        <div class="modal-row">
+            <div class="modal-label">Note (optional)</div>
+            <input class="modal-input" id="alertNote" placeholder="e.g. Breakout above pivot, stop trigger…">
+        </div>
+        <div class="modal-error" id="alertError">Please fill in ticker and a valid target value.</div>
+        <div class="modal-actions">
+            <button class="btn-modal-cancel" onclick="closeAlertModal()">Cancel</button>
+            <button class="btn-modal-save" onclick="saveAlert()">Set Alert</button>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>
