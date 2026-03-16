@@ -363,6 +363,7 @@
 
         .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #334155; border-top-color: #3b82f6; border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
 
         .tag { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 0.2rem; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
         .tag-buy { background-color: rgba(34,197,94,0.15); color: #22c55e; }
@@ -403,6 +404,7 @@
     <button class="nav-btn" data-tab="options">Options / COT</button>
     <button class="nav-btn" data-tab="journal">Journal</button>
     <button class="nav-btn" data-tab="breadth">Market Breadth</button>
+    <button class="nav-btn" data-tab="ai">AI Analysis</button>
 </div>
 
 <!-- ═══════════════════════════════════════════════════════
@@ -955,6 +957,49 @@
     </div>
 
 </div><!-- /breadth tab -->
+
+<!-- ── AI ANALYSIS ──────────────────────────────────── -->
+<div class="tab-content" id="ai">
+
+    <!-- Runner Panel -->
+    <div style="background-color:#1e293b;padding:1.5rem;border-radius:0.5rem;border:1px solid #334155;margin-bottom:1.5rem">
+        <div class="section-title">Claude AI Market Analysis</div>
+        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+            <input type="text" id="aiTickerInput" placeholder="SPY" value="SPY" style="padding:0.5rem 0.75rem;background-color:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:0.25rem;font-size:0.875rem;font-family:inherit;text-transform:uppercase;width:120px">
+            <button class="api-btn" id="aiRunBtn" onclick="runAIAnalysis()" style="margin:0;padding:0.5rem 1.25rem">▶ Run Analysis</button>
+            <span id="aiStatus" style="font-size:0.7rem;color:#64748b;margin-left:auto"></span>
+        </div>
+        <div style="margin-top:0.75rem;font-size:0.75rem;color:#475569">
+            Aggregates HMM signal data, live prices, and FRED macro indicators → sends to Claude for institutional-grade commentary.
+        </div>
+    </div>
+
+    <!-- AI Output -->
+    <div id="aiOutput" style="background-color:#1e293b;padding:1.5rem;border-radius:0.5rem;border:1px solid #334155;min-height:300px">
+        <div style="text-align:center;color:#475569;padding:3rem 1rem">
+            <div style="font-size:2rem;margin-bottom:0.75rem">🧠</div>
+            <div style="font-size:0.875rem;margin-bottom:0.5rem">Enter a ticker and click "Run Analysis"</div>
+            <div style="font-size:0.75rem;color:#334155">Claude will analyze HMM regime signals, price action, macro conditions, and generate a trade thesis</div>
+        </div>
+    </div>
+
+    <!-- Data Sources Panel -->
+    <div style="margin-top:1.5rem;display:grid;grid-template-columns:repeat(3,1fr);gap:1rem" id="aiDataSources">
+        <div class="metric-card" id="aiSrcSignal">
+            <div class="metric-label">HMM Signal</div>
+            <div class="metric-value" style="font-size:1rem;color:#475569">Pending</div>
+        </div>
+        <div class="metric-card" id="aiSrcMacro">
+            <div class="metric-label">Macro Data</div>
+            <div class="metric-value" style="font-size:1rem;color:#475569">Pending</div>
+        </div>
+        <div class="metric-card" id="aiSrcPrice">
+            <div class="metric-label">Price Data</div>
+            <div class="metric-value" style="font-size:1rem;color:#475569">Pending</div>
+        </div>
+    </div>
+
+</div><!-- /ai tab -->
 
 
 
@@ -2038,6 +2083,155 @@ document.getElementById('optionsTickerInput').addEventListener('keydown', (e) =>
 // Expiry dropdown change triggers re-fetch
 document.getElementById('optionsExpirySelect').addEventListener('change', () => {
     fetchOptionsData();
+});
+
+// ══════════════════════════════════════════════════════════════
+// AI ANALYSIS ENGINE — Claude-powered market commentary
+// ══════════════════════════════════════════════════════════════
+
+async function runAIAnalysis() {
+    const ticker = (document.getElementById('aiTickerInput').value.trim().toUpperCase()) || 'SPY';
+    const btn = document.getElementById('aiRunBtn');
+    const statusEl = document.getElementById('aiStatus');
+    const outputEl = document.getElementById('aiOutput');
+
+    document.getElementById('aiTickerInput').value = ticker;
+    btn.textContent = '⏳ Analyzing...';
+    btn.disabled = true;
+    statusEl.textContent = `Sending ${ticker} to Claude...`;
+    statusEl.style.color = '#f59e0b';
+
+    // Show loading state
+    outputEl.innerHTML = `
+        <div style="text-align:center;padding:3rem">
+            <div style="font-size:1.5rem;margin-bottom:1rem;animation:pulse 1.5s infinite">🧠</div>
+            <div style="color:#94a3b8;font-size:0.875rem">Aggregating HMM signals, macro data, and prices...</div>
+            <div style="color:#475569;font-size:0.75rem;margin-top:0.5rem">Claude is generating institutional-grade analysis for ${ticker}</div>
+        </div>`;
+
+    // Reset data source indicators
+    updateDataSource('aiSrcSignal', 'Fetching...', '#f59e0b');
+    updateDataSource('aiSrcMacro', 'Fetching...', '#f59e0b');
+    updateDataSource('aiSrcPrice', 'Fetching...', '#f59e0b');
+
+    try {
+        const resp = await fetch(`${NEXUS_API}/api/ai/commentary/${ticker}`, {
+            method: 'GET',
+            headers: { 'Accept': 'application/json' }
+        });
+
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.detail || `API ${resp.status}`);
+        }
+
+        const data = await resp.json();
+
+        // Update data source indicators
+        updateDataSource('aiSrcSignal', data.data_sources?.signal ? '✓ Connected' : '✗ Unavailable',
+            data.data_sources?.signal ? '#22c55e' : '#ef4444');
+        updateDataSource('aiSrcMacro', data.data_sources?.macro ? '✓ Connected' : '✗ Unavailable',
+            data.data_sources?.macro ? '#22c55e' : '#ef4444');
+        updateDataSource('aiSrcPrice', data.data_sources?.prices ? '✓ Connected' : '✗ Unavailable',
+            data.data_sources?.prices ? '#22c55e' : '#ef4444');
+
+        // Render commentary
+        renderAICommentary(data.commentary, ticker, data.timestamp);
+
+        statusEl.textContent = `✓ ${ticker} analysis complete · ${new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}`;
+        statusEl.style.color = '#22c55e';
+
+    } catch (err) {
+        outputEl.innerHTML = `
+            <div style="padding:1.5rem;border-left:3px solid #ef4444;background:#0f172a;border-radius:0.375rem">
+                <div style="color:#ef4444;font-weight:700;margin-bottom:0.5rem">⚠ Analysis Failed</div>
+                <div style="color:#94a3b8;font-size:0.875rem">${err.message}</div>
+                <div style="color:#475569;font-size:0.75rem;margin-top:0.5rem">Check that ANTHROPIC_API_KEY is set in Railway variables</div>
+            </div>`;
+        statusEl.textContent = `✗ Error: ${err.message}`;
+        statusEl.style.color = '#ef4444';
+        updateDataSource('aiSrcSignal', '—', '#475569');
+        updateDataSource('aiSrcMacro', '—', '#475569');
+        updateDataSource('aiSrcPrice', '—', '#475569');
+    } finally {
+        btn.textContent = '▶ Run Analysis';
+        btn.disabled = false;
+    }
+}
+
+function renderAICommentary(text, ticker, timestamp) {
+    const outputEl = document.getElementById('aiOutput');
+    if (!text) {
+        outputEl.innerHTML = '<div style="color:#64748b;padding:2rem;text-align:center">No commentary generated.</div>';
+        return;
+    }
+
+    // Parse sections from the commentary
+    const sections = [
+        { key: 'REGIME ASSESSMENT', icon: '📊', color: '#8b5cf6' },
+        { key: 'TICKER ANALYSIS', icon: '📈', color: '#3b82f6' },
+        { key: 'MACRO CONTEXT', icon: '🏛', color: '#f59e0b' },
+        { key: 'TRADE THESIS', icon: '🎯', color: '#22c55e' },
+        { key: 'KEY RISKS', icon: '⚠️', color: '#ef4444' },
+    ];
+
+    let html = `<div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:0.85rem;font-weight:700;color:#e2e8f0">Claude Analysis — ${ticker}</span>
+        <span style="font-size:0.7rem;color:#475569">${timestamp ? new Date(timestamp).toLocaleString() : ''}</span>
+    </div>`;
+
+    // Try to split into sections
+    let remaining = text;
+    let hasSections = false;
+
+    sections.forEach(sec => {
+        const idx = remaining.indexOf(sec.key + ':');
+        if (idx === -1) return;
+        hasSections = true;
+
+        // Get text before this section header (skip if it's noise)
+        const before = remaining.substring(0, idx).trim();
+
+        // Find the next section
+        let endIdx = remaining.length;
+        sections.forEach(other => {
+            if (other.key === sec.key) return;
+            const oi = remaining.indexOf(other.key + ':', idx + sec.key.length + 1);
+            if (oi !== -1 && oi < endIdx) endIdx = oi;
+        });
+
+        const content = remaining.substring(idx + sec.key.length + 1, endIdx).trim();
+        remaining = remaining.substring(endIdx);
+
+        html += `<div style="margin-bottom:1rem;padding:1rem;background:#0f172a;border-radius:0.375rem;border-left:3px solid ${sec.color}">
+            <div style="font-size:0.7rem;color:${sec.color};font-weight:700;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.5rem">${sec.icon} ${sec.key}</div>
+            <div style="color:#e2e8f0;font-size:0.875rem;line-height:1.5">${content.replace(/\n/g, '<br>')}</div>
+        </div>`;
+    });
+
+    // Fallback: if no sections parsed, show raw text
+    if (!hasSections) {
+        html += `<div style="padding:1rem;background:#0f172a;border-radius:0.375rem;border-left:3px solid #3b82f6">
+            <div style="color:#e2e8f0;font-size:0.875rem;line-height:1.6;white-space:pre-wrap">${text}</div>
+        </div>`;
+    }
+
+    html += `<div style="margin-top:1rem;font-size:0.65rem;color:#334155;text-align:right">
+        Powered by Claude (claude-sonnet-4-20250514) · Source: Nexus /api/signal + /api/macro + /api/prices
+    </div>`;
+
+    outputEl.innerHTML = html;
+}
+
+function updateDataSource(elId, text, color) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.querySelector('.metric-value').innerHTML = `<span style="color:${color};font-size:1rem">${text}</span>`;
+}
+
+// Enter key triggers analysis
+document.getElementById('aiTickerInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') runAIAnalysis();
 });
 
 // ══════════════════════════════════════════════════════════════
