@@ -440,32 +440,9 @@
         <div id="heatmapContainer"></div>
     </div>
 
-    <div class="section-title">Active Alerts (3)</div>
+    <div class="section-title" id="alertsTitle">Active Alerts (0)</div>
     <div class="alerts-section" id="alertsContainer">
-        <div class="alert-item regime-change">
-            <div class="alert-icon regime-icon">📊</div>
-            <div class="alert-details">
-                <div class="alert-title">Regime Deterioration — SPY / QQQ</div>
-                <div class="alert-message">HMM model detects Bull → Ranging transition. SPY bull confidence dropped from 68% to 41%. Two-layer HMM flags macro risk-off shift.</div>
-                <div class="alert-time">1 hour ago</div>
-            </div>
-        </div>
-        <div class="alert-item warning">
-            <div class="alert-icon warn-icon">⚠️</div>
-            <div class="alert-details">
-                <div class="alert-title">VIX Spike — Fear Regime</div>
-                <div class="alert-message">VIX printed 29.42 (+22.4%). HV/IV compression reversing rapidly. Elevated realized vol suggests options are now cheap on a forward basis — consider long gamma.</div>
-                <div class="alert-time">3 hours ago</div>
-            </div>
-        </div>
-        <div class="alert-item buy-signal">
-            <div class="alert-icon buy-icon">🎯</div>
-            <div class="alert-details">
-                <div class="alert-title">Stage 2 Breakout Candidate — GLD</div>
-                <div class="alert-message">GLD holding Stage 2 uptrend through market selloff. RS vs SPY accelerating. Weinstein relative strength line at 52-week high.</div>
-                <div class="alert-time">5 hours ago</div>
-            </div>
-        </div>
+        <div class="no-alerts">Scanning for alerts... Alerts trigger automatically when prices refresh every 5 minutes.<br><span style="font-size:0.75rem;margin-top:0.5rem;display:block">Set price alerts in the Watchlist via Edit → Alert Above / Alert Below</span></div>
     </div>
 
     <br>
@@ -2390,6 +2367,14 @@ async function refreshAllLiveData() {
 
     await fetchYahooPrices(LIVE_TICKERS);
 
+    // Also fetch prices for any watchlist tickers not in LIVE_TICKERS
+    const wlSyms = [];
+    document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
+        const sym = tr.dataset.sym;
+        if (!LIVE_TICKERS.includes(sym) && !PRICE_CACHE[sym]) wlSyms.push(sym);
+    });
+    if (wlSyms.length > 0) await fetchYahooPrices(wlSyms);
+
     // Apply to all panels
     updateTickerStrip();
     updateDashboardCards();
@@ -2397,10 +2382,170 @@ async function refreshAllLiveData() {
     updateMovers();
     updateWatchlistPrices();
 
+    // Run alert engine after prices are fresh
+    checkAlerts();
+
     liveDataActive = true;
     const now = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false });
     setLiveStatus(true, `${now} ET`);
     console.log('[APEX Live] All prices updated at', now);
+}
+
+// ══════════════════════════════════════════════════════════════
+// ALERT ENGINE — real-time price trigger alerts
+// Checks: watchlist price thresholds, VIX spikes, big movers
+// Runs after every price refresh cycle
+// ══════════════════════════════════════════════════════════════
+
+const ACTIVE_ALERTS = []; // { id, type, icon, iconClass, itemClass, title, message, time, timestamp }
+const FIRED_ALERT_KEYS = new Set(); // prevent duplicate alerts per session
+
+function checkAlerts() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit' });
+
+    // ── 1. Watchlist price threshold alerts ──
+    document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
+        const sym = tr.dataset.sym;
+        const alertAbove = parseFloat(tr.dataset.alertAbove) || 0;
+        const alertBelow = parseFloat(tr.dataset.alertBelow) || 0;
+        const d = PRICE_CACHE[sym];
+        if (!d || !d.price) return;
+        const price = parseFloat(d.price);
+
+        // Alert Above trigger
+        if (alertAbove > 0 && price >= alertAbove) {
+            const key = `above-${sym}-${alertAbove}`;
+            if (!FIRED_ALERT_KEYS.has(key)) {
+                FIRED_ALERT_KEYS.add(key);
+                ACTIVE_ALERTS.unshift({
+                    id: key, type: 'buy-signal', icon: '🎯', iconClass: 'buy-icon', itemClass: 'buy-signal',
+                    title: `${sym} Hit Alert — $${price} ≥ $${alertAbove}`,
+                    message: `${sym} crossed above your $${alertAbove} price target. Current: $${price}. Day: ${d.dayPct}%.`,
+                    time: timeStr, timestamp: now.getTime()
+                });
+            }
+        }
+
+        // Alert Below trigger
+        if (alertBelow > 0 && price <= alertBelow) {
+            const key = `below-${sym}-${alertBelow}`;
+            if (!FIRED_ALERT_KEYS.has(key)) {
+                FIRED_ALERT_KEYS.add(key);
+                ACTIVE_ALERTS.unshift({
+                    id: key, type: 'warning', icon: '⚠️', iconClass: 'warn-icon', itemClass: 'warning',
+                    title: `${sym} Broke Support — $${price} ≤ $${alertBelow}`,
+                    message: `${sym} dropped below your $${alertBelow} stop/alert level. Current: $${price}. Day: ${d.dayPct}%.`,
+                    time: timeStr, timestamp: now.getTime()
+                });
+            }
+        }
+
+        // Big mover alert (>5% day change)
+        const dayPct = parseFloat(d.dayPct);
+        if (!isNaN(dayPct) && Math.abs(dayPct) >= 5) {
+            const dir = dayPct > 0 ? 'up' : 'down';
+            const key = `bigmove-${sym}-${dir}-${Math.floor(Math.abs(dayPct))}`;
+            if (!FIRED_ALERT_KEYS.has(key)) {
+                FIRED_ALERT_KEYS.add(key);
+                const isUp = dayPct > 0;
+                ACTIVE_ALERTS.unshift({
+                    id: key,
+                    type: isUp ? 'buy-signal' : 'warning',
+                    icon: isUp ? '🚀' : '🔻',
+                    iconClass: isUp ? 'buy-icon' : 'warn-icon',
+                    itemClass: isUp ? 'buy-signal' : 'warning',
+                    title: `Big Move — ${sym} ${isUp ? '▲' : '▼'} ${Math.abs(dayPct).toFixed(1)}%`,
+                    message: `${sym} moved ${Math.abs(dayPct).toFixed(2)}% today. Price: $${price}. ${isUp ? 'Momentum surge — check for breakout.' : 'Sharp decline — check for breakdown.'}`,
+                    time: timeStr, timestamp: now.getTime()
+                });
+            }
+        }
+    });
+
+    // ── 2. VIX fear alert ──
+    const vix = PRICE_CACHE['^VIX'];
+    if (vix && vix.price) {
+        const vixPrice = parseFloat(vix.price);
+        const vixDayPct = parseFloat(vix.dayPct) || 0;
+
+        if (vixPrice >= 30) {
+            const key = `vix-fear-${Math.floor(vixPrice / 5) * 5}`;
+            if (!FIRED_ALERT_KEYS.has(key)) {
+                FIRED_ALERT_KEYS.add(key);
+                ACTIVE_ALERTS.unshift({
+                    id: key, type: 'warning', icon: '🔥', iconClass: 'warn-icon', itemClass: 'warning',
+                    title: `VIX Fear Spike — ${vixPrice.toFixed(2)}`,
+                    message: `VIX at ${vixPrice.toFixed(2)} (${vixDayPct >= 0 ? '+' : ''}${vixDayPct.toFixed(1)}%). Elevated realized vol — hedge positions. Long gamma / straddles may be appropriate.`,
+                    time: timeStr, timestamp: now.getTime()
+                });
+            }
+        } else if (vixPrice >= 25) {
+            const key = `vix-warn-${Math.floor(vixPrice / 5) * 5}`;
+            if (!FIRED_ALERT_KEYS.has(key)) {
+                FIRED_ALERT_KEYS.add(key);
+                ACTIVE_ALERTS.unshift({
+                    id: key, type: 'regime-change', icon: '📊', iconClass: 'regime-icon', itemClass: 'regime-change',
+                    title: `VIX Elevated — ${vixPrice.toFixed(2)}`,
+                    message: `VIX at ${vixPrice.toFixed(2)} (${vixDayPct >= 0 ? '+' : ''}${vixDayPct.toFixed(1)}%). Market stress rising. Consider tightening stops and reducing position sizes.`,
+                    time: timeStr, timestamp: now.getTime()
+                });
+            }
+        }
+
+        // VIX day spike (>15% intraday)
+        if (Math.abs(vixDayPct) >= 15) {
+            const key = `vix-spike-${Math.floor(vixDayPct / 10) * 10}`;
+            if (!FIRED_ALERT_KEYS.has(key)) {
+                FIRED_ALERT_KEYS.add(key);
+                ACTIVE_ALERTS.unshift({
+                    id: key, type: 'warning', icon: '⚡', iconClass: 'warn-icon', itemClass: 'warning',
+                    title: `VIX Intraday Spike — ${vixDayPct >= 0 ? '+' : ''}${vixDayPct.toFixed(1)}%`,
+                    message: `VIX surged ${Math.abs(vixDayPct).toFixed(1)}% intraday to ${vixPrice.toFixed(2)}. Rapid vol expansion signals possible regime shift.`,
+                    time: timeStr, timestamp: now.getTime()
+                });
+            }
+        }
+    }
+
+    // ── 3. Cap alerts at 20 most recent ──
+    while (ACTIVE_ALERTS.length > 20) ACTIVE_ALERTS.pop();
+
+    renderAlerts();
+    console.log(`[APEX Alerts] Checked — ${ACTIVE_ALERTS.length} active alerts`);
+}
+
+function renderAlerts() {
+    const container = document.getElementById('alertsContainer');
+    const titleEl = document.getElementById('alertsTitle');
+
+    if (!container) return;
+
+    if (ACTIVE_ALERTS.length === 0) {
+        if (titleEl) titleEl.textContent = 'Active Alerts (0)';
+        container.innerHTML = '<div class="no-alerts">No alerts triggered. Set price alerts in the Watchlist via Edit → Alert Above / Alert Below.</div>';
+        return;
+    }
+
+    if (titleEl) titleEl.textContent = `Active Alerts (${ACTIVE_ALERTS.length})`;
+
+    container.innerHTML = ACTIVE_ALERTS.map(a => `
+        <div class="alert-item ${a.itemClass}">
+            <div class="alert-icon ${a.iconClass}">${a.icon}</div>
+            <div class="alert-details">
+                <div class="alert-title">${a.title}</div>
+                <div class="alert-message">${a.message}</div>
+                <div class="alert-time">${a.time} ET</div>
+            </div>
+            <button onclick="dismissAlert('${a.id}')" style="background:none;border:none;color:#475569;cursor:pointer;font-size:1rem;padding:0.25rem;flex-shrink:0" title="Dismiss">✕</button>
+        </div>
+    `).join('');
+}
+
+function dismissAlert(id) {
+    const idx = ACTIVE_ALERTS.findIndex(a => a.id === id);
+    if (idx !== -1) ACTIVE_ALERTS.splice(idx, 1);
+    renderAlerts();
 }
 
 // ── 7. COT — fetch once on load (updates Fridays only) ───────
