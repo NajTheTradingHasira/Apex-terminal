@@ -446,6 +446,20 @@
     </div>
 
     <br>
+    <!-- Macro Data Panel -->
+    <div class="section-title">Macro Dashboard — FRED <span id="macroTimestamp" style="color:#475569;font-weight:400;font-size:0.7rem"></span></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem" id="macroCards">
+        <div class="metric-card"><div class="metric-label">10Y Treasury</div><div class="metric-value" id="macro-DGS10">—</div><div class="metric-subtitle" id="macro-DGS10-sub">Loading...</div></div>
+        <div class="metric-card"><div class="metric-label">2Y Treasury</div><div class="metric-value" id="macro-DGS2">—</div><div class="metric-subtitle" id="macro-DGS2-sub">&nbsp;</div></div>
+        <div class="metric-card"><div class="metric-label">Yield Curve (10Y-2Y)</div><div class="metric-value" id="macro-YIELD_CURVE">—</div><div class="metric-subtitle" id="macro-YIELD_CURVE-sub">&nbsp;</div></div>
+        <div class="metric-card"><div class="metric-label">Fed Funds Rate</div><div class="metric-value" id="macro-FEDFUNDS">—</div><div class="metric-subtitle" id="macro-FEDFUNDS-sub">&nbsp;</div></div>
+        <div class="metric-card"><div class="metric-label">Unemployment</div><div class="metric-value" id="macro-UNRATE">—</div><div class="metric-subtitle" id="macro-UNRATE-sub">&nbsp;</div></div>
+        <div class="metric-card"><div class="metric-label">Initial Claims</div><div class="metric-value" id="macro-ICSA">—</div><div class="metric-subtitle" id="macro-ICSA-sub">&nbsp;</div></div>
+        <div class="metric-card"><div class="metric-label">10Y Breakeven Inflation</div><div class="metric-value" id="macro-T10YIE">—</div><div class="metric-subtitle" id="macro-T10YIE-sub">&nbsp;</div></div>
+        <div class="metric-card"><div class="metric-label">CPI (All Urban)</div><div class="metric-value" id="macro-CPIAUCSL">—</div><div class="metric-subtitle" id="macro-CPIAUCSL-sub">&nbsp;</div></div>
+    </div>
+
+    <br>
     <div class="section-title">Top Movers — Today</div>
     <div class="movers-section">
         <table class="movers-table">
@@ -2554,11 +2568,80 @@ async function initCOT() {
     await fetchCOTData();
 }
 
+// ── 7b. MACRO — FRED data (updates daily/weekly depending on series) ──
+async function fetchMacroData() {
+    console.log('[APEX Macro] Fetching FRED data...');
+    try {
+        const resp = await fetch(`${NEXUS_API}/api/macro`);
+        if (!resp.ok) throw new Error(`API ${resp.status}`);
+        const data = await resp.json();
+        const ind = data.indicators || {};
+
+        // Render each indicator card
+        const keys = ['DGS10','DGS2','YIELD_CURVE','FEDFUNDS','UNRATE','ICSA','T10YIE','CPIAUCSL'];
+        keys.forEach(key => {
+            const valEl = document.getElementById(`macro-${key}`);
+            const subEl = document.getElementById(`macro-${key}-sub`);
+            if (!valEl) return;
+
+            const d = ind[key];
+            if (!d) {
+                valEl.textContent = '—';
+                if (subEl) subEl.textContent = 'No data';
+                return;
+            }
+
+            // Color logic
+            let color = '#e2e8f0';
+            if (key === 'YIELD_CURVE' || key === 'T10Y2Y') {
+                color = d.value < 0 ? '#ef4444' : d.value < 0.2 ? '#f59e0b' : '#22c55e';
+            } else if (key === 'UNRATE') {
+                color = d.value > 5 ? '#ef4444' : d.value > 4 ? '#f59e0b' : '#22c55e';
+            } else if (key === 'ICSA') {
+                color = d.value > 300000 ? '#ef4444' : d.value > 250000 ? '#f59e0b' : '#22c55e';
+            } else if (key === 'T10YIE') {
+                color = d.value > 2.8 ? '#ef4444' : d.value > 2.3 ? '#f59e0b' : '#22c55e';
+            } else if (key === 'DGS10' || key === 'DGS2' || key === 'FEDFUNDS') {
+                color = '#3b82f6';
+            }
+
+            valEl.innerHTML = `<span style="color:${color}">${d.display}</span>`;
+
+            // Subtitle: change + signal + date
+            let sub = '';
+            if (d.change !== null && d.change !== undefined) {
+                const chgColor = d.change > 0 ? '#22c55e' : d.change < 0 ? '#ef4444' : '#94a3b8';
+                const chgSign = d.change > 0 ? '+' : '';
+                sub += `<span style="color:${chgColor}">${chgSign}${d.change.toFixed(3)}</span> · `;
+            }
+            if (d.signal) {
+                const sigColor = d.signal.includes('INVERTED') || d.signal.includes('ELEVATED') || d.signal.includes('HOT') ? '#ef4444'
+                    : d.signal.includes('RISING') || d.signal.includes('FLAT') || d.signal.includes('TIGHTENING') ? '#f59e0b'
+                    : '#22c55e';
+                sub += `<span style="color:${sigColor}">${d.signal}</span>`;
+            }
+            if (d.date) sub += ` · <span style="color:#475569">${d.date}</span>`;
+            if (subEl) subEl.innerHTML = sub || '&nbsp;';
+        });
+
+        // Timestamp
+        const tsEl = document.getElementById('macroTimestamp');
+        if (tsEl && data.timestamp) {
+            tsEl.textContent = `Updated: ${new Date(data.timestamp).toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}`;
+        }
+
+        console.log(`[APEX Macro] Loaded ${data.count} indicators`);
+    } catch (e) {
+        console.warn('[APEX Macro] Fetch failed:', e.message);
+    }
+}
+
 // ── 8. BOOT SEQUENCE ─────────────────────────────────────────
-// Initial load — stagger COT and price fetches to avoid hammering
+// Initial load — stagger fetches to avoid hammering
 setTimeout(() => {
     refreshAllLiveData();
     initCOT();
+    fetchMacroData();
 }, 800);
 
 // Auto-refresh prices every 5 minutes
