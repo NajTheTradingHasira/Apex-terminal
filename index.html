@@ -1329,19 +1329,17 @@ function saveEditModal() {
     closeEditModal();
 }
 
-// Quick lookup: fill company name from a Yahoo Finance meta call
+// Quick lookup: fill company name from Nexus backend
 async function editLookup() {
     const sym = document.getElementById('editTicker').value.trim().toUpperCase();
     if (!sym) return;
     document.getElementById('editCompany').value = 'Looking up…';
     try {
-        const url = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v1/finance/search?q=${sym}&lang=en-US&region=US&quotesCount=1`)}`;
-        const res = await fetch(url);
-        const json = await res.json();
-        const data = JSON.parse(json.contents);
-        const hit = (data.quotes || []).find(q => q.symbol === sym);
+        const resp = await fetch(`${NEXUS_API}/api/prices/search?q=${encodeURIComponent(sym)}`);
+        const data = await resp.json();
+        const hit = (data.results || []).find(r => r.symbol === sym) || (data.results || [])[0];
         if (hit) {
-            document.getElementById('editCompany').value = hit.longname || hit.shortname || sym;
+            document.getElementById('editCompany').value = hit.name || sym;
         } else {
             document.getElementById('editCompany').value = sym;
         }
@@ -2088,71 +2086,40 @@ const PRICE_CACHE = {};
 // Status flag
 let liveDataActive = false;
 
-// ── 2. YAHOO FINANCE FETCH ───────────────────────────────────
-// Uses Yahoo Finance v8 quote endpoint — returns JSON, no API key needed
-// CORS proxy used because GitHub Pages is a different origin than Yahoo
+// ── 2. PRICE FETCH VIA NEXUS BACKEND ────────────────────────
+// Routes through Nexus /api/prices endpoint — no CORS proxy needed
 async function fetchYahooPrices(symbols) {
-    // Chunk into batches of 10 to avoid URL length limits
+    // Chunk into batches of 20 to keep URLs reasonable
     const chunks = [];
-    for (let i = 0; i < symbols.length; i += 10) {
-        chunks.push(symbols.slice(i, i + 10));
+    for (let i = 0; i < symbols.length; i += 20) {
+        chunks.push(symbols.slice(i, i + 20));
     }
 
     for (const chunk of chunks) {
         const syms = chunk.join(',');
-        // Use allorigins CORS proxy to bypass browser CORS restriction
-        const url = `https://api.allorigins.win/get?url=${encodeURIComponent(
-            `https://query1.finance.yahoo.com/v8/finance/spark?symbols=${syms}&range=1mo&interval=1d`
-        )}`;
+        const url = `${NEXUS_API}/api/prices?symbols=${encodeURIComponent(syms)}`;
 
         try {
             const resp = await fetch(url, { cache: 'no-store' });
-            if (!resp.ok) continue;
-            const wrapper = await resp.json();
-            const data = JSON.parse(wrapper.contents);
+            if (!resp.ok) {
+                console.warn(`[APEX Live] Nexus prices ${resp.status} for: ${syms}`);
+                continue;
+            }
+            const data = await resp.json();
+            const prices = data.prices || {};
 
-            // Also fetch quote data for price + day change
-            const quoteUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(
-                `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${syms}&fields=regularMarketPrice,regularMarketChangePercent,regularMarketVolume,regularMarketPreviousClose`
-            )}`;
-            const quoteResp = await fetch(quoteUrl, { cache: 'no-store' });
-            if (!quoteResp.ok) continue;
-            const quoteWrapper = await quoteResp.json();
-            const quoteData = JSON.parse(quoteWrapper.contents);
-
-            const quotes = quoteData?.quoteResponse?.result || [];
-            quotes.forEach(q => {
-                const sym = q.symbol;
-                const price = q.regularMarketPrice;
-                const dayPct = q.regularMarketChangePercent;
-                const vol = q.regularMarketVolume;
-
-                // Get spark data for week/month %
-                const spark = data?.spark?.result?.find(r => r.symbol === sym);
-                let weekPct = null, monthPct = null;
-                if (spark?.response?.[0]?.meta) {
-                    const closes = spark.response[0].indicators?.quote?.[0]?.close || [];
-                    const valid = closes.filter(v => v !== null && v !== undefined);
-                    if (valid.length >= 5) {
-                        const wkAgo = valid[valid.length - 6] || valid[0];
-                        weekPct = wkAgo ? ((price - wkAgo) / wkAgo) * 100 : null;
-                    }
-                    if (valid.length >= 20) {
-                        const moAgo = valid[0];
-                        monthPct = moAgo ? ((price - moAgo) / moAgo) * 100 : null;
-                    }
-                }
-
+            Object.entries(prices).forEach(([sym, d]) => {
+                if (!d.price && d.price !== 0) return;
                 PRICE_CACHE[sym] = {
-                    price: price?.toFixed(2),
-                    dayPct: dayPct?.toFixed(2),
-                    weekPct: weekPct?.toFixed(2),
-                    monthPct: monthPct?.toFixed(2),
-                    volume: vol
+                    price: d.price?.toFixed(2),
+                    dayPct: d.dayPct?.toFixed(2) ?? null,
+                    weekPct: d.weekPct?.toFixed(2) ?? null,
+                    monthPct: d.monthPct?.toFixed(2) ?? null,
+                    volume: d.volume
                 };
             });
         } catch (e) {
-            console.warn('[APEX Live] Yahoo fetch failed for chunk:', syms, e.message);
+            console.warn('[APEX Live] Nexus price fetch failed for chunk:', syms, e.message);
         }
     }
 }
