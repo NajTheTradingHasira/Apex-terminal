@@ -1220,6 +1220,12 @@ function addToWatchlist(listKey) {
     tbody.appendChild(buildRow(item, listKey));
     updateCount(listKey);
 
+    // Fetch live price for the newly added ticker
+    fetchYahooPrices([ticker]).then(() => {
+        updateWatchlistPrices();
+        console.log(`[APEX Watchlist] Fetched price for ${ticker}`);
+    }).catch(e => console.warn(`[APEX Watchlist] Price fetch failed for ${ticker}:`, e.message));
+
     // Reset add-row inputs
     inputEl.value = '';
     if (rsEl) rsEl.value = '';
@@ -1310,6 +1316,14 @@ function saveEditModal() {
         targetBody.appendChild(tr);
         updateCount(oldListKey);
         updateCount(newListKey);
+    }
+
+    // Fetch live price if ticker was changed or isn't in cache
+    if (!PRICE_CACHE[sym]) {
+        fetchYahooPrices([sym]).then(() => {
+            updateWatchlistPrices();
+            console.log(`[APEX Watchlist] Fetched price for edited ticker ${sym}`);
+        }).catch(() => {});
     }
 
     closeEditModal();
