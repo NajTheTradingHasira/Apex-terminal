@@ -1706,6 +1706,7 @@ const BD = {
     mcclellan: -87.4,
     summation: -312,
     ema19: -41.2, ema39: -18.6,
+    weinstein30w: 44,   // % above 30-week (150-day) SMA
     aboveMA: [
         { label: '20-Day MA',  pct: 28 },
         { label: '50-Day MA',  pct: 31 },
@@ -1813,7 +1814,8 @@ function buildBreadthMetrics() {
         { label: 'Up/Down Vol Ratio',   val: volRatio,               color: parseFloat(volRatio) >= 1 ? '#22c55e' : '#ef4444', sub: `${BD.upVol}B up · ${BD.downVol}B dn` },
         { label: 'TRIN (Arms Index)',   val: BD.trin.toFixed(2),     color: BD.trin > 2 ? '#8b5cf6' : BD.trin > 1.25 ? '#ef4444' : BD.trin < 0.75 ? '#22c55e' : '#f59e0b', sub: BD.trin > 2 ? 'Panic selling' : BD.trin > 1.25 ? 'Selling pressure' : 'Neutral' },
         { label: 'McClellan Osc.',      val: BD.mcclellan.toFixed(1),color: BD.mcclellan > 0 ? '#22c55e' : BD.mcclellan < -80 ? '#8b5cf6' : '#ef4444', sub: BD.mcclellan < -80 ? 'Oversold territory' : 'Bearish' },
-        { label: '% Above 200-Day MA', val: '44%',                  color: '#ef4444', sub: 'S&P 500 constituents' },
+        { label: '% Above 200-Day MA', val: (BD.aboveMA.find(m => m.label.includes('200'))?.pct || 0) + '%', color: bdBarColor(BD.aboveMA.find(m => m.label.includes('200'))?.pct || 0), sub: 'S&P 500 constituents' },
+        { label: '% Above 30-Wk SMA', val: BD.weinstein30w + '%', color: bdBarColor(BD.weinstein30w), sub: 'Weinstein momentum' },
     ];
 
     document.getElementById('breadthMetrics').innerHTML = metrics.map(m => `
@@ -1898,34 +1900,60 @@ function buildBreadthMetrics() {
             <div style="width:36px;text-align:right;font-size:.72rem;font-weight:700;color:${bdBarColor(s.pct)}">${s.pct}%</div>
         </div>`).join('');
 
-    // Interpretation panel
-    const signals = [
-        {
-            title: 'A/D Ratio — Bearish',
-            color: '#ef4444',
-            body: `NYSE advancing issues (${BD.advancing.toLocaleString()}) represent only ${advPct}% of total issues. Broad market participation is severely lacking — this is a hallmark of distribution, not a healthy selloff.`
-        },
-        {
-            title: 'McClellan Oscillator — Oversold Watch',
-            color: '#8b5cf6',
-            body: `At ${BD.mcclellan.toFixed(1)}, the McClellan Oscillator is approaching oversold territory (<-100). Summation Index at ${BD.summation} confirms persistent downward pressure. Watch for a bounce signal if Osc reaches -150 with positive divergence.`
-        },
-        {
-            title: 'New Lows Dominating — Distribution Confirmed',
-            color: '#ef4444',
-            body: `52-week new lows (${BD.newLows}) are outnumbering new highs (${BD.newHighs}) by ${(BD.newLows / BD.newHighs).toFixed(1)}:1. This level of new-low expansion is consistent with Stage 4 deterioration across the broad market.`
-        },
-        {
-            title: 'TRIN > 2.0 — Panic Selling / Potential Exhaustion',
-            color: '#8b5cf6',
-            body: `TRIN at ${BD.trin.toFixed(2)} signals extreme selling pressure relative to volume. Historically, TRIN > 2.0 on high-volume days can mark short-term capitulation. Watch for intraday reversal or next-day bounce potential.`
-        },
-        {
-            title: '% Above 200-Day MA — Structural Bear Risk',
-            color: '#ef4444',
-            body: `Only 44% of S&P 500 constituents remain above their 200-day MA. A reading below 40% has historically coincided with bear market confirmation. Stage analysis: macro regime is late Stage 3 / early Stage 4 deterioration.`
-        },
-    ];
+    // Interpretation panel — dynamic signals from live data
+    const above200 = BD.aboveMA.find(m => m.label.includes('200'))?.pct || 0;
+    const signals = [];
+
+    // A/D Ratio signal
+    const adVal = parseFloat(adRatio);
+    signals.push({
+        title: adVal >= 1 ? 'A/D Ratio — Bullish' : 'A/D Ratio — Bearish',
+        color: adVal >= 1 ? '#22c55e' : '#ef4444',
+        body: adVal >= 1
+            ? `NYSE advancing issues (${BD.advancing.toLocaleString()}) represent ${advPct}% of total. Broad participation supports the current advance.`
+            : `NYSE advancing issues (${BD.advancing.toLocaleString()}) represent only ${advPct}% of total. Broad participation severely lacking — distribution signature.`
+    });
+
+    // McClellan signal
+    const mcVal = BD.mcclellan;
+    signals.push({
+        title: mcVal < -100 ? 'McClellan Oscillator — Deeply Oversold' :
+               mcVal < -50  ? 'McClellan Oscillator — Oversold Watch' :
+               mcVal > 100  ? 'McClellan Oscillator — Overbought' :
+               mcVal > 0    ? 'McClellan Oscillator — Bullish' :
+                              'McClellan Oscillator — Bearish',
+        color: mcVal < -100 ? '#8b5cf6' : mcVal < 0 ? '#ef4444' : mcVal > 100 ? '#f59e0b' : '#22c55e',
+        body: `At ${mcVal.toFixed(1)}, the McClellan Oscillator is ${mcVal < -100 ? 'deeply oversold — watch for reversal signal' : mcVal < -50 ? 'approaching oversold territory' : mcVal > 100 ? 'overbought — expect consolidation' : mcVal > 0 ? 'above zero — positive breadth thrust' : 'negative — declining participation'}. Summation Index at ${BD.summation.toLocaleString()} ${BD.summation > 0 ? 'confirms upward pressure' : 'confirms persistent downward pressure'}.`
+    });
+
+    // New Highs / Lows signal
+    const hlVal = parseFloat(hlRatio);
+    signals.push({
+        title: hlVal >= 1 ? 'New Highs Leading — Healthy Trend' : 'New Lows Dominating — Distribution Confirmed',
+        color: hlVal >= 1 ? '#22c55e' : '#ef4444',
+        body: hlVal >= 1
+            ? `52-week new highs (${BD.newHighs}) outnumber new lows (${BD.newLows}). Broad market showing healthy participation in the advance.`
+            : `52-week new lows (${BD.newLows}) outnumber new highs (${BD.newHighs}) by ${(BD.newLows / Math.max(BD.newHighs, 1)).toFixed(1)}:1. Consistent with Stage 4 deterioration across the broad market.`
+    });
+
+    // TRIN signal
+    signals.push({
+        title: BD.trin > 2 ? 'TRIN > 2.0 — Panic Selling / Potential Exhaustion' :
+               BD.trin > 1.25 ? 'TRIN > 1.25 — Selling Pressure' :
+               BD.trin < 0.75 ? 'TRIN < 0.75 — Strong Buying Pressure' :
+                                'TRIN — Neutral Range',
+        color: BD.trin > 2 ? '#8b5cf6' : BD.trin > 1.25 ? '#ef4444' : BD.trin < 0.75 ? '#22c55e' : '#f59e0b',
+        body: `TRIN at ${BD.trin.toFixed(2)}. ${BD.trin > 2 ? 'Extreme selling pressure relative to volume. Historically, TRIN > 2.0 on high-volume days can mark short-term capitulation.' : BD.trin > 1.25 ? 'Sellers dominating on a volume-adjusted basis.' : BD.trin < 0.75 ? 'Buyers dominating with heavy volume behind advances.' : 'Volume participation roughly balanced between advances and declines.'}`
+    });
+
+    // Weinstein 30-Week + 200-Day structural signal
+    signals.push({
+        title: above200 < 40 ? '% Above 200-Day MA — Structural Bear Risk' :
+               above200 < 60 ? '% Above 200-Day MA — Weakening Trend' :
+                                '% Above 200-Day MA — Broad Strength',
+        color: above200 < 40 ? '#ef4444' : above200 < 60 ? '#f59e0b' : '#22c55e',
+        body: `${above200}% of S&P 500 constituents above their 200-day MA. ${BD.weinstein30w}% above 30-week SMA. ${above200 < 40 ? 'Below 40% has historically coincided with bear market confirmation. Stage analysis: macro regime is late Stage 3 / early Stage 4.' : above200 < 60 ? 'Participation thinning — monitor for further deterioration. Stage 2B / early Stage 3 territory.' : 'Healthy breadth supporting Stage 2 continuation.'}`
+    });
 
     document.getElementById('bdInterpretation').innerHTML = signals.map(s => `
         <div style="padding:.75rem;background:#0f172a;border-radius:.3rem;border-left:3px solid ${s.color}">
@@ -2583,7 +2611,7 @@ async function fetchCOTData() {
 
         if (!rows.length) return;
 
-        const latestDate = rows[0].report_date_as_yyyy_mm_dd;
+        const latestDate = rows[0].report_date_as_yyyy_mm_dd?.split('T')[0] || rows[0].report_date_as_yyyy_mm_dd;
 
         const tableRows = COT_CONTRACTS.map(contract => {
             const all = rows.filter(r => r.market_and_exchange_names === contract.name)
@@ -2593,12 +2621,12 @@ async function fetchCOTData() {
             const cur  = all[0];
             const prev = all[1];
 
-            const netLong  = parseInt(cur.noncommercial_positions_long_all  || 0)
-                           - parseInt(cur.noncommercial_positions_short_all || 0);
-            const prevNet  = prev ? (parseInt(prev.noncommercial_positions_long_all  || 0)
-                                   - parseInt(prev.noncommercial_positions_short_all || 0)) : null;
+            const netLong  = parseInt(cur.noncommercial_positions_long_all || cur.noncomm_positions_long_all || 0)
+                           - parseInt(cur.noncommercial_positions_short_all || cur.noncomm_positions_short_all || 0);
+            const prevNet  = prev ? (parseInt(prev.noncommercial_positions_long_all || prev.noncomm_positions_long_all || 0)
+                                   - parseInt(prev.noncommercial_positions_short_all || prev.noncomm_positions_short_all || 0)) : null;
             const wkChg    = prevNet !== null ? netLong - prevNet : null;
-            const oi       = parseInt(cur.open_interest_all || 1);
+            const oi       = parseInt(cur.open_interest_all || cur.open_interest_all_ || 1);
             const pctOI    = ((netLong / oi) * 100).toFixed(1);
 
             const netFmt   = netLong >= 0
@@ -3241,63 +3269,60 @@ async function fetchBreadthData() {
         const resp = await fetch(`${NEXUS_API}/api/market-breadth`);
         if (!resp.ok) throw new Error(`API ${resp.status}`);
         const data = await resp.json();
+        if (data.error) throw new Error(data.error);
 
-        // Map backend response into BD object
-        if (data.advancing !== undefined) BD.advancing = data.advancing;
-        if (data.declining !== undefined) BD.declining = data.declining;
-        if (data.unchanged !== undefined) BD.unchanged = data.unchanged;
-        if (data.newHighs !== undefined) BD.newHighs = data.newHighs;
-        if (data.newLows !== undefined) BD.newLows = data.newLows;
-        if (data.new_highs !== undefined) BD.newHighs = data.new_highs;
-        if (data.new_lows !== undefined) BD.newLows = data.new_lows;
-        if (data.upVol !== undefined) BD.upVol = data.upVol;
-        if (data.downVol !== undefined) BD.downVol = data.downVol;
-        if (data.up_volume !== undefined) BD.upVol = data.up_volume;
-        if (data.down_volume !== undefined) BD.downVol = data.down_volume;
-        if (data.trin !== undefined) BD.trin = data.trin;
-        if (data.mcclellan !== undefined) BD.mcclellan = data.mcclellan;
-        if (data.mcclellan_oscillator !== undefined) BD.mcclellan = data.mcclellan_oscillator;
-        if (data.summation !== undefined) BD.summation = data.summation;
-        if (data.summation_index !== undefined) BD.summation = data.summation_index;
+        // ── Market-level fields ──
+        if (data.advancing != null)           BD.advancing = data.advancing;
+        if (data.declining != null)           BD.declining = data.declining;
+        if (data.unchanged != null)           BD.unchanged = data.unchanged;
+        if (data.new_highs != null)           BD.newHighs = data.new_highs;
+        if (data.new_lows != null)            BD.newLows = data.new_lows;
+        if (data.up_volume != null)           BD.upVol = data.up_volume;
+        if (data.down_volume != null)         BD.downVol = data.down_volume;
+        if (data.trin != null)                BD.trin = data.trin;
 
-        // AD ratio
-        if (data.ad_ratio !== undefined) {
-            // already computed, just use it
+        // ── McClellan + Summation ──
+        if (data.mcclellan_oscillator != null) BD.mcclellan = data.mcclellan_oscillator;
+        if (data.summation_index != null)      BD.summation = data.summation_index;
+        if (data.ema19 != null)                BD.ema19 = data.ema19;
+        if (data.ema39 != null)                BD.ema39 = data.ema39;
+
+        // McClellan sparkline from backend
+        if (data.mc_line && Array.isArray(data.mc_line)) {
+            BD.mcLine = data.mc_line;
         }
 
-        // MA breadth bars
+        // ── MA Breadth bars ──
         if (data.ma_breadth && Array.isArray(data.ma_breadth)) {
             BD.aboveMA = data.ma_breadth.map(m => ({
                 label: m.label || m.name || m.ma,
-                pct: m.pct || m.percent || m.value || 0
-            }));
-        }
-        if (data.above_ma !== undefined && typeof data.above_ma === 'object' && !Array.isArray(data.above_ma)) {
-            BD.aboveMA = Object.entries(data.above_ma).map(([k, v]) => ({
-                label: k, pct: typeof v === 'number' ? v : parseFloat(v) || 0
+                pct: m.pct ?? m.percent ?? m.value ?? 0
             }));
         }
 
-        // Sector breadth
+        // ── Weinstein 30-week SMA ──
+        if (data.weinstein_30w_pct != null) {
+            BD.weinstein30w = data.weinstein_30w_pct;
+        }
+
+        // ── Sector breadth ──
         if (data.sector_breadth && Array.isArray(data.sector_breadth)) {
             BD.sectorBreadth = data.sector_breadth.map(s => ({
                 name: s.name || s.sector,
-                pct: s.pct || s.percent || s.value || 0
-            })).sort((a, b) => b.pct - a.pct);
-        }
-        if (data.sectors && typeof data.sectors === 'object' && !Array.isArray(data.sectors)) {
-            BD.sectorBreadth = Object.entries(data.sectors).map(([k, v]) => ({
-                name: k, pct: typeof v === 'number' ? v : parseFloat(v) || 0
+                pct: s.pct ?? s.percent ?? s.value ?? 0
             })).sort((a, b) => b.pct - a.pct);
         }
 
-        // Re-render
+        // ── Re-render ──
         buildBreadthMetrics();
         setTimeout(renderBreadthCharts, 100);
 
-        console.log('[APEX Breadth] Live data loaded:', JSON.stringify(data).substring(0, 200));
+        const src = data.source ? data.source.join(', ') : 'unknown';
+        const scanned = data.total_scanned || 0;
+        console.log(`[APEX Breadth] ✓ Live data loaded — ${scanned} constituents scanned, sources: ${src}`);
+
     } catch (e) {
-        console.warn('[APEX Breadth] Fetch failed, using static data:', e.message);
+        console.warn('[APEX Breadth] Fetch failed, using static fallback:', e.message);
     }
 }
 
@@ -3312,6 +3337,9 @@ setTimeout(() => {
 
 // Auto-refresh prices every 5 minutes
 setInterval(refreshAllLiveData, 5 * 60 * 1000);
+
+// Auto-refresh breadth every 15 minutes
+setInterval(fetchBreadthData, 15 * 60 * 1000);
 
 // Also refresh watchlist prices when that tab is opened
 document.querySelectorAll('.nav-btn').forEach(btn => {
