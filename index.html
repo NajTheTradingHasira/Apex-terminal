@@ -371,46 +371,130 @@
         .tag-hold { background-color: rgba(245,158,11,0.15); color: #f59e0b; }
         .tag-watch { background-color: rgba(59,130,246,0.15); color: #3b82f6; }
 
-        /* News */
-        .news-feed { display: flex; flex-direction: column; gap: 0.75rem; }
+        /* News — 3-column terminal layout */
+        .news-layout { display: grid; grid-template-columns: 240px 1fr 340px; gap: 0; height: calc(100vh - 140px); }
+        .news-sidebar { background: #0f1419; border-right: 1px solid #1e293b; padding: 1rem; overflow-y: auto; }
+        .news-center { overflow-y: auto; border-right: 1px solid #1e293b; }
+        .news-detail { background: #0f1419; padding: 1.25rem; overflow-y: auto; }
+
+        .news-sidebar-section { margin-bottom: 1.25rem; }
+        .news-sidebar-label { font-size: 0.65rem; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 0.5rem; }
+        .news-sidebar-input {
+            width: 100%; padding: 0.45rem 0.6rem; background: #1e293b; color: #e2e8f0;
+            border: 1px solid #334155; border-radius: 0.25rem; font-size: 0.78rem; font-family: inherit;
+            outline: none; transition: border-color 0.15s;
+        }
+        .news-sidebar-input:focus { border-color: #3b82f6; }
+        .news-sidebar-input::placeholder { color: #475569; }
+
+        .nf-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+        .nf-chip {
+            padding: 0.25rem 0.55rem; background: transparent; border: 1px solid #334155;
+            color: #64748b; border-radius: 0.2rem; cursor: pointer; font-size: 0.68rem;
+            font-family: inherit; font-weight: 600; transition: all 0.12s; user-select: none;
+        }
+        .nf-chip:hover { border-color: #475569; color: #94a3b8; }
+        .nf-chip.active { background: #1e40af; border-color: #1e40af; color: white; }
+
+        .news-sent-bar { display: flex; gap: 0.75rem; align-items: center; }
+        .news-sent-box {
+            flex: 1; text-align: center; padding: 0.6rem 0; border-radius: 0.3rem;
+            font-weight: 700; font-size: 1.1rem;
+        }
+        .news-sent-box.bull { background: rgba(34,197,94,0.08); color: #22c55e; border: 1px solid rgba(34,197,94,0.15); }
+        .news-sent-box.bear { background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.15); }
+        .news-sent-label { font-size: 0.6rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.2rem; }
+        .news-sent-progress { height: 4px; border-radius: 2px; background: #1e293b; overflow: hidden; margin-top: 0.5rem; }
+        .news-sent-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #22c55e, #22c55e var(--bull-pct), #ef4444 var(--bull-pct)); }
+
+        .nf-trending { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+        .nf-trend-chip {
+            display: inline-flex; align-items: center; gap: 0.25rem;
+            padding: 0.2rem 0.45rem; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.15);
+            border-radius: 0.2rem; font-size: 0.68rem; font-weight: 700; color: #60a5fa;
+            cursor: pointer; transition: all 0.12s;
+        }
+        .nf-trend-chip:hover { background: rgba(59,130,246,0.15); }
+        .nf-trend-count { font-size: 0.6rem; color: #475569; font-weight: 400; }
+
+        .news-center-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 0.75rem 1rem; border-bottom: 1px solid #1e293b; position: sticky; top: 0;
+            background: #0a0e1a; z-index: 5;
+        }
+        .news-center-title { font-size: 1rem; font-weight: 700; color: #e2e8f0; letter-spacing: 0.05em; }
+        .news-live-dot { display: flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; color: #22c55e; font-weight: 600; }
+        .news-live-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: livePulse 2s ease infinite; }
+        @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+        .news-feed { display: flex; flex-direction: column; }
         .news-card {
-            background-color: #0f172a; border-radius: 0.375rem; padding: 1rem 1.25rem;
-            border-left: 3px solid #334155; transition: border-color 0.15s, background-color 0.15s;
-            cursor: pointer; text-decoration: none; display: block; color: inherit;
+            padding: 0.85rem 1rem; border-bottom: 1px solid #1e293b;
+            cursor: pointer; transition: background 0.1s; display: block; text-decoration: none; color: inherit;
         }
-        .news-card:hover { border-left-color: #3b82f6; background-color: #131d32; }
-        .news-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.5rem; }
-        .news-headline { font-size: 0.875rem; font-weight: 600; color: #e2e8f0; line-height: 1.4; flex: 1; }
-        .news-time { font-size: 0.7rem; color: #475569; white-space: nowrap; flex-shrink: 0; }
-        .news-meta { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
-        .news-source { font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+        .news-card:hover { background: rgba(30,64,175,0.06); }
+        .news-card.selected { background: rgba(30,64,175,0.1); border-left: 3px solid #3b82f6; }
+        .news-card-top { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
+        .news-time { font-size: 0.68rem; color: #475569; }
+        .news-badge {
+            display: inline-block; padding: 0.1rem 0.4rem; border-radius: 0.15rem;
+            font-size: 0.62rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+        }
+        .news-badge.src-bloomberg { background: #1e40af; color: #93c5fd; }
+        .news-badge.src-reuters { background: #92400e; color: #fbbf24; }
+        .news-badge.src-cnbc { background: #14532d; color: #86efac; }
+        .news-badge.src-wsj { background: #581c87; color: #d8b4fe; }
+        .news-badge.src-marketwatch { background: #1e3a5f; color: #7dd3fc; }
+        .news-badge.src-yahoo { background: #4c1d95; color: #c4b5fd; }
+        .news-badge.src-other { background: #1e293b; color: #94a3b8; }
+        .news-badge.cat { background: #1e293b; color: #94a3b8; }
+        .news-badge.sent-bullish { background: rgba(34,197,94,0.15); color: #22c55e; }
+        .news-badge.sent-bearish { background: rgba(239,68,68,0.15); color: #ef4444; }
+        .news-badge.sent-neutral { background: rgba(148,163,184,0.08); color: #64748b; }
+        .news-badge.impact-high { color: #ef4444; }
+        .news-badge.impact-medium { color: #f59e0b; }
+        .news-badge.impact-low { color: #64748b; }
+        .news-impact-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 0.1rem; vertical-align: middle; }
+
+        .news-headline { font-size: 0.82rem; font-weight: 600; color: #e2e8f0; line-height: 1.4; margin-bottom: 0.3rem; }
+        .news-tickers { display: flex; gap: 0.25rem; flex-wrap: wrap; }
         .news-ticker-tag {
-            display: inline-block; padding: 0.1rem 0.4rem; border-radius: 0.2rem;
-            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
-            background: rgba(59,130,246,0.12); color: #60a5fa;
+            display: inline-block; padding: 0.1rem 0.35rem; border-radius: 0.15rem;
+            font-size: 0.65rem; font-weight: 700; background: rgba(59,130,246,0.12); color: #60a5fa;
         }
-        .news-sentiment {
-            display: inline-block; padding: 0.1rem 0.45rem; border-radius: 0.2rem;
-            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+
+        .news-detail-empty { text-align: center; color: #475569; padding: 3rem 1rem; font-size: 0.8rem; }
+        .news-detail-header { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin-bottom: 0.75rem; }
+        .news-detail-time { font-size: 0.7rem; color: #64748b; margin-left: auto; }
+        .news-detail-title { font-size: 1.05rem; font-weight: 700; color: #e2e8f0; line-height: 1.4; margin-bottom: 0.75rem; }
+        .news-detail-body { font-size: 0.82rem; color: #94a3b8; line-height: 1.6; margin-bottom: 1.25rem; }
+        .news-detail-section { margin-bottom: 1rem; }
+        .news-detail-section-title { font-size: 0.65rem; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 0.5rem; }
+
+        .news-mentioned-ticker {
+            display: inline-flex; align-items: center; gap: 0.35rem;
+            padding: 0.35rem 0.6rem; background: #1e293b; border-radius: 0.25rem;
+            margin-right: 0.35rem; margin-bottom: 0.35rem;
         }
-        .news-sentiment.bullish { background: rgba(34,197,94,0.12); color: #22c55e; }
-        .news-sentiment.bearish { background: rgba(239,68,68,0.12); color: #ef4444; }
-        .news-sentiment.neutral { background: rgba(148,163,184,0.08); color: #94a3b8; }
-        .news-summary { font-size: 0.8rem; color: #94a3b8; margin-top: 0.4rem; line-height: 1.45; }
-        .news-filter-bar { display: flex; gap: 0.375rem; flex-wrap: wrap; }
-        .news-filter-btn {
-            padding: 0.35rem 0.75rem; background: transparent; border: 1px solid #334155;
-            color: #64748b; border-radius: 0.25rem; cursor: pointer; font-size: 0.7rem;
-            font-family: inherit; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
-            transition: all 0.15s;
+        .news-mentioned-ticker .sym { font-weight: 700; color: #e2e8f0; font-size: 0.8rem; }
+
+        .news-ai-score { text-align: center; padding: 1rem; background: #1e293b; border-radius: 0.375rem; }
+        .news-ai-value { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .news-ai-bar { height: 6px; border-radius: 3px; background: linear-gradient(90deg, #ef4444, #f59e0b 50%, #22c55e); position: relative; margin: 0.5rem 0; }
+        .news-ai-marker { position: absolute; top: -3px; width: 12px; height: 12px; border-radius: 50%; background: white; border: 2px solid #0f172a; transform: translateX(-50%); }
+        .news-ai-labels { display: flex; justify-content: space-between; font-size: 0.65rem; color: #475569; }
+        .news-keyword-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
+        .news-keyword {
+            padding: 0.2rem 0.45rem; background: rgba(59,130,246,0.08); border-radius: 0.15rem;
+            font-size: 0.68rem; color: #60a5fa;
         }
-        .news-filter-btn:hover { border-color: #3b82f6; color: #94a3b8; }
-        .news-filter-btn.active { background: #1e40af; border-color: #1e40af; color: white; }
+
         .news-empty { text-align: center; color: #475569; padding: 3rem 1rem; font-size: 0.875rem; }
         .news-loading { text-align: center; color: #64748b; padding: 2rem; font-size: 0.8rem; }
-        .news-section-divider {
-            font-size: 0.7rem; color: #475569; text-transform: uppercase; letter-spacing: 0.06em;
-            font-weight: 600; padding: 0.5rem 0; border-bottom: 1px solid #1e293b; margin-bottom: 0.25rem;
+
+        @media (max-width: 1100px) {
+            .news-layout { grid-template-columns: 1fr; height: auto; }
+            .news-sidebar, .news-detail { display: none; }
         }
 
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
@@ -1045,70 +1129,99 @@
 </div><!-- /ai tab -->
 
 <!-- ── NEWS ──────────────────────────────────────────── -->
-<div class="tab-content" id="news" style="padding:1.5rem;max-width:1920px;margin:0 auto">
+<div class="tab-content" id="news" style="padding:0;max-width:1920px;margin:0 auto">
+    <div class="news-layout">
 
-    <!-- Runner Panel -->
-    <div style="background-color:#1e293b;padding:1.5rem;border-radius:0.5rem;border:1px solid #334155;margin-bottom:1.5rem">
-        <div class="section-title">Market &amp; Ticker News</div>
-        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
-            <input type="text" id="newsTickerInput" placeholder="SPY, AAPL, NVDA..." value="" style="padding:0.5rem 0.75rem;background-color:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:0.25rem;font-size:0.875rem;font-family:inherit;text-transform:uppercase;width:220px" title="Comma-separated tickers or blank for general market news">
-            <button class="api-btn" id="newsFetchBtn" onclick="fetchNews()" style="margin:0;padding:0.5rem 1.25rem">▶ Fetch News</button>
-            <button class="api-btn" id="newsRefreshBtn" onclick="fetchNews(true)" style="margin:0;padding:0.5rem 1.25rem;background-color:#334155">↻ Refresh All</button>
-            <span id="newsStatus" style="font-size:0.7rem;color:#64748b;margin-left:auto"></span>
-        </div>
-        <div style="margin-top:0.75rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem">
-            <div class="news-filter-bar" id="newsFilterBar">
-                <button class="news-filter-btn active" data-filter="all" onclick="filterNews('all',this)">All</button>
-                <button class="news-filter-btn" data-filter="earnings" onclick="filterNews('earnings',this)">Earnings</button>
-                <button class="news-filter-btn" data-filter="macro" onclick="filterNews('macro',this)">Macro / Fed</button>
-                <button class="news-filter-btn" data-filter="sector" onclick="filterNews('sector',this)">Sector</button>
-                <button class="news-filter-btn" data-filter="technical" onclick="filterNews('technical',this)">Technical</button>
-                <button class="news-filter-btn" data-filter="options" onclick="filterNews('options',this)">Options Flow</button>
+        <!-- LEFT SIDEBAR — Filters -->
+        <div class="news-sidebar">
+            <div class="news-sidebar-section">
+                <input type="text" class="news-sidebar-input" id="newsSearchInput" placeholder="Search headlines..." oninput="applyNewsFilters()">
             </div>
-            <div style="font-size:0.7rem;color:#475569" id="newsCountLabel">0 articles loaded</div>
+            <div class="news-sidebar-section">
+                <input type="text" class="news-sidebar-input" id="newsTickerInput" placeholder="$ Filter by ticker..." style="text-transform:uppercase" oninput="applyNewsFilters()">
+            </div>
+
+            <div class="news-sidebar-section">
+                <div class="news-sidebar-label">Source</div>
+                <div class="nf-chips" id="nfSourceChips">
+                    <button class="nf-chip active" data-src="all" onclick="toggleSourceFilter(this)">All</button>
+                    <button class="nf-chip" data-src="bloomberg" onclick="toggleSourceFilter(this)">Bloomberg</button>
+                    <button class="nf-chip" data-src="reuters" onclick="toggleSourceFilter(this)">Reuters</button>
+                    <button class="nf-chip" data-src="cnbc" onclick="toggleSourceFilter(this)">CNBC</button>
+                    <button class="nf-chip" data-src="wsj" onclick="toggleSourceFilter(this)">WSJ</button>
+                    <button class="nf-chip" data-src="marketwatch" onclick="toggleSourceFilter(this)">MarketWatch</button>
+                </div>
+            </div>
+
+            <div class="news-sidebar-section">
+                <div class="news-sidebar-label">Category</div>
+                <div class="nf-chips" id="nfCatChips">
+                    <button class="nf-chip active" data-cat="all" onclick="toggleCatFilter(this)">All</button>
+                    <button class="nf-chip" data-cat="earnings" onclick="toggleCatFilter(this)">Earnings</button>
+                    <button class="nf-chip" data-cat="macro" onclick="toggleCatFilter(this)">Macro</button>
+                    <button class="nf-chip" data-cat="sector" onclick="toggleCatFilter(this)">Company</button>
+                    <button class="nf-chip" data-cat="technical" onclick="toggleCatFilter(this)">Markets</button>
+                    <button class="nf-chip" data-cat="options" onclick="toggleCatFilter(this)">Options Flow</button>
+                </div>
+            </div>
+
+            <div class="news-sidebar-section">
+                <div class="news-sidebar-label">Sentiment</div>
+                <div class="news-sent-bar">
+                    <div class="news-sent-box bull">
+                        <div id="nsBullCount">0</div>
+                        <div class="news-sent-label">Bullish</div>
+                    </div>
+                    <div class="news-sent-box bear">
+                        <div id="nsBearCount">0</div>
+                        <div class="news-sent-label">Bearish</div>
+                    </div>
+                </div>
+                <div class="news-sent-progress">
+                    <div class="news-sent-fill" id="nsSentBar" style="--bull-pct:50%"></div>
+                </div>
+            </div>
+
+            <div class="news-sidebar-section">
+                <div class="news-sidebar-label">Trending Tickers</div>
+                <div class="nf-trending" id="nfTrending">
+                    <span style="font-size:0.72rem;color:#475569">Fetch news to see trends</span>
+                </div>
+            </div>
+
+            <div class="news-sidebar-section" style="margin-top:1rem">
+                <div class="news-sidebar-label">Quick Feeds</div>
+                <div style="display:flex;flex-direction:column;gap:0.35rem">
+                    <button class="nf-chip" style="width:100%;text-align:left;padding:0.35rem 0.5rem;border-color:#1e293b" onclick="fetchNewsForTickers(['SPY','QQQ','IWM','DIA'])">📊 Index ETFs</button>
+                    <button class="nf-chip" style="width:100%;text-align:left;padding:0.35rem 0.5rem;border-color:#1e293b" onclick="fetchNewsForTickers(['NVDA','AAPL','MSFT','GOOGL','META','AMZN','TSLA'])">💻 Mag 7</button>
+                    <button class="nf-chip" style="width:100%;text-align:left;padding:0.35rem 0.5rem;border-color:#1e293b" onclick="fetchNewsFromWatchlist()">📋 My Watchlist</button>
+                    <button class="nf-chip" style="width:100%;text-align:left;padding:0.35rem 0.5rem;border-color:#1e293b" onclick="fetchNews(true)">↻ Refresh All</button>
+                </div>
+            </div>
         </div>
-    </div>
 
-    <!-- News Feed -->
-    <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem">
-
-        <!-- Main Feed -->
-        <div>
-            <div class="section-title" id="newsMainTitle">Latest News</div>
+        <!-- CENTER — News Feed -->
+        <div class="news-center">
+            <div class="news-center-header">
+                <div style="display:flex;align-items:center;gap:0.75rem">
+                    <span class="news-center-title">NEWS</span>
+                    <span style="font-size:0.75rem;color:#64748b" id="newsArticleCount">0 articles</span>
+                </div>
+                <span class="news-live-dot" id="newsLiveIndicator" style="display:none">Live</span>
+            </div>
             <div class="news-feed" id="newsFeedMain">
                 <div class="news-empty">
                     <div style="font-size:2rem;margin-bottom:0.75rem">📰</div>
-                    <div>Enter tickers above or click "Refresh All" for market-wide news</div>
-                    <div style="font-size:0.75rem;color:#334155;margin-top:0.5rem">Pulls from Yahoo Finance via Nexus backend</div>
+                    <div>Click a quick feed or enter tickers to load news</div>
                 </div>
             </div>
         </div>
 
-        <!-- Sidebar: Watchlist News + Quick Links -->
-        <div>
-            <div class="section-title">Watchlist Mentions</div>
-            <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1rem;margin-bottom:1.5rem;min-height:150px" id="newsWatchlistMentions">
-                <div style="text-align:center;color:#475569;padding:1rem;font-size:0.8rem">
-                    Fetch news to see watchlist ticker mentions
-                </div>
-            </div>
-
-            <div class="section-title">Quick Feeds</div>
-            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1.5rem">
-                <button class="news-filter-btn" style="width:100%;text-align:left;padding:0.5rem 0.75rem" onclick="fetchNewsForTickers(['SPY','QQQ','IWM','DIA'])">📊 Index ETFs — SPY QQQ IWM DIA</button>
-                <button class="news-filter-btn" style="width:100%;text-align:left;padding:0.5rem 0.75rem" onclick="fetchNewsForTickers(['NVDA','AAPL','MSFT','GOOGL','META','AMZN','TSLA'])">💻 Mag 7 — NVDA AAPL MSFT GOOGL META AMZN TSLA</button>
-                <button class="news-filter-btn" style="width:100%;text-align:left;padding:0.5rem 0.75rem" onclick="fetchNewsFromWatchlist()">📋 My Watchlist Tickers</button>
-                <button class="news-filter-btn" style="width:100%;text-align:left;padding:0.5rem 0.75rem" onclick="fetchNewsForTickers(['GLD','SLV','TLT','DX-Y.NYB'])">🏛 Macro — GLD SLV TLT DXY</button>
-            </div>
-
-            <div class="section-title">News Stats</div>
-            <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1rem">
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;font-size:0.8rem">
-                    <div><span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;display:block;margin-bottom:0.2rem">Total Articles</span><span style="font-weight:700;color:#e2e8f0" id="nsTotal">0</span></div>
-                    <div><span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;display:block;margin-bottom:0.2rem">Tickers Covered</span><span style="font-weight:700;color:#e2e8f0" id="nsTickers">0</span></div>
-                    <div><span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;display:block;margin-bottom:0.2rem">Bullish / Bearish</span><span style="font-weight:700" id="nsSentiment"><span style="color:#22c55e">0</span> / <span style="color:#ef4444">0</span></span></div>
-                    <div><span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;display:block;margin-bottom:0.2rem">Last Refresh</span><span style="font-weight:700;color:#e2e8f0" id="nsLastRefresh">—</span></div>
-                </div>
+        <!-- RIGHT SIDEBAR — Article Detail -->
+        <div class="news-detail" id="newsDetailPanel">
+            <div class="news-detail-empty">
+                <div style="font-size:1.5rem;margin-bottom:0.5rem">←</div>
+                <div>Click an article to see details</div>
             </div>
         </div>
 
@@ -2961,15 +3074,23 @@ async function fetchMacroData() {
 // ══════════════════════════════════════════════════════════════
 
 let NEWS_CACHE = []; // all fetched articles
-let NEWS_ACTIVE_FILTER = 'all';
+let NEWS_ACTIVE_CAT = 'all';
+let NEWS_ACTIVE_SRC = 'all';
+let NEWS_SELECTED = null; // currently selected article index
 
 // Keyword buckets for filtering
 const NEWS_FILTER_KEYWORDS = {
     earnings:  ['earnings','revenue','profit','loss','eps','guidance','quarter','fiscal','beat','miss','outlook','forecast'],
     macro:     ['fed','fomc','rate','inflation','cpi','ppi','gdp','treasury','yield','employment','jobs','nonfarm','tariff','trade war','recession','stimulus','monetary','fiscal policy','powell'],
     sector:    ['sector','rotation','industry','etf','xlk','xlf','xlv','xle','xlu','xli','xlp','xly','xlb','xlc','semis','chip','pharma','biotech','banks','fintech'],
-    technical: ['breakout','breakdown','support','resistance','moving average','volume','rsi','macd','chart','trend','consolidation','pullback','rally','correction','bear','bull'],
+    technical: ['breakout','breakdown','support','resistance','moving average','volume','rsi','macd','chart','trend','consolidation','pullback','rally','correction','bear','bull','market'],
     options:   ['options','calls','puts','implied volatility','iv','gamma','delta','vega','straddle','strangle','spread','open interest','unusual activity','flow','sweep','block trade']
+};
+
+const NEWS_SOURCE_COLORS = {
+    bloomberg: 'src-bloomberg', reuters: 'src-reuters', cnbc: 'src-cnbc',
+    'wall street journal': 'src-wsj', wsj: 'src-wsj', marketwatch: 'src-marketwatch',
+    'yahoo finance': 'src-yahoo', yahoo: 'src-yahoo',
 };
 
 function classifyArticle(title, summary) {
@@ -2984,13 +3105,30 @@ function classifyArticle(title, summary) {
 function guessSentiment(title) {
     if (!title) return 'neutral';
     const t = title.toLowerCase();
-    const bullWords = ['surge','rally','soar','beat','upgrade','breakout','boom','record high','outperform','bullish','upside','growth','strong','jump'];
-    const bearWords = ['crash','plunge','drop','miss','downgrade','breakdown','sell','decline','fear','risk','cut','weak','fall','slump','loss','bearish','warning','crisis'];
+    const bullWords = ['surge','rally','soar','beat','upgrade','breakout','boom','record high','outperform','bullish','upside','growth','strong','jump','raises','climbs','gains'];
+    const bearWords = ['crash','plunge','drop','miss','downgrade','breakdown','sell','decline','fear','risk','cut','weak','fall','slump','loss','bearish','warning','crisis','recalls','warns'];
     const bull = bullWords.filter(w => t.includes(w)).length;
     const bear = bearWords.filter(w => t.includes(w)).length;
     if (bull > bear) return 'bullish';
     if (bear > bull) return 'bearish';
     return 'neutral';
+}
+
+function guessImpact(article) {
+    const cats = article._categories || [];
+    const sent = article._sentiment;
+    if (cats.includes('earnings') || cats.includes('macro')) return 'high';
+    if (sent !== 'neutral') return 'medium';
+    return 'low';
+}
+
+function getSourceClass(publisher) {
+    if (!publisher) return 'src-other';
+    const p = publisher.toLowerCase();
+    for (const [key, cls] of Object.entries(NEWS_SOURCE_COLORS)) {
+        if (p.includes(key)) return cls;
+    }
+    return 'src-other';
 }
 
 function formatNewsTime(ts) {
@@ -3002,13 +3140,21 @@ function formatNewsTime(ts) {
     const diffMin = Math.floor(diffMs / 60000);
     const diffHr = Math.floor(diffMin / 60);
     const diffDay = Math.floor(diffHr / 24);
-
     if (diffMin < 1) return 'Just now';
     if (diffMin < 60) return `${diffMin}m ago`;
     if (diffHr < 24) return `${diffHr}h ago`;
     if (diffDay < 7) return `${diffDay}d ago`;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
+
+function formatNewsTimeFull(ts) {
+    if (!ts) return '—';
+    const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+}
+
+// ── Fetching ──────────────────────────────────────────
 
 async function fetchNewsForTicker(ticker) {
     try {
@@ -3033,13 +3179,10 @@ async function fetchNewsForTicker(ticker) {
 
 async function fetchNews(refreshAll) {
     const inputEl = document.getElementById('newsTickerInput');
-    const btn = document.getElementById('newsFetchBtn');
-    const statusEl = document.getElementById('newsStatus');
     const feedEl = document.getElementById('newsFeedMain');
 
     let tickers = [];
     if (refreshAll) {
-        // Fetch for index ETFs + any watchlist tickers
         tickers = ['SPY', 'QQQ', 'IWM'];
         document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
             const sym = tr.dataset.sym;
@@ -3054,18 +3197,12 @@ async function fetchNews(refreshAll) {
         }
     }
 
-    btn.textContent = '⏳ Loading...';
-    btn.disabled = true;
-    statusEl.textContent = `Fetching news for ${tickers.length} ticker${tickers.length > 1 ? 's' : ''}...`;
-    statusEl.style.color = '#f59e0b';
-
     feedEl.innerHTML = `<div class="news-loading"><span class="spinner"></span> Fetching news for ${tickers.join(', ')}...</div>`;
 
     try {
         const results = await Promise.allSettled(tickers.map(t => fetchNewsForTicker(t)));
         const allArticles = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
 
-        // Deduplicate by title similarity (first 60 chars)
         const seen = new Set();
         const deduped = allArticles.filter(a => {
             const key = (a.title || '').substring(0, 60).toLowerCase();
@@ -3074,28 +3211,24 @@ async function fetchNews(refreshAll) {
             return true;
         });
 
-        // Sort newest first
         deduped.sort((a, b) => {
             const ta = typeof a._ts === 'number' ? a._ts : 0;
             const tb = typeof b._ts === 'number' ? b._ts : 0;
             return tb - ta;
         });
 
-        NEWS_CACHE = deduped;
-        renderNews();
-        updateNewsStats(tickers);
-        updateWatchlistMentions();
+        // Add impact to each article
+        deduped.forEach(a => { a._impact = guessImpact(a); });
 
-        const successCount = results.filter(r => r.status === 'fulfilled' && r.value.length > 0).length;
-        statusEl.textContent = `✓ ${deduped.length} articles from ${successCount}/${tickers.length} tickers · ${new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}`;
-        statusEl.style.color = '#22c55e';
+        NEWS_CACHE = deduped;
+        NEWS_SELECTED = null;
+        renderNews();
+        updateNewsSidebar();
+        document.getElementById('newsLiveIndicator').style.display = 'flex';
+
+        console.log(`[APEX News] ✓ ${deduped.length} articles loaded from ${tickers.length} tickers`);
     } catch (err) {
         feedEl.innerHTML = `<div class="news-empty" style="color:#ef4444">⚠ News fetch failed: ${err.message}</div>`;
-        statusEl.textContent = `✗ Error: ${err.message}`;
-        statusEl.style.color = '#ef4444';
-    } finally {
-        btn.textContent = '▶ Fetch News';
-        btn.disabled = false;
     }
 }
 
@@ -3104,162 +3237,259 @@ function fetchNewsForTickers(tickers) {
     fetchNews();
 }
 
-function fetchNewsFromWatchlist() {
-    const tickers = [];
-    document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
-        const sym = tr.dataset.sym;
-        if (!tickers.includes(sym)) tickers.push(sym);
-    });
-    if (tickers.length === 0) {
-        document.getElementById('newsStatus').textContent = 'No watchlist tickers found';
-        document.getElementById('newsStatus').style.color = '#f59e0b';
-        return;
-    }
-    document.getElementById('newsTickerInput').value = tickers.join(', ');
-    fetchNews();
-}
-
-function renderNews() {
-    const feedEl = document.getElementById('newsFeedMain');
-    const filtered = NEWS_ACTIVE_FILTER === 'all'
-        ? NEWS_CACHE
-        : NEWS_CACHE.filter(a => a._categories.includes(NEWS_ACTIVE_FILTER));
-
-    if (filtered.length === 0) {
-        feedEl.innerHTML = `<div class="news-empty">${NEWS_CACHE.length > 0
-            ? 'No articles match this filter. Try "All".'
-            : 'No news loaded yet. Enter tickers or click a quick feed.'}</div>`;
-        return;
-    }
-
-    // Group by time buckets
-    const now = Date.now() / 1000;
-    const buckets = [
-        { label: 'Last Hour',    max: 3600 },
-        { label: 'Today',        max: 86400 },
-        { label: 'This Week',    max: 604800 },
-        { label: 'Older',        max: Infinity }
-    ];
-
-    let html = '';
-    let lastBucket = '';
-
-    filtered.forEach(article => {
-        const ts = typeof article._ts === 'number' ? article._ts : 0;
-        const age = now - ts;
-        const bucket = buckets.find(b => age < b.max) || buckets[buckets.length - 1];
-
-        if (bucket.label !== lastBucket) {
-            html += `<div class="news-section-divider">${bucket.label}</div>`;
-            lastBucket = bucket.label;
-        }
-
-        const url = article.link || article.url || '#';
-        const source = article.publisher || article.source || '—';
-        const title = article.title || 'Untitled';
-        const summary = article.summary || article.description || '';
-        const relatedTickers = article.relatedTickers || (article._ticker ? [article._ticker] : []);
-        const sentiment = article._sentiment;
-        const sentLabel = sentiment === 'bullish' ? '▲ Bullish' : sentiment === 'bearish' ? '▼ Bearish' : '';
-
-        html += `<a class="news-card" href="${url}" target="_blank" rel="noopener" title="Open article">
-            <div class="news-card-header">
-                <div class="news-headline">${escapeHtml(title)}</div>
-                <div class="news-time">${formatNewsTime(ts)}</div>
-            </div>
-            ${summary ? `<div class="news-summary">${escapeHtml(summary.substring(0, 200))}${summary.length > 200 ? '…' : ''}</div>` : ''}
-            <div class="news-meta" style="margin-top:0.5rem">
-                <span class="news-source">${escapeHtml(source)}</span>
-                ${relatedTickers.map(t => `<span class="news-ticker-tag">${escapeHtml(t)}</span>`).join('')}
-                ${sentLabel ? `<span class="news-sentiment ${sentiment}">${sentLabel}</span>` : ''}
-                ${article._categories.filter(c => c !== 'general').map(c =>
-                    `<span style="font-size:0.65rem;color:#475569;text-transform:uppercase;letter-spacing:0.04em">${c}</span>`
-                ).join('')}
-            </div>
-        </a>`;
-    });
-
-    feedEl.innerHTML = html;
-    document.getElementById('newsCountLabel').textContent = `${filtered.length}${filtered.length !== NEWS_CACHE.length ? ` / ${NEWS_CACHE.length}` : ''} articles`;
-}
-
 function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
 }
 
-function filterNews(cat, btn) {
-    NEWS_ACTIVE_FILTER = cat;
-    document.querySelectorAll('#newsFilterBar .news-filter-btn').forEach(b => b.classList.remove('active'));
-    if (btn) btn.classList.add('active');
+function fetchNewsFromWatchlist() {
+    const tickers = [];
+    document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
+        const sym = tr.dataset.sym;
+        if (!tickers.includes(sym)) tickers.push(sym);
+    });
+    if (tickers.length === 0) return;
+    document.getElementById('newsTickerInput').value = tickers.join(', ');
+    fetchNews();
+}
+
+// ── Filtering ─────────────────────────────────────────
+
+function getFilteredNews() {
+    let filtered = NEWS_CACHE;
+
+    // Category filter
+    if (NEWS_ACTIVE_CAT !== 'all') {
+        filtered = filtered.filter(a => a._categories.includes(NEWS_ACTIVE_CAT));
+    }
+
+    // Source filter
+    if (NEWS_ACTIVE_SRC !== 'all') {
+        filtered = filtered.filter(a => {
+            const pub = (a.publisher || a.source || '').toLowerCase();
+            return pub.includes(NEWS_ACTIVE_SRC);
+        });
+    }
+
+    // Search filter
+    const searchVal = (document.getElementById('newsSearchInput')?.value || '').toLowerCase().trim();
+    if (searchVal) {
+        filtered = filtered.filter(a => (a.title || '').toLowerCase().includes(searchVal));
+    }
+
+    // Ticker filter from sidebar input
+    const tickerFilter = (document.getElementById('newsTickerInput')?.value || '').toUpperCase().trim();
+    if (tickerFilter && !tickerFilter.includes(',')) {
+        filtered = filtered.filter(a => {
+            const tickers = a.relatedTickers || [a._ticker];
+            return tickers.some(t => t.includes(tickerFilter)) || (a.title || '').toUpperCase().includes(tickerFilter);
+        });
+    }
+
+    return filtered;
+}
+
+function toggleSourceFilter(btn) {
+    const src = btn.dataset.src;
+    NEWS_ACTIVE_SRC = src;
+    document.querySelectorAll('#nfSourceChips .nf-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
     renderNews();
 }
 
-function updateNewsStats(tickers) {
-    document.getElementById('nsTotal').textContent = NEWS_CACHE.length;
-    document.getElementById('nsTickers').textContent = new Set(NEWS_CACHE.map(a => a._ticker)).size;
-    const bull = NEWS_CACHE.filter(a => a._sentiment === 'bullish').length;
-    const bear = NEWS_CACHE.filter(a => a._sentiment === 'bearish').length;
-    document.getElementById('nsSentiment').innerHTML = `<span style="color:#22c55e">${bull}</span> / <span style="color:#ef4444">${bear}</span>`;
-    document.getElementById('nsLastRefresh').textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+function toggleCatFilter(btn) {
+    const cat = btn.dataset.cat;
+    NEWS_ACTIVE_CAT = cat;
+    document.querySelectorAll('#nfCatChips .nf-chip').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderNews();
 }
 
-function updateWatchlistMentions() {
-    const container = document.getElementById('newsWatchlistMentions');
-    if (!container) return;
+function applyNewsFilters() {
+    renderNews();
+}
 
-    // Gather all watchlist tickers
-    const wlTickers = new Set();
-    document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => wlTickers.add(tr.dataset.sym));
+// ── Rendering ─────────────────────────────────────────
 
-    if (wlTickers.size === 0) {
-        container.innerHTML = '<div style="text-align:center;color:#475569;padding:1rem;font-size:0.8rem">No watchlist tickers</div>';
+function renderNews() {
+    const feedEl = document.getElementById('newsFeedMain');
+    const filtered = getFilteredNews();
+
+    document.getElementById('newsArticleCount').textContent = `${filtered.length} article${filtered.length !== 1 ? 's' : ''}`;
+
+    if (filtered.length === 0) {
+        feedEl.innerHTML = `<div class="news-empty">${NEWS_CACHE.length > 0
+            ? 'No articles match current filters.'
+            : 'Click a quick feed or enter tickers to load news.'}</div>`;
         return;
     }
 
-    // Find articles that mention watchlist tickers
-    const mentions = {};
-    NEWS_CACHE.forEach(article => {
-        const relTickers = article.relatedTickers || [];
-        const titleText = (article.title || '').toUpperCase();
-        wlTickers.forEach(sym => {
-            if (relTickers.includes(sym) || titleText.includes(sym)) {
-                if (!mentions[sym]) mentions[sym] = [];
-                mentions[sym].push(article);
-            }
-        });
-    });
+    feedEl.innerHTML = filtered.map((article, idx) => {
+        const globalIdx = NEWS_CACHE.indexOf(article);
+        const source = article.publisher || article.source || '—';
+        const srcClass = getSourceClass(source);
+        const title = article.title || 'Untitled';
+        const relatedTickers = article.relatedTickers || (article._ticker ? [article._ticker] : []);
+        const sentiment = article._sentiment;
+        const impact = article._impact || 'low';
+        const impactColor = impact === 'high' ? '#ef4444' : impact === 'medium' ? '#f59e0b' : '#475569';
+        const catLabel = article._categories.find(c => c !== 'general') || '';
+        const isSelected = NEWS_SELECTED === globalIdx;
 
-    const entries = Object.entries(mentions).sort((a, b) => b[1].length - a[1].length);
-    if (entries.length === 0) {
-        container.innerHTML = '<div style="text-align:center;color:#475569;padding:1rem;font-size:0.8rem">No news mentions for watchlist tickers in current feed</div>';
-        return;
-    }
-
-    container.innerHTML = entries.map(([sym, articles]) => {
-        const latest = articles[0];
-        const sent = articles.reduce((acc, a) => {
-            if (a._sentiment === 'bullish') acc.bull++;
-            if (a._sentiment === 'bearish') acc.bear++;
-            return acc;
-        }, { bull: 0, bear: 0 });
-        const sentColor = sent.bull > sent.bear ? '#22c55e' : sent.bear > sent.bull ? '#ef4444' : '#94a3b8';
-        const sentLabel = sent.bull > sent.bear ? 'Bullish' : sent.bear > sent.bull ? 'Bearish' : 'Mixed';
-
-        return `<div style="padding:0.6rem 0;border-bottom:1px solid #1e293b;font-size:0.8rem">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
-                <span style="font-weight:700;color:#e2e8f0;letter-spacing:0.04em">${sym}</span>
-                <span style="font-size:0.68rem;color:${sentColor};font-weight:600">${sentLabel} · ${articles.length} article${articles.length > 1 ? 's' : ''}</span>
+        return `<div class="news-card${isSelected ? ' selected' : ''}" onclick="selectNewsArticle(${globalIdx})">
+            <div class="news-card-top">
+                <span class="news-time">${formatNewsTime(article._ts)}</span>
+                <span class="news-badge ${srcClass}">${escapeHtml(source)}</span>
+                ${catLabel ? `<span class="news-badge cat">${catLabel}</span>` : ''}
+                <span class="news-badge sent-${sentiment}">${sentiment.toUpperCase()}</span>
+                <span class="news-badge impact-${impact}"><span class="news-impact-dot" style="background:${impactColor}"></span> ${impact.toUpperCase()}</span>
             </div>
-            <div style="color:#94a3b8;font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(latest.title || '')}">${escapeHtml(latest.title || '—')}</div>
+            <div class="news-headline">${escapeHtml(title)}</div>
+            <div class="news-tickers">
+                ${relatedTickers.map(t => `<span class="news-ticker-tag">$${escapeHtml(t)}</span>`).join('')}
+            </div>
         </div>`;
     }).join('');
 }
 
-// Enter key in news input triggers fetch
+function selectNewsArticle(idx) {
+    NEWS_SELECTED = idx;
+    const article = NEWS_CACHE[idx];
+    if (!article) return;
+
+    // Re-render feed to update selected state
+    renderNews();
+
+    const panel = document.getElementById('newsDetailPanel');
+    const source = article.publisher || article.source || '—';
+    const srcClass = getSourceClass(source);
+    const sentiment = article._sentiment;
+    const impact = article._impact || 'low';
+    const impactColor = impact === 'high' ? '#ef4444' : impact === 'medium' ? '#f59e0b' : '#475569';
+    const catLabel = article._categories.find(c => c !== 'general') || '';
+    const summary = article.summary || article.description || '';
+    const relatedTickers = article.relatedTickers || (article._ticker ? [article._ticker] : []);
+    const url = article.link || article.url || '#';
+
+    // Compute simple sentiment score
+    const title = (article.title || '').toLowerCase();
+    const bullWords = ['surge','rally','soar','beat','upgrade','breakout','boom','record','outperform','bullish','upside','growth','strong','jump','raises','climbs','gains'];
+    const bearWords = ['crash','plunge','drop','miss','downgrade','breakdown','sell','decline','fear','risk','cut','weak','fall','slump','loss','bearish','warning','crisis'];
+    const bullHits = bullWords.filter(w => title.includes(w));
+    const bearHits = bearWords.filter(w => title.includes(w));
+    const allHits = [...bullHits, ...bearHits];
+    const sentScore = allHits.length > 0 ? ((bullHits.length - bearHits.length) / allHits.length).toFixed(2) : '0.00';
+    const sentScoreNum = parseFloat(sentScore);
+    const sentScoreColor = sentScoreNum > 0.3 ? '#22c55e' : sentScoreNum < -0.3 ? '#ef4444' : '#f59e0b';
+    const markerPct = ((sentScoreNum + 1) / 2 * 100).toFixed(0);
+
+    // Extract key phrases from title
+    const keywords = [...bullHits, ...bearHits].filter((v, i, a) => a.indexOf(v) === i);
+
+    panel.innerHTML = `
+        <div class="news-detail-header">
+            <span class="news-badge ${srcClass}">${escapeHtml(source)}</span>
+            ${catLabel ? `<span class="news-badge cat">${catLabel}</span>` : ''}
+            <span class="news-badge sent-${sentiment}">${sentiment.toUpperCase()}</span>
+            <span class="news-badge impact-${impact}"><span class="news-impact-dot" style="background:${impactColor}"></span> ${impact.toUpperCase()}</span>
+            <span class="news-detail-time">${formatNewsTimeFull(article._ts)}</span>
+        </div>
+
+        <div class="news-detail-title">${escapeHtml(article.title || 'Untitled')}</div>
+
+        <div class="news-detail-body">${escapeHtml(summary.substring(0, 600))}${summary.length > 600 ? '…' : ''}</div>
+
+        ${url !== '#' ? `<a href="${url}" target="_blank" rel="noopener" style="display:inline-block;padding:0.4rem 0.8rem;background:#1e40af;color:white;border-radius:0.25rem;font-size:0.75rem;font-weight:600;text-decoration:none;margin-bottom:1.25rem">Read Full Article →</a>` : ''}
+
+        <div class="news-detail-section">
+            <div class="news-detail-section-title">Mentioned Tickers</div>
+            <div>
+                ${relatedTickers.map(t => `
+                    <span class="news-mentioned-ticker">
+                        <span class="sym">${escapeHtml(t)}</span>
+                        <span class="news-badge sent-${sentiment}" style="font-size:0.6rem">${sentiment.toUpperCase()}</span>
+                    </span>
+                `).join('')}
+            </div>
+        </div>
+
+        <div class="news-detail-section">
+            <div class="news-detail-section-title">AI Sentiment Analysis</div>
+            <div class="news-ai-score">
+                <div style="font-size:0.7rem;color:#64748b">Sentiment Score</div>
+                <div class="news-ai-value" style="color:${sentScoreColor}">${sentScoreNum > 0 ? '+' : ''}${sentScore}</div>
+                <div class="news-ai-bar">
+                    <div class="news-ai-marker" style="left:${markerPct}%"></div>
+                </div>
+                <div class="news-ai-labels">
+                    <span>Bearish</span><span>Neutral</span><span>Bullish</span>
+                </div>
+                ${keywords.length > 0 ? `
+                    <div class="news-keyword-tags">
+                        ${keywords.map(k => `<span class="news-keyword">${k}</span>`).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+// ── Sidebar Updates ───────────────────────────────────
+
+function updateNewsSidebar() {
+    const bull = NEWS_CACHE.filter(a => a._sentiment === 'bullish').length;
+    const bear = NEWS_CACHE.filter(a => a._sentiment === 'bearish').length;
+    const total = bull + bear || 1;
+    const bullPct = ((bull / total) * 100).toFixed(0);
+
+    document.getElementById('nsBullCount').textContent = bull;
+    document.getElementById('nsBearCount').textContent = bear;
+    document.getElementById('nsSentBar').style.setProperty('--bull-pct', bullPct + '%');
+
+    // Trending tickers
+    const tickerCounts = {};
+    NEWS_CACHE.forEach(a => {
+        const tickers = a.relatedTickers || [a._ticker];
+        tickers.forEach(t => {
+            if (t) tickerCounts[t] = (tickerCounts[t] || 0) + 1;
+        });
+    });
+
+    const sorted = Object.entries(tickerCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+    const trendEl = document.getElementById('nfTrending');
+    if (sorted.length > 0) {
+        trendEl.innerHTML = sorted.map(([sym, count]) =>
+            `<span class="nf-trend-chip" onclick="document.getElementById('newsTickerInput').value='${sym}';applyNewsFilters()">${sym} <span class="nf-trend-count">${count}</span></span>`
+        ).join('');
+    } else {
+        trendEl.innerHTML = '<span style="font-size:0.72rem;color:#475569">No data yet</span>';
+    }
+}
+
+function filterNews(cat, btn) {
+    NEWS_ACTIVE_CAT = cat;
+    if (btn) {
+        document.querySelectorAll('#nfCatChips .nf-chip').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+    }
+    renderNews();
+}
+
+function updateNewsStats(tickers) {
+    // kept for compatibility — sidebar handles this now
+}
+
+function updateWatchlistMentions() {
+    // functionality moved to trending tickers in sidebar
+}
+
+// Enter key in news inputs
 document.getElementById('newsTickerInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') fetchNews();
+});
+document.getElementById('newsSearchInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') applyNewsFilters();
 });
 
 // ── 7c. MARKET BREADTH — live data from Nexus backend ──────
