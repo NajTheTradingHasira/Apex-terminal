@@ -894,46 +894,7 @@
     <div class="movers-section">
         <div class="section-title">Trade Log</div>
         <div id="journalEntries">
-            <!-- pre-seeded entries -->
-            <div class="journal-entry long-win">
-                <div class="journal-entry-header">
-                    <div><span class="journal-entry-title">GLD — Long Call</span><span class="wl-badge positive">+$840</span></div>
-                    <div class="journal-entry-meta">Feb 24, 2026 · Stage 2 · Equity</div>
-                </div>
-                <div class="journal-stats">
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$255.40</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$262.11</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$5,000</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">2.8:1</span></div>
-                </div>
-                <div class="journal-notes">Stage 2 uptrend with RS line breaking to 52-week high vs SPY. Kell trend intact above 10/20 EMA. Risk-off macro regime confirms. HMM Bull on GLD.</div>
-            </div>
-            <div class="journal-entry short-win">
-                <div class="journal-entry-header">
-                    <div><span class="journal-entry-title">TSLA — Short</span><span class="wl-badge positive">+$1,230</span></div>
-                    <div class="journal-entry-meta">Mar 04, 2026 · Stage 4 · Equity</div>
-                </div>
-                <div class="journal-stats">
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$306.40</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$274.68</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$6,000</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">3.4:1</span></div>
-                </div>
-                <div class="journal-notes">Weinstein Stage 4 breakdown confirmed. 30-week MA acting as resistance. IWM HMM Bear regime macro tailwind. High relative volume on breakdown day. COT net short growing.</div>
-            </div>
-            <div class="journal-entry long-loss">
-                <div class="journal-entry-header">
-                    <div><span class="journal-entry-title">NVDA — Long Call</span><span class="wl-badge negative">-$420</span></div>
-                    <div class="journal-entry-meta">Feb 10, 2026 · Stage 3 · Call</div>
-                </div>
-                <div class="journal-stats">
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$138.20</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$124.80</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$2,800</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">0.6:1</span></div>
-                </div>
-                <div class="journal-notes">Entered too early before base confirmed. Stock still in Stage 3 distribution. Lesson: wait for Stage 1 basing and volume dry-up before re-entry.</div>
-            </div>
+            <div style="text-align:center;color:#475569;padding:2rem;font-size:0.8rem" id="journalLoading">Loading trade journal...</div>
         </div>
     </div>
 </div>
@@ -1737,11 +1698,99 @@ buildHeatmap();
 // ══════════════════════════════════════════════════════════════
 // JOURNAL
 // ══════════════════════════════════════════════════════════════
-let journalTrades = [
-    { dir:'long',  pnl: 840,  win: true },
-    { dir:'short', pnl: 1230, win: true },
-    { dir:'long',  pnl:-420,  win: false }
-];
+let journalTrades = [];
+
+// ── Load from localStorage immediately, then sync from backend ──
+function loadJournalFromCache() {
+    try {
+        const cached = localStorage.getItem('apex_journal');
+        if (cached) {
+            const entries = JSON.parse(cached);
+            if (Array.isArray(entries) && entries.length > 0) {
+                renderJournalEntries(entries);
+                journalTrades = entries.map(e => ({ dir: e.direction, pnl: e.pnl || 0, win: e.win || false }));
+                updateJournalStats();
+                console.log(`[Journal] Loaded ${entries.length} entries from cache`);
+            }
+        }
+    } catch (e) { /* ignore cache errors */ }
+}
+
+async function loadJournalFromBackend() {
+    try {
+        const resp = await fetch(`${NEXUS_API}/api/journal?limit=200`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const data = await resp.json();
+        const entries = data.entries || [];
+
+        // Update localStorage cache
+        localStorage.setItem('apex_journal', JSON.stringify(entries));
+
+        // Update in-memory stats
+        journalTrades = entries.map(e => ({ dir: e.direction, pnl: e.pnl || 0, win: e.win || false }));
+
+        // Render
+        renderJournalEntries(entries);
+        updateJournalStats();
+
+        const loadingEl = document.getElementById('journalLoading');
+        if (loadingEl) loadingEl.remove();
+
+        console.log(`[Journal] Synced ${entries.length} entries from Postgres`);
+    } catch (e) {
+        console.warn('[Journal] Backend sync failed, using cache:', e.message);
+        const loadingEl = document.getElementById('journalLoading');
+        if (loadingEl) loadingEl.textContent = 'Offline — showing cached entries';
+    }
+}
+
+function renderJournalEntries(entries) {
+    const container = document.getElementById('journalEntries');
+    if (!entries || entries.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#475569;padding:2rem;font-size:0.8rem">No trades logged yet. Use the form above to log your first trade.</div>';
+        return;
+    }
+
+    container.innerHTML = entries.map(e => {
+        const pnl = e.pnl || 0;
+        const win = pnl >= 0;
+        const pnlClass = win ? 'positive' : 'negative';
+        const entryClass = win ? 'long-win' : 'long-loss';
+        const dir = e.direction || 'long';
+        const type = e.trade_type || 'equity';
+        const ticker = e.ticker || '—';
+        const entryP = e.entry_price ? `$${parseFloat(e.entry_price).toFixed(2)}` : '—';
+        const exitP = e.exit_price ? `$${parseFloat(e.exit_price).toFixed(2)}` : '—';
+        const size = e.position_size ? `$${parseFloat(e.position_size).toLocaleString()}` : '—';
+        const pnlPct = e.pnl_pct ? `${parseFloat(e.pnl_pct).toFixed(2)}%` : '—';
+        const stage = e.stage || '';
+        const notes = e.notes || '';
+        const dateStr = e.trade_date
+            ? new Date(e.trade_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+            : 'No date';
+        const id = e.id || '';
+
+        return `<div class="journal-entry ${entryClass}" data-id="${id}">
+            <div class="journal-entry-header">
+                <div>
+                    <span class="journal-entry-title">${escapeHtml(ticker)} — ${dir.charAt(0).toUpperCase()+dir.slice(1)} ${type.charAt(0).toUpperCase()+type.slice(1)}</span>
+                    <span class="wl-badge ${pnlClass}">${pnl >= 0 ? '+' : ''}$${Math.abs(Math.round(pnl)).toLocaleString()}</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:0.5rem">
+                    <div class="journal-entry-meta">${dateStr}${stage ? ' · ' + stage : ''} · ${type}</div>
+                    ${id ? `<button onclick="deleteJournalEntry(${id})" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:0.75rem;padding:0.2rem 0.4rem;border-radius:0.2rem;transition:all 0.15s" onmouseover="this.style.color='#ef4444';this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.color='#64748b';this.style.background='none'" title="Delete entry">✕</button>` : ''}
+                </div>
+            </div>
+            <div class="journal-stats">
+                <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">${entryP}</span></div>
+                <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">${exitP}</span></div>
+                <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">${size}</span></div>
+                <div class="journal-stat-item"><span class="journal-stat-lbl">P&L %</span><span class="journal-stat-val ${pnlClass}">${pnlPct}</span></div>
+            </div>
+            ${notes ? `<div class="journal-notes">${escapeHtml(notes)}</div>` : ''}
+        </div>`;
+    }).join('');
+}
 
 function updateJournalStats() {
     const wins   = journalTrades.filter(t => t.win);
@@ -1754,7 +1803,7 @@ function updateJournalStats() {
     const grossL   = Math.abs(losses.reduce((s,t)=>s+t.pnl,0));
     const pf       = grossL > 0 ? (grossW / grossL).toFixed(2) : wins.length ? '∞' : '—';
 
-    document.getElementById('jPnl').textContent    = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toLocaleString();
+    document.getElementById('jPnl').textContent    = (totalPnl >= 0 ? '+' : '') + '$' + Math.round(totalPnl).toLocaleString();
     document.getElementById('jPnl').className      = 'pnl-val ' + (totalPnl >= 0 ? 'positive' : 'negative');
     document.getElementById('jWinRate').textContent = wins.length ? winRate + '%' : '—';
     document.getElementById('jAvgWin').textContent  = avgWin !== '—' ? '+$' + avgWin : '—';
@@ -1763,7 +1812,7 @@ function updateJournalStats() {
     document.getElementById('jTotal').textContent   = journalTrades.length;
 }
 
-function addJournalEntry() {
+async function addJournalEntry() {
     const ticker = document.getElementById('jTicker').value.trim().toUpperCase();
     const dir    = document.getElementById('jDir').value;
     const type   = document.getElementById('jType').value;
@@ -1776,37 +1825,68 @@ function addJournalEntry() {
 
     if (!ticker || isNaN(entry) || isNaN(exit) || isNaN(size)) return;
 
-    const pctMove = dir === 'long' ? (exit - entry) / entry : (entry - exit) / entry;
-    const pnl     = Math.round(pctMove * size);
-    const win     = pnl >= 0;
+    // POST to backend
+    try {
+        const resp = await fetch(`${NEXUS_API}/api/journal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                ticker: ticker,
+                direction: dir,
+                trade_type: type,
+                entry_price: entry,
+                exit_price: exit,
+                position_size: size,
+                trade_date: date || null,
+                stage: stage,
+                notes: notes,
+            })
+        });
 
-    journalTrades.push({ dir, pnl, win });
-    updateJournalStats();
+        const data = await resp.json();
+        if (data.error) {
+            console.error('[Journal] Save failed:', data.error);
+            alert('Failed to save: ' + data.error);
+            return;
+        }
 
-    const pnlClass = win ? 'positive' : 'negative';
-    const entryClass = (dir === 'long' && win) || (dir === 'short' && win) ? 'long-win' : 'long-loss';
+        console.log('[Journal] Trade saved to Postgres:', data.entry?.ticker);
 
-    const div = document.createElement('div');
-    div.className = `journal-entry ${entryClass}`;
-    div.innerHTML = `
-        <div class="journal-entry-header">
-            <div><span class="journal-entry-title">${ticker} — ${dir.charAt(0).toUpperCase()+dir.slice(1)} ${type.charAt(0).toUpperCase()+type.slice(1)}</span>
-            <span class="wl-badge ${pnlClass}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toLocaleString()}</span></div>
-            <div class="journal-entry-meta">${date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'Today'} · ${stage} · ${type}</div>
-        </div>
-        <div class="journal-stats">
-            <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$${entry.toFixed(2)}</span></div>
-            <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$${exit.toFixed(2)}</span></div>
-            <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$${size.toLocaleString()}</span></div>
-            <div class="journal-stat-item"><span class="journal-stat-lbl">P&L %</span><span class="journal-stat-val ${pnlClass}">${(pctMove*100).toFixed(2)}%</span></div>
-        </div>
-        ${notes ? `<div class="journal-notes">${notes}</div>` : ''}`;
-    document.getElementById('journalEntries').prepend(div);
+        // Reload from backend to get fresh data
+        await loadJournalFromBackend();
 
-    ['jTicker','jEntry','jExit','jSize','jNotes'].forEach(id => document.getElementById(id).value = '');
+        // Clear form
+        ['jTicker','jEntry','jExit','jSize','jNotes'].forEach(id => document.getElementById(id).value = '');
+
+    } catch (e) {
+        console.error('[Journal] Network error:', e.message);
+        alert('Failed to save — check your connection');
+    }
 }
 
-// init journal stats
+async function deleteJournalEntry(id) {
+    if (!confirm('Delete this trade entry?')) return;
+
+    try {
+        const resp = await fetch(`${NEXUS_API}/api/journal/${id}`, { method: 'DELETE' });
+        const data = await resp.json();
+
+        if (data.error) {
+            console.error('[Journal] Delete failed:', data.error);
+            return;
+        }
+
+        console.log(`[Journal] Entry ${id} deleted`);
+        await loadJournalFromBackend();
+
+    } catch (e) {
+        console.error('[Journal] Delete error:', e.message);
+    }
+}
+
+// Load journal on page init
+loadJournalFromCache();
+setTimeout(loadJournalFromBackend, 1500);
 
 // ══════════════════════════════════════════════════════════════
 // MARKET BREADTH
