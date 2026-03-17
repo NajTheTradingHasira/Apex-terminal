@@ -3168,8 +3168,9 @@ async function fetchNewsForTicker(ticker) {
             ...a,
             _ticker: ticker,
             _categories: classifyArticle(a.title, a.summary || a.description || ''),
-            _sentiment: guessSentiment(a.title),
-            _ts: a.providerPublishTime || a.published || a.timestamp || a.date || 0
+            _sentiment: a.sentiment && a.sentiment !== 'neutral' ? a.sentiment : guessSentiment(a.title),
+            _ts: a.providerPublishTime || a.published || a.timestamp || a.date || 0,
+            link: a.url || a.link || a.article_url || '#',
         })) : [];
     } catch (e) {
         console.warn(`[APEX News] Failed for ${ticker}:`, e.message);
