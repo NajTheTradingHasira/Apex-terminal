@@ -544,23 +544,23 @@
     <div class="dashboard-grid">
         <div class="metric-card">
             <div class="metric-label">Market Breadth</div>
-            <div class="metric-value negative">1,847 / 3,112</div>
-            <div class="metric-subtitle">Adv/Dec · NYSE</div>
+            <div class="metric-value negative" id="dashBreadthValue">—</div>
+            <div class="metric-subtitle" id="dashBreadthSub">Adv/Dec · NYSE</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">VIX</div>
-            <div class="metric-value positive">29.42</div>
-            <div class="metric-subtitle">+22.4% · Fear Elevated</div>
+            <div class="metric-value positive" id="dashVixValue">—</div>
+            <div class="metric-subtitle" id="dashVixSub">Loading...</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">Put/Call Ratio</div>
-            <div class="metric-value">1.14</div>
-            <div class="metric-subtitle">Bearish · 30d avg 0.84</div>
+            <div class="metric-value" id="dashPCValue">—</div>
+            <div class="metric-subtitle" id="dashPCSub">Loading...</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">Sector Leader</div>
-            <div class="metric-value">Utilities</div>
-            <div class="metric-subtitle">XLU +0.31% (defensive bid)</div>
+            <div class="metric-value" id="dashSectorValue">—</div>
+            <div class="metric-subtitle" id="dashSectorSub">Loading...</div>
         </div>
     </div>
 
@@ -2606,21 +2606,23 @@ function updateTickerStrip() {
     });
 }
 
-// Dashboard metric cards (VIX card)
+// Dashboard metric cards — update from live data
 function updateDashboardCards() {
+    // VIX card
     const vix = PRICE_CACHE['^VIX'];
     if (vix) {
-        const vixCard = document.querySelector('#dashboard .metric-card:nth-child(2)');
-        if (vixCard) {
-            vixCard.querySelector('.metric-value').textContent = vix.price;
+        const el = document.getElementById('dashVixValue');
+        const sub = document.getElementById('dashVixSub');
+        if (el) {
+            el.textContent = vix.price;
             const pct = parseFloat(vix.dayPct);
             const label = pct > 20 ? 'Fear Extreme' : pct > 10 ? 'Fear Elevated' : pct > 0 ? 'Fear Rising' : 'Fear Neutral';
-            vixCard.querySelector('.metric-subtitle').textContent = `${fmtPct(vix.dayPct)} · ${label}`;
-            vixCard.querySelector('.metric-value').className = `metric-value ${pct >= 0 ? 'positive' : 'negative'}`;
+            sub.textContent = `${fmtPct(vix.dayPct)} · ${label}`;
+            el.className = `metric-value ${pct >= 0 ? 'positive' : 'negative'}`;
         }
     }
 
-    // Sector leader — find the best performing heatmap sector
+    // Sector leader — find best performing heatmap sector
     let bestSector = null, bestAvg = -Infinity;
     HEATMAP_DATA.forEach(sector => {
         const vals = sector.stocks.map(s => {
@@ -2631,10 +2633,11 @@ function updateDashboardCards() {
         if (avg > bestAvg) { bestAvg = avg; bestSector = sector.sector; }
     });
     if (bestSector) {
-        const sectorCard = document.querySelector('#dashboard .metric-card:nth-child(4)');
-        if (sectorCard) {
-            sectorCard.querySelector('.metric-value').textContent = bestSector;
-            sectorCard.querySelector('.metric-subtitle').textContent = `Avg ${fmtPct(bestAvg.toFixed(2))} today`;
+        const el = document.getElementById('dashSectorValue');
+        const sub = document.getElementById('dashSectorSub');
+        if (el) {
+            el.textContent = bestSector;
+            sub.textContent = `Avg ${fmtPct(bestAvg.toFixed(2))} today`;
         }
     }
 }
@@ -3544,9 +3547,29 @@ async function fetchBreadthData() {
             })).sort((a, b) => b.pct - a.pct);
         }
 
-        // ── Re-render ──
+        // ── Re-render breadth tab ──
         buildBreadthMetrics();
         setTimeout(renderBreadthCharts, 100);
+
+        // ── Update dashboard cards ──
+        const dashBreadth = document.getElementById('dashBreadthValue');
+        const dashBreadthSub = document.getElementById('dashBreadthSub');
+        if (dashBreadth) {
+            dashBreadth.textContent = `${BD.advancing.toLocaleString()} / ${BD.declining.toLocaleString()}`;
+            const isBullish = BD.advancing > BD.declining;
+            dashBreadth.className = `metric-value ${isBullish ? 'positive' : 'negative'}`;
+            const adRatio = (BD.advancing / Math.max(BD.declining, 1)).toFixed(2);
+            dashBreadthSub.textContent = `A/D ${adRatio} · TRIN ${BD.trin ? BD.trin.toFixed(2) : '—'}`;
+        }
+
+        // Sector leader from breadth data
+        const dashSector = document.getElementById('dashSectorValue');
+        const dashSectorSub = document.getElementById('dashSectorSub');
+        if (dashSector && BD.sectorBreadth.length > 0) {
+            const leader = BD.sectorBreadth[0];
+            dashSector.textContent = leader.name;
+            dashSectorSub.textContent = `${leader.pct}% above 50-day MA`;
+        }
 
         const src = data.source ? data.source.join(', ') : 'unknown';
         const scanned = data.total_scanned || 0;
