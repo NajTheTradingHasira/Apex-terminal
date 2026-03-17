@@ -3571,6 +3571,21 @@ async function fetchBreadthData() {
             dashSectorSub.textContent = `${leader.pct}% above 50-day MA`;
         }
 
+        // Put/Call ratio card
+        if (data.put_call_ratio != null) {
+            const pcEl = document.getElementById('dashPCValue');
+            const pcSub = document.getElementById('dashPCSub');
+            if (pcEl) {
+                const pcr = data.put_call_ratio;
+                pcEl.textContent = pcr.toFixed(2);
+                pcEl.className = `metric-value ${pcr > 1 ? 'negative' : pcr < 0.7 ? 'positive' : ''}`;
+                const label = pcr > 1.2 ? 'Extreme Fear' : pcr > 1.0 ? 'Bearish' : pcr > 0.85 ? 'Neutral' : pcr > 0.7 ? 'Mild Bullish' : 'Bullish';
+                const putK = Math.round(data.put_volume / 1000);
+                const callK = Math.round(data.call_volume / 1000);
+                pcSub.textContent = `${label} · ${putK}K puts / ${callK}K calls`;
+            }
+        }
+
         const src = data.source ? data.source.join(', ') : 'unknown';
         const scanned = data.total_scanned || 0;
         console.log(`[APEX Breadth] ✓ Live data loaded — ${scanned} constituents scanned, sources: ${src}`);
