@@ -1477,30 +1477,20 @@ async function syncWatchlistFromBackend() {
         const data = await resp.json();
         const wl = data.watchlist;
 
-        if (!wl || !wl.weekly) return; // no saved data on backend
+        if (!wl || (!wl.weekly && !wl.daily && !wl.ondeck)) return;
 
-        // Check if backend is newer (compare ticker counts)
-        const local = loadWatchlistFromStorage();
-        const localCount = local ? Object.values(local).flat().length : 0;
-        const remoteCount = Object.values(wl).flat().length;
+        // Backend always wins — overwrite localStorage and rebuild UI
+        localStorage.setItem('apex_watchlist', JSON.stringify(wl));
 
-        // If backend has data and local is empty or backend has more, use backend
-        if (remoteCount > 0 && (localCount === 0 || !local)) {
-            localStorage.setItem('apex_watchlist', JSON.stringify(wl));
-
-            // Rebuild watchlist UI from backend data
-            ['weekly','daily','ondeck'].forEach(key => {
-                const tbody = document.getElementById(`wl${cap(key)}Body`);
-                tbody.innerHTML = '';
-                (wl[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
-                updateCount(key);
-            });
-            console.log('[Watchlist] Synced from Postgres — loaded', remoteCount, 'tickers');
-        } else {
-            console.log('[Watchlist] Local data is current — skipping backend sync');
-        }
+        ['weekly','daily','ondeck'].forEach(key => {
+            const tbody = document.getElementById(`wl${cap(key)}Body`);
+            tbody.innerHTML = '';
+            (wl[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
+            updateCount(key);
+        });
+        console.log('[Watchlist] Synced from Postgres — backend is source of truth');
     } catch (e) {
-        console.warn('[Watchlist] Backend fetch failed:', e.message);
+        console.warn('[Watchlist] Backend fetch failed, using local data:', e.message);
     }
 }
 
@@ -1526,8 +1516,8 @@ function initWatchlists() {
         setTimeout(saveWatchlistToStorage, 2000);
     }
 
-    // Sync from backend after short delay (for cross-device)
-    setTimeout(syncWatchlistFromBackend, 3000);
+    // Sync from backend (always overwrites local — Postgres is source of truth)
+    setTimeout(syncWatchlistFromBackend, 1500);
 }
 
 function addToWatchlist(listKey) {
