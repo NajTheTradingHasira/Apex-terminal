@@ -1331,6 +1331,7 @@ function startInlineEdit(e, td, tr) {
             tr.dataset.stage = sel.value;
             td.innerHTML = `<span class="wl-stage ${sel.value}">${stageLabel(sel.value)}</span>`;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
+            saveWatchlistToStorage();
         };
         sel.addEventListener('change', commit);
         sel.addEventListener('blur', commit);
@@ -1348,6 +1349,7 @@ function startInlineEdit(e, td, tr) {
             tr.dataset.rs = v;
             td.innerHTML = `<span class="wl-rs" style="color:${rsColor(v)}">${v}</span>`;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
+            saveWatchlistToStorage();
         };
         inp.addEventListener('blur', commit);
         inp.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();commit();} if(e.key==='Escape'){td.innerHTML=`<span class="wl-rs" style="color:${rsColor(tr.dataset.rs)}">${tr.dataset.rs}</span>`;td.addEventListener('click',ev=>startInlineEdit(ev,td,tr));} });
@@ -1365,6 +1367,7 @@ function startInlineEdit(e, td, tr) {
             tr.dataset.sym = v;
             td.textContent = v;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
+            saveWatchlistToStorage();
         };
         inp.addEventListener('blur', commit);
         inp.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();commit();} if(e.key==='Escape'){td.textContent=tr.dataset.sym;td.addEventListener('click',ev=>startInlineEdit(ev,td,tr));} });
@@ -1384,6 +1387,7 @@ function startInlineEdit(e, td, tr) {
             td.textContent = v;
             td.title = v;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
+            saveWatchlistToStorage();
         };
         inp.addEventListener('blur', commit);
         inp.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();commit();} if(e.key==='Escape'){td.textContent=tr.dataset.notes;td.title=tr.dataset.notes;td.addEventListener('click',ev=>startInlineEdit(ev,td,tr));} });
@@ -1407,16 +1411,76 @@ function updateCount(listKey) {
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
+function saveWatchlistToStorage() {
+    const data = {};
+    ['weekly','daily','ondeck'].forEach(key => {
+        const rows = [];
+        document.querySelectorAll(`#wl${cap(key)}Body tr[data-sym]`).forEach(tr => {
+            const d = tr.dataset;
+            const priceCell = tr.querySelector('.wl-price');
+            const price = priceCell ? priceCell.textContent.replace('$','') : '—';
+            // Get change values from cells
+            const cells = tr.querySelectorAll('td');
+            const dayCell = cells[2]?.textContent?.match(/([\-\+]?[\d\.]+)/);
+            const weekCell = cells[3]?.textContent?.match(/([\-\+]?[\d\.]+)/);
+            const monthCell = cells[4]?.textContent?.match(/([\-\+]?[\d\.]+)/);
+            rows.push({
+                sym: d.sym,
+                company: d.company || '',
+                sector: d.sector || '',
+                price: price,
+                day: dayCell ? dayCell[1] : '0',
+                week: weekCell ? weekCell[1] : '0',
+                month: monthCell ? monthCell[1] : '0',
+                stage: d.stage || 's1',
+                rs: parseInt(d.rs) || 0,
+                ema: d.ema || '',
+                above50: d.above50 || '',
+                alertAbove: d.alertAbove || 0,
+                alertBelow: d.alertBelow || 0,
+                weeklySetup: d.weeklySetup || '',
+                rsNewHigh: d.rsNewHigh || 'no',
+                notes: d.notes || '',
+            });
+        });
+        data[key] = rows;
+    });
+    localStorage.setItem('apex_watchlist', JSON.stringify(data));
+    console.log('[Watchlist] Saved to localStorage');
+}
+
+function loadWatchlistFromStorage() {
+    try {
+        const raw = localStorage.getItem('apex_watchlist');
+        if (raw) {
+            const data = JSON.parse(raw);
+            if (data && typeof data === 'object' && (data.weekly || data.daily || data.ondeck)) {
+                return data;
+            }
+        }
+    } catch (e) { /* ignore parse errors */ }
+    return null;
+}
+
 function initWatchlists() {
+    const saved = loadWatchlistFromStorage();
+    const source = saved || WL_SEED;
+
     ['weekly','daily','ondeck'].forEach(key => {
         const tbody = document.getElementById(`wl${cap(key)}Body`);
-        (WL_SEED[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
+        (source[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
         updateCount(key);
 
         document.getElementById(`wl${cap(key)}Input`).addEventListener('keydown', e => {
             if (e.key === 'Enter') addToWatchlist(key);
         });
     });
+
+    if (saved) {
+        console.log('[Watchlist] Loaded from localStorage');
+    } else {
+        console.log('[Watchlist] Initialized from seed data');
+    }
 }
 
 function addToWatchlist(listKey) {
@@ -1454,6 +1518,8 @@ function addToWatchlist(listKey) {
     inputEl.value = '';
     if (rsEl) rsEl.value = '';
     if (setupEl) setupEl.value = '';
+
+    saveWatchlistToStorage();
 }
 
 function removeWatchlistRow(btn) {
@@ -1461,6 +1527,7 @@ function removeWatchlistRow(btn) {
     const listKey = tr.dataset.list;
     tr.remove();
     updateCount(listKey);
+    saveWatchlistToStorage();
 }
 
 // ── EDIT MODAL ────────────────────────────────────────────
@@ -1550,6 +1617,7 @@ function saveEditModal() {
         }).catch(() => {});
     }
 
+    saveWatchlistToStorage();
     closeEditModal();
 }
 
