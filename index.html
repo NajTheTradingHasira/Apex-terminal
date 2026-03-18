@@ -1419,7 +1419,6 @@ function saveWatchlistToStorage() {
             const d = tr.dataset;
             const priceCell = tr.querySelector('.wl-price');
             const price = priceCell ? priceCell.textContent.replace('$','') : '—';
-            // Get change values from cells
             const cells = tr.querySelectorAll('td');
             const dayCell = cells[2]?.textContent?.match(/([\-\+]?[\d\.]+)/);
             const weekCell = cells[3]?.textContent?.match(/([\-\+]?[\d\.]+)/);
@@ -1445,8 +1444,17 @@ function saveWatchlistToStorage() {
         });
         data[key] = rows;
     });
+
+    // Save to localStorage (instant)
     localStorage.setItem('apex_watchlist', JSON.stringify(data));
-    console.log('[Watchlist] Saved to localStorage');
+
+    // Sync to Postgres (background, non-blocking)
+    fetch(`${NEXUS_API}/api/watchlist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ watchlist: data })
+    }).then(() => console.log('[Watchlist] Synced to Postgres'))
+      .catch(e => console.warn('[Watchlist] Backend sync failed:', e.message));
 }
 
 function loadWatchlistFromStorage() {
@@ -1460,6 +1468,40 @@ function loadWatchlistFromStorage() {
         }
     } catch (e) { /* ignore parse errors */ }
     return null;
+}
+
+async function syncWatchlistFromBackend() {
+    try {
+        const resp = await fetch(`${NEXUS_API}/api/watchlist`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const wl = data.watchlist;
+
+        if (!wl || !wl.weekly) return; // no saved data on backend
+
+        // Check if backend is newer (compare ticker counts)
+        const local = loadWatchlistFromStorage();
+        const localCount = local ? Object.values(local).flat().length : 0;
+        const remoteCount = Object.values(wl).flat().length;
+
+        // If backend has data and local is empty or backend has more, use backend
+        if (remoteCount > 0 && (localCount === 0 || !local)) {
+            localStorage.setItem('apex_watchlist', JSON.stringify(wl));
+
+            // Rebuild watchlist UI from backend data
+            ['weekly','daily','ondeck'].forEach(key => {
+                const tbody = document.getElementById(`wl${cap(key)}Body`);
+                tbody.innerHTML = '';
+                (wl[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
+                updateCount(key);
+            });
+            console.log('[Watchlist] Synced from Postgres — loaded', remoteCount, 'tickers');
+        } else {
+            console.log('[Watchlist] Local data is current — skipping backend sync');
+        }
+    } catch (e) {
+        console.warn('[Watchlist] Backend fetch failed:', e.message);
+    }
 }
 
 function initWatchlists() {
@@ -1480,7 +1522,12 @@ function initWatchlists() {
         console.log('[Watchlist] Loaded from localStorage');
     } else {
         console.log('[Watchlist] Initialized from seed data');
+        // First time — save seed to both localStorage and backend
+        setTimeout(saveWatchlistToStorage, 2000);
     }
+
+    // Sync from backend after short delay (for cross-device)
+    setTimeout(syncWatchlistFromBackend, 3000);
 }
 
 function addToWatchlist(listKey) {
