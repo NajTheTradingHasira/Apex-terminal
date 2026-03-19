@@ -1477,9 +1477,14 @@ async function syncWatchlistFromBackend() {
         const data = await resp.json();
         const wl = data.watchlist;
 
-        if (!wl || (!wl.weekly && !wl.daily && !wl.ondeck)) return;
+        if (!wl || (!wl.weekly && !wl.daily && !wl.ondeck)) {
+            // Backend is empty — first time ever. Save current UI (seed) to backend.
+            console.log('[Watchlist] Backend empty — saving current watchlist as initial data');
+            saveWatchlistToStorage();
+            return;
+        }
 
-        // Backend always wins — overwrite localStorage and rebuild UI
+        // Backend has data — overwrite localStorage and rebuild UI
         localStorage.setItem('apex_watchlist', JSON.stringify(wl));
 
         ['weekly','daily','ondeck'].forEach(key => {
@@ -1511,9 +1516,8 @@ function initWatchlists() {
     if (saved) {
         console.log('[Watchlist] Loaded from localStorage');
     } else {
-        console.log('[Watchlist] Initialized from seed data');
-        // First time — save seed to both localStorage and backend
-        setTimeout(saveWatchlistToStorage, 2000);
+        console.log('[Watchlist] Initialized from seed data — will sync from backend');
+        // Do NOT save seed to backend — backend sync will overwrite with real data
     }
 
     // Sync from backend (always overwrites local — Postgres is source of truth)
