@@ -193,9 +193,12 @@
             font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
         }
         .wl-panel-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .wl-panel-dot.weekly  { background-color: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.6); }
         .wl-panel-dot.daily   { background-color: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
-        .wl-panel-dot.ondeck  { background-color: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.6); }
+        .wl-panel-dot.ondeck  { background-color: #a855f7; box-shadow: 0 0 6px rgba(168,85,247,0.6); }
+        .wl-panel-dot.shorts  { background-color: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.6); }
+        .wl-panel-dot.focus   { background-color: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.6); }
+        .wl-panel-dot.rs      { background-color: #06b6d4; box-shadow: 0 0 6px rgba(6,182,212,0.6); }
+        .wl-panel-dot.topdawg { background-color: #eab308; box-shadow: 0 0 6px rgba(234,179,8,0.6); }
         .wl-panel-title span  { color: #e2e8f0; }
         .wl-panel-title small { color: #64748b; font-size: 0.7rem; font-weight: 400; text-transform: none; letter-spacing: 0; }
         .wl-add-row { display: flex; gap: 0.5rem; align-items: center; }
@@ -619,56 +622,6 @@
 <div class="tab-content" id="watchlist">
 <div class="wl-panels">
 
-    <!-- WEEKLY WATCHLIST -->
-    <div class="wl-panel">
-        <div class="wl-panel-header">
-            <div class="wl-panel-title">
-                <div class="wl-panel-dot weekly"></div>
-                <span>Weekly Watchlist</span>
-                <small>— swing setups · 1–4 week holding horizon</small>
-                <span class="wl-count" id="wlWeeklyCount">0</span>
-            </div>
-            <div class="wl-add-row">
-                <input class="wl-input" id="wlWeeklyInput" type="text" placeholder="TICKER" maxlength="6">
-                <select class="wl-add-select" id="wlWeeklyStage">
-                    <option value="s1">S1 — Basing</option>
-                    <option value="s2" selected>S2 — Advancing</option>
-                    <option value="s3">S3 — Top</option>
-                    <option value="s4">S4 — Declining</option>
-                </select>
-                <input class="wl-input" id="wlWeeklyRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
-                <select class="wl-add-select" id="wlWeeklySetupAdd">
-                    <option value="">Setup...</option>
-                    <option value="Breakout">Breakout</option>
-                    <option value="Consolidation">Consolidation</option>
-                    <option value="Pullback">Pullback</option>
-                    <option value="Early Stage 2">Early S2</option>
-                    <option value="RS New High">RS New High</option>
-                    <option value="Basing">Basing</option>
-                    <option value="Distribution">Distribution</option>
-                    <option value="Stage 4 Decline">S4 Decline</option>
-                </select>
-                <button class="wl-add-btn" onclick="addToWatchlist('weekly')">+ Add</button>
-            </div>
-        </div>
-        <table class="wl-table">
-            <thead>
-                <tr>
-                    <th>Ticker</th>
-                    <th>Price</th>
-                    <th class="right">Day %</th>
-                    <th class="right">Week %</th>
-                    <th class="right">Month %</th>
-                    <th>Stage</th>
-                    <th class="right">RS</th>
-                    <th>Setup / Notes</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="wlWeeklyBody"></tbody>
-        </table>
-    </div>
-
     <!-- DAILY WATCHLIST -->
     <div class="wl-panel">
         <div class="wl-panel-header">
@@ -766,6 +719,206 @@
                 </tr>
             </thead>
             <tbody id="wlOndeckBody"></tbody>
+        </table>
+    </div>
+
+    <!-- SHORTS WATCHLIST -->
+    <div class="wl-panel">
+        <div class="wl-panel-header">
+            <div class="wl-panel-title">
+                <div class="wl-panel-dot shorts"></div>
+                <span>Shorts</span>
+                <small>— stage 4 declines · short candidates</small>
+                <span class="wl-count" id="wlShortsCount">0</span>
+            </div>
+            <div class="wl-add-row">
+                <input class="wl-input" id="wlShortsInput" type="text" placeholder="TICKER" maxlength="6">
+                <select class="wl-add-select" id="wlShortsStage">
+                    <option value="s1">S1 — Basing</option>
+                    <option value="s2">S2 — Advancing</option>
+                    <option value="s3">S3 — Top</option>
+                    <option value="s4" selected>S4 — Declining</option>
+                </select>
+                <input class="wl-input" id="wlShortsRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
+                <select class="wl-add-select" id="wlShortsSetupAdd">
+                    <option value="">Setup...</option>
+                    <option value="Breakout">Breakout</option>
+                    <option value="Consolidation">Consolidation</option>
+                    <option value="Pullback">Pullback</option>
+                    <option value="Early Stage 2">Early S2</option>
+                    <option value="RS New High">RS New High</option>
+                    <option value="Basing">Basing</option>
+                    <option value="Distribution" selected>Distribution</option>
+                    <option value="Stage 4 Decline">S4 Decline</option>
+                </select>
+                <button class="wl-add-btn" onclick="addToWatchlist('shorts')">+ Add</button>
+            </div>
+        </div>
+        <table class="wl-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th class="right">Day %</th>
+                    <th class="right">Week %</th>
+                    <th class="right">Month %</th>
+                    <th>Stage</th>
+                    <th class="right">RS</th>
+                    <th>Setup / Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="wlShortsBody"></tbody>
+        </table>
+    </div>
+
+    <!-- FOCUS LIST -->
+    <div class="wl-panel">
+        <div class="wl-panel-header">
+            <div class="wl-panel-title">
+                <div class="wl-panel-dot focus"></div>
+                <span>Focus List</span>
+                <small>— high-conviction names · core positions</small>
+                <span class="wl-count" id="wlFocusCount">0</span>
+            </div>
+            <div class="wl-add-row">
+                <input class="wl-input" id="wlFocusInput" type="text" placeholder="TICKER" maxlength="6">
+                <select class="wl-add-select" id="wlFocusStage">
+                    <option value="s1">S1 — Basing</option>
+                    <option value="s2" selected>S2 — Advancing</option>
+                    <option value="s3">S3 — Top</option>
+                    <option value="s4">S4 — Declining</option>
+                </select>
+                <input class="wl-input" id="wlFocusRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
+                <select class="wl-add-select" id="wlFocusSetupAdd">
+                    <option value="">Setup...</option>
+                    <option value="Breakout">Breakout</option>
+                    <option value="Consolidation">Consolidation</option>
+                    <option value="Pullback">Pullback</option>
+                    <option value="Early Stage 2">Early S2</option>
+                    <option value="RS New High">RS New High</option>
+                    <option value="Basing">Basing</option>
+                    <option value="Distribution">Distribution</option>
+                    <option value="Stage 4 Decline">S4 Decline</option>
+                </select>
+                <button class="wl-add-btn" onclick="addToWatchlist('focus')">+ Add</button>
+            </div>
+        </div>
+        <table class="wl-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th class="right">Day %</th>
+                    <th class="right">Week %</th>
+                    <th class="right">Month %</th>
+                    <th>Stage</th>
+                    <th class="right">RS</th>
+                    <th>Setup / Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="wlFocusBody"></tbody>
+        </table>
+    </div>
+
+    <!-- RELATIVE STRENGTH -->
+    <div class="wl-panel">
+        <div class="wl-panel-header">
+            <div class="wl-panel-title">
+                <div class="wl-panel-dot rs"></div>
+                <span>Relative Strength</span>
+                <small>— RS leaders · new highs in RS line</small>
+                <span class="wl-count" id="wlRsCount">0</span>
+            </div>
+            <div class="wl-add-row">
+                <input class="wl-input" id="wlRsInput" type="text" placeholder="TICKER" maxlength="6">
+                <select class="wl-add-select" id="wlRsStage">
+                    <option value="s1">S1 — Basing</option>
+                    <option value="s2" selected>S2 — Advancing</option>
+                    <option value="s3">S3 — Top</option>
+                    <option value="s4">S4 — Declining</option>
+                </select>
+                <input class="wl-input" id="wlRsRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
+                <select class="wl-add-select" id="wlRsSetupAdd">
+                    <option value="">Setup...</option>
+                    <option value="Breakout">Breakout</option>
+                    <option value="Consolidation">Consolidation</option>
+                    <option value="Pullback">Pullback</option>
+                    <option value="Early Stage 2">Early S2</option>
+                    <option value="RS New High" selected>RS New High</option>
+                    <option value="Basing">Basing</option>
+                    <option value="Distribution">Distribution</option>
+                    <option value="Stage 4 Decline">S4 Decline</option>
+                </select>
+                <button class="wl-add-btn" onclick="addToWatchlist('rs')">+ Add</button>
+            </div>
+        </div>
+        <table class="wl-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th class="right">Day %</th>
+                    <th class="right">Week %</th>
+                    <th class="right">Month %</th>
+                    <th>Stage</th>
+                    <th class="right">RS</th>
+                    <th>Setup / Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="wlRsBody"></tbody>
+        </table>
+    </div>
+
+    <!-- TOP DAWG -->
+    <div class="wl-panel">
+        <div class="wl-panel-header">
+            <div class="wl-panel-title">
+                <div class="wl-panel-dot topdawg"></div>
+                <span>Top Dawg</span>
+                <small>— best of the best · top setups across all lists</small>
+                <span class="wl-count" id="wlTopdawgCount">0</span>
+            </div>
+            <div class="wl-add-row">
+                <input class="wl-input" id="wlTopdawgInput" type="text" placeholder="TICKER" maxlength="6">
+                <select class="wl-add-select" id="wlTopdawgStage">
+                    <option value="s1">S1 — Basing</option>
+                    <option value="s2" selected>S2 — Advancing</option>
+                    <option value="s3">S3 — Top</option>
+                    <option value="s4">S4 — Declining</option>
+                </select>
+                <input class="wl-input" id="wlTopdawgRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
+                <select class="wl-add-select" id="wlTopdawgSetupAdd">
+                    <option value="">Setup...</option>
+                    <option value="Breakout">Breakout</option>
+                    <option value="Consolidation">Consolidation</option>
+                    <option value="Pullback">Pullback</option>
+                    <option value="Early Stage 2">Early S2</option>
+                    <option value="RS New High" selected>RS New High</option>
+                    <option value="Basing">Basing</option>
+                    <option value="Distribution">Distribution</option>
+                    <option value="Stage 4 Decline">S4 Decline</option>
+                </select>
+                <button class="wl-add-btn" onclick="addToWatchlist('topdawg')">+ Add</button>
+            </div>
+        </div>
+        <table class="wl-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th class="right">Day %</th>
+                    <th class="right">Week %</th>
+                    <th class="right">Month %</th>
+                    <th>Stage</th>
+                    <th class="right">RS</th>
+                    <th>Setup / Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="wlTopdawgBody"></tbody>
         </table>
     </div>
 
@@ -1229,24 +1382,29 @@ updateClock();
 const NEXUS_API = 'https://nexus-terminal-production-9d34.up.railway.app';
 
 // ══════════════════════════════════════════════════════════════
-// WATCHLIST — three panels: weekly / daily / ondeck
+// WATCHLIST — six panels: daily / ondeck / shorts / focus / rs / topdawg
 // ══════════════════════════════════════════════════════════════
 
 // Seed data: { sym, company, sector, price, day, week, month, stage, rs, ema, above50, alertAbove, alertBelow, weeklySetup, rsNewHigh, notes }
 const WL_SEED = {
-    weekly: [
-        { sym:'GLD',  company:'SPDR Gold Trust',       sector:'Macro / ETF',  price:'262.11', day:'+0.88', week:'+2.14', month:'+5.31', stage:'s2', rs:97, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'RS New High',    rsNewHigh:'yes', notes:'RS 52-wk high / defensive bid / risk-off tailwind' },
-        { sym:'MSFT', company:'Microsoft Corp',         sector:'Technology',   price:'388.45', day:'-1.62', week:'-3.44', month:'-4.11', stage:'s2', rs:68, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'Consolidation',   rsNewHigh:'no',  notes:'Constructive above 30-wk MA · await pullback entry' },
-        { sym:'XLU',  company:'Utilities Select SPDR',  sector:'Utilities',    price:'81.44',  day:'+0.31', week:'+1.08', month:'+3.72', stage:'s2', rs:88, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'Breakout',        rsNewHigh:'yes', notes:'Defensive rotation active · stage 2 breakout' },
-    ],
     daily: [
-        { sym:'TSLA', company:'Tesla Inc',              sector:'Consumer Disc.',price:'274.68', day:'-10.21',week:'-14.3', month:'-21.8', stage:'s4', rs:12, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Stage 4 Decline', rsNewHigh:'no',  notes:'Stage 4 breakdown / high vol / COT net short rising' },
-        { sym:'NVDA', company:'NVIDIA Corp',             sector:'Technology',   price:'107.49', day:'-5.74', week:'-9.18', month:'-22.4', stage:'s3', rs:44, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Distribution',    rsNewHigh:'no',  notes:'Distribution / failed breakout · watch for Stage 1 base' },
+        { sym:'MSFT', company:'Microsoft Corp',         sector:'Technology',   price:'388.45', day:'-1.62', week:'-3.44', month:'-4.11', stage:'s2', rs:68, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'Consolidation',   rsNewHigh:'no',  notes:'Constructive above 30-wk MA · await pullback entry' },
     ],
     ondeck: [
-        { sym:'AAPL', company:'Apple Inc',              sector:'Technology',   price:'221.53', day:'-1.46', week:'-4.22', month:'-8.11', stage:'s3', rs:55, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Basing',          rsNewHigh:'no',  notes:'Basing under 30-wk MA · wait for volume contraction' },
-        { sym:'GOOGL',company:'Alphabet Inc',            sector:'Comm. Services',price:'163.90',day:'-2.04',week:'-5.12', month:'-9.44', stage:'s2', rs:71, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'Consolidation',   rsNewHigh:'no',  notes:'RS holding vs peers · needs broader market stabilization' },
-    ]
+        { sym:'AAPL', company:'Apple Inc',              sector:'Technology',   price:'221.53', day:'-1.46', week:'-4.22', month:'-8.11', stage:'s1', rs:55, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Basing',          rsNewHigh:'no',  notes:'Basing under 30-wk MA · wait for volume contraction' },
+        { sym:'GOOGL',company:'Alphabet Inc',            sector:'Comm. Services',price:'163.90',day:'-2.04',week:'-5.12', month:'-9.44', stage:'s1', rs:71, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'Basing',          rsNewHigh:'no',  notes:'RS holding vs peers · needs broader market stabilization' },
+    ],
+    shorts: [
+        { sym:'TSLA', company:'Tesla Inc',              sector:'Consumer Disc.',price:'274.68', day:'-10.21',week:'-14.3', month:'-21.8', stage:'s4', rs:12, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Distribution',    rsNewHigh:'no',  notes:'Stage 4 breakdown / high vol / COT net short rising' },
+        { sym:'NVDA', company:'NVIDIA Corp',             sector:'Technology',   price:'107.49', day:'-5.74', week:'-9.18', month:'-22.4', stage:'s4', rs:44, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Distribution',    rsNewHigh:'no',  notes:'Distribution / failed breakout · watch for Stage 1 base' },
+    ],
+    focus: [
+        { sym:'GLD',  company:'SPDR Gold Trust',       sector:'Macro / ETF',  price:'262.11', day:'+0.88', week:'+2.14', month:'+5.31', stage:'s2', rs:97, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'RS New High',    rsNewHigh:'yes', notes:'RS 52-wk high / defensive bid / risk-off tailwind' },
+    ],
+    rs: [
+        { sym:'XLU',  company:'Utilities Select SPDR',  sector:'Utilities',    price:'81.44',  day:'+0.31', week:'+1.08', month:'+3.72', stage:'s2', rs:88, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'RS New High',     rsNewHigh:'yes', notes:'Defensive rotation active · stage 2 breakout' },
+    ],
+    topdawg: []
 };
 
 function chgClass(val) {
@@ -1413,7 +1571,7 @@ function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function saveWatchlistToStorage() {
     const data = {};
-    ['weekly','daily','ondeck'].forEach(key => {
+    ['daily','ondeck','shorts','focus','rs','topdawg'].forEach(key => {
         const rows = [];
         document.querySelectorAll(`#wl${cap(key)}Body tr[data-sym]`).forEach(tr => {
             const d = tr.dataset;
@@ -1462,7 +1620,7 @@ function loadWatchlistFromStorage() {
         const raw = localStorage.getItem('apex_watchlist');
         if (raw) {
             const data = JSON.parse(raw);
-            if (data && typeof data === 'object' && (data.weekly || data.daily || data.ondeck)) {
+            if (data && typeof data === 'object' && (data.daily || data.ondeck || data.shorts || data.focus || data.rs || data.topdawg)) {
                 return data;
             }
         }
@@ -1477,7 +1635,7 @@ async function syncWatchlistFromBackend() {
         const data = await resp.json();
         const wl = data.watchlist;
 
-        if (!wl || (!wl.weekly && !wl.daily && !wl.ondeck)) {
+        if (!wl || (!wl.daily && !wl.ondeck && !wl.shorts && !wl.focus && !wl.rs && !wl.topdawg)) {
             // Backend is empty — first time ever. Save current UI (seed) to backend.
             console.log('[Watchlist] Backend empty — saving current watchlist as initial data');
             saveWatchlistToStorage();
@@ -1487,7 +1645,7 @@ async function syncWatchlistFromBackend() {
         // Backend has data — overwrite localStorage and rebuild UI
         localStorage.setItem('apex_watchlist', JSON.stringify(wl));
 
-        ['weekly','daily','ondeck'].forEach(key => {
+        ['daily','ondeck','shorts','focus','rs','topdawg'].forEach(key => {
             const tbody = document.getElementById(`wl${cap(key)}Body`);
             tbody.innerHTML = '';
             (wl[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
@@ -1503,7 +1661,7 @@ function initWatchlists() {
     const saved = loadWatchlistFromStorage();
     const source = saved || WL_SEED;
 
-    ['weekly','daily','ondeck'].forEach(key => {
+    ['daily','ondeck','shorts','focus','rs','topdawg'].forEach(key => {
         const tbody = document.getElementById(`wl${cap(key)}Body`);
         (source[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
         updateCount(key);
@@ -1581,7 +1739,7 @@ function openEditModal(tr) {
     document.getElementById('editTicker').value       = d.sym;
     document.getElementById('editCompany').value      = d.company    || '';
     document.getElementById('editSector').value       = d.sector     || '';
-    document.getElementById('editListKey').value      = d.list       || 'weekly';
+    document.getElementById('editListKey').value      = d.list       || 'daily';
     document.getElementById('editStage').value        = d.stage      || 's1';
     document.getElementById('editRS').value           = d.rs         || '';
     document.getElementById('editEma').value          = d.ema        || '';
@@ -3868,9 +4026,12 @@ console.log('[APEX Live] Data engine initialized. Prices refresh every 5 min. CO
             <div class="wl-modal-field">
                 <label class="wl-modal-label">Watchlist</label>
                 <select class="wl-modal-select" id="editListKey">
-                    <option value="weekly">🔵 Weekly List</option>
                     <option value="daily">🟢 Daily List</option>
-                    <option value="ondeck">🟡 On Deck</option>
+                    <option value="ondeck">🟣 On Deck</option>
+                    <option value="shorts">🔴 Shorts</option>
+                    <option value="focus">🔵 Focus List</option>
+                    <option value="rs">🩵 Relative Strength</option>
+                    <option value="topdawg">🟡 Top Dawg</option>
                 </select>
             </div>
 
