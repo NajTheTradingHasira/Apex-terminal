@@ -193,12 +193,9 @@
             font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
         }
         .wl-panel-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .wl-panel-dot.weekly  { background-color: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.6); }
         .wl-panel-dot.daily   { background-color: #22c55e; box-shadow: 0 0 6px rgba(34,197,94,0.6); }
-        .wl-panel-dot.ondeck  { background-color: #a855f7; box-shadow: 0 0 6px rgba(168,85,247,0.6); }
-        .wl-panel-dot.shorts  { background-color: #ef4444; box-shadow: 0 0 6px rgba(239,68,68,0.6); }
-        .wl-panel-dot.focus   { background-color: #3b82f6; box-shadow: 0 0 6px rgba(59,130,246,0.6); }
-        .wl-panel-dot.rs      { background-color: #06b6d4; box-shadow: 0 0 6px rgba(6,182,212,0.6); }
-        .wl-panel-dot.topdawg { background-color: #eab308; box-shadow: 0 0 6px rgba(234,179,8,0.6); }
+        .wl-panel-dot.ondeck  { background-color: #f59e0b; box-shadow: 0 0 6px rgba(245,158,11,0.6); }
         .wl-panel-title span  { color: #e2e8f0; }
         .wl-panel-title small { color: #64748b; font-size: 0.7rem; font-weight: 400; text-transform: none; letter-spacing: 0; }
         .wl-add-row { display: flex; gap: 0.5rem; align-items: center; }
@@ -374,130 +371,46 @@
         .tag-hold { background-color: rgba(245,158,11,0.15); color: #f59e0b; }
         .tag-watch { background-color: rgba(59,130,246,0.15); color: #3b82f6; }
 
-        /* News — 3-column terminal layout */
-        .news-layout { display: grid; grid-template-columns: 240px 1fr 340px; gap: 0; height: calc(100vh - 140px); }
-        .news-sidebar { background: #0f1419; border-right: 1px solid #1e293b; padding: 1rem; overflow-y: auto; }
-        .news-center { overflow-y: auto; border-right: 1px solid #1e293b; }
-        .news-detail { background: #0f1419; padding: 1.25rem; overflow-y: auto; }
-
-        .news-sidebar-section { margin-bottom: 1.25rem; }
-        .news-sidebar-label { font-size: 0.65rem; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 0.5rem; }
-        .news-sidebar-input {
-            width: 100%; padding: 0.45rem 0.6rem; background: #1e293b; color: #e2e8f0;
-            border: 1px solid #334155; border-radius: 0.25rem; font-size: 0.78rem; font-family: inherit;
-            outline: none; transition: border-color 0.15s;
-        }
-        .news-sidebar-input:focus { border-color: #3b82f6; }
-        .news-sidebar-input::placeholder { color: #475569; }
-
-        .nf-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-        .nf-chip {
-            padding: 0.25rem 0.55rem; background: transparent; border: 1px solid #334155;
-            color: #64748b; border-radius: 0.2rem; cursor: pointer; font-size: 0.68rem;
-            font-family: inherit; font-weight: 600; transition: all 0.12s; user-select: none;
-        }
-        .nf-chip:hover { border-color: #475569; color: #94a3b8; }
-        .nf-chip.active { background: #1e40af; border-color: #1e40af; color: white; }
-
-        .news-sent-bar { display: flex; gap: 0.75rem; align-items: center; }
-        .news-sent-box {
-            flex: 1; text-align: center; padding: 0.6rem 0; border-radius: 0.3rem;
-            font-weight: 700; font-size: 1.1rem;
-        }
-        .news-sent-box.bull { background: rgba(34,197,94,0.08); color: #22c55e; border: 1px solid rgba(34,197,94,0.15); }
-        .news-sent-box.bear { background: rgba(239,68,68,0.08); color: #ef4444; border: 1px solid rgba(239,68,68,0.15); }
-        .news-sent-label { font-size: 0.6rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.2rem; }
-        .news-sent-progress { height: 4px; border-radius: 2px; background: #1e293b; overflow: hidden; margin-top: 0.5rem; }
-        .news-sent-fill { height: 100%; border-radius: 2px; background: linear-gradient(90deg, #22c55e, #22c55e var(--bull-pct), #ef4444 var(--bull-pct)); }
-
-        .nf-trending { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-        .nf-trend-chip {
-            display: inline-flex; align-items: center; gap: 0.25rem;
-            padding: 0.2rem 0.45rem; background: rgba(59,130,246,0.08); border: 1px solid rgba(59,130,246,0.15);
-            border-radius: 0.2rem; font-size: 0.68rem; font-weight: 700; color: #60a5fa;
-            cursor: pointer; transition: all 0.12s;
-        }
-        .nf-trend-chip:hover { background: rgba(59,130,246,0.15); }
-        .nf-trend-count { font-size: 0.6rem; color: #475569; font-weight: 400; }
-
-        .news-center-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 0.75rem 1rem; border-bottom: 1px solid #1e293b; position: sticky; top: 0;
-            background: #0a0e1a; z-index: 5;
-        }
-        .news-center-title { font-size: 1rem; font-weight: 700; color: #e2e8f0; letter-spacing: 0.05em; }
-        .news-live-dot { display: flex; align-items: center; gap: 0.35rem; font-size: 0.7rem; color: #22c55e; font-weight: 600; }
-        .news-live-dot::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: livePulse 2s ease infinite; }
-        @keyframes livePulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-
-        .news-feed { display: flex; flex-direction: column; }
+        /* News */
+        .news-feed { display: flex; flex-direction: column; gap: 0.75rem; }
         .news-card {
-            padding: 0.85rem 1rem; border-bottom: 1px solid #1e293b;
-            cursor: pointer; transition: background 0.1s; display: block; text-decoration: none; color: inherit;
+            background-color: #0f172a; border-radius: 0.375rem; padding: 1rem 1.25rem;
+            border-left: 3px solid #334155; transition: border-color 0.15s, background-color 0.15s;
+            cursor: pointer; text-decoration: none; display: block; color: inherit;
         }
-        .news-card:hover { background: rgba(30,64,175,0.06); }
-        .news-card.selected { background: rgba(30,64,175,0.1); border-left: 3px solid #3b82f6; }
-        .news-card-top { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
-        .news-time { font-size: 0.68rem; color: #475569; }
-        .news-badge {
-            display: inline-block; padding: 0.1rem 0.4rem; border-radius: 0.15rem;
-            font-size: 0.62rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
-        }
-        .news-badge.src-bloomberg { background: #1e40af; color: #93c5fd; }
-        .news-badge.src-reuters { background: #92400e; color: #fbbf24; }
-        .news-badge.src-cnbc { background: #14532d; color: #86efac; }
-        .news-badge.src-wsj { background: #581c87; color: #d8b4fe; }
-        .news-badge.src-marketwatch { background: #1e3a5f; color: #7dd3fc; }
-        .news-badge.src-yahoo { background: #4c1d95; color: #c4b5fd; }
-        .news-badge.src-other { background: #1e293b; color: #94a3b8; }
-        .news-badge.cat { background: #1e293b; color: #94a3b8; }
-        .news-badge.sent-bullish { background: rgba(34,197,94,0.15); color: #22c55e; }
-        .news-badge.sent-bearish { background: rgba(239,68,68,0.15); color: #ef4444; }
-        .news-badge.sent-neutral { background: rgba(148,163,184,0.08); color: #64748b; }
-        .news-badge.impact-high { color: #ef4444; }
-        .news-badge.impact-medium { color: #f59e0b; }
-        .news-badge.impact-low { color: #64748b; }
-        .news-impact-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; margin-right: 0.1rem; vertical-align: middle; }
-
-        .news-headline { font-size: 0.82rem; font-weight: 600; color: #e2e8f0; line-height: 1.4; margin-bottom: 0.3rem; }
-        .news-tickers { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+        .news-card:hover { border-left-color: #3b82f6; background-color: #131d32; }
+        .news-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 0.5rem; }
+        .news-headline { font-size: 0.875rem; font-weight: 600; color: #e2e8f0; line-height: 1.4; flex: 1; }
+        .news-time { font-size: 0.7rem; color: #475569; white-space: nowrap; flex-shrink: 0; }
+        .news-meta { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
+        .news-source { font-size: 0.7rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
         .news-ticker-tag {
-            display: inline-block; padding: 0.1rem 0.35rem; border-radius: 0.15rem;
-            font-size: 0.65rem; font-weight: 700; background: rgba(59,130,246,0.12); color: #60a5fa;
+            display: inline-block; padding: 0.1rem 0.4rem; border-radius: 0.2rem;
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em;
+            background: rgba(59,130,246,0.12); color: #60a5fa;
         }
-
-        .news-detail-empty { text-align: center; color: #475569; padding: 3rem 1rem; font-size: 0.8rem; }
-        .news-detail-header { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin-bottom: 0.75rem; }
-        .news-detail-time { font-size: 0.7rem; color: #64748b; margin-left: auto; }
-        .news-detail-title { font-size: 1.05rem; font-weight: 700; color: #e2e8f0; line-height: 1.4; margin-bottom: 0.75rem; }
-        .news-detail-body { font-size: 0.82rem; color: #94a3b8; line-height: 1.6; margin-bottom: 1.25rem; }
-        .news-detail-section { margin-bottom: 1rem; }
-        .news-detail-section-title { font-size: 0.65rem; color: #475569; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; margin-bottom: 0.5rem; }
-
-        .news-mentioned-ticker {
-            display: inline-flex; align-items: center; gap: 0.35rem;
-            padding: 0.35rem 0.6rem; background: #1e293b; border-radius: 0.25rem;
-            margin-right: 0.35rem; margin-bottom: 0.35rem;
+        .news-sentiment {
+            display: inline-block; padding: 0.1rem 0.45rem; border-radius: 0.2rem;
+            font-size: 0.68rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
         }
-        .news-mentioned-ticker .sym { font-weight: 700; color: #e2e8f0; font-size: 0.8rem; }
-
-        .news-ai-score { text-align: center; padding: 1rem; background: #1e293b; border-radius: 0.375rem; }
-        .news-ai-value { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
-        .news-ai-bar { height: 6px; border-radius: 3px; background: linear-gradient(90deg, #ef4444, #f59e0b 50%, #22c55e); position: relative; margin: 0.5rem 0; }
-        .news-ai-marker { position: absolute; top: -3px; width: 12px; height: 12px; border-radius: 50%; background: white; border: 2px solid #0f172a; transform: translateX(-50%); }
-        .news-ai-labels { display: flex; justify-content: space-between; font-size: 0.65rem; color: #475569; }
-        .news-keyword-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.5rem; }
-        .news-keyword {
-            padding: 0.2rem 0.45rem; background: rgba(59,130,246,0.08); border-radius: 0.15rem;
-            font-size: 0.68rem; color: #60a5fa;
+        .news-sentiment.bullish { background: rgba(34,197,94,0.12); color: #22c55e; }
+        .news-sentiment.bearish { background: rgba(239,68,68,0.12); color: #ef4444; }
+        .news-sentiment.neutral { background: rgba(148,163,184,0.08); color: #94a3b8; }
+        .news-summary { font-size: 0.8rem; color: #94a3b8; margin-top: 0.4rem; line-height: 1.45; }
+        .news-filter-bar { display: flex; gap: 0.375rem; flex-wrap: wrap; }
+        .news-filter-btn {
+            padding: 0.35rem 0.75rem; background: transparent; border: 1px solid #334155;
+            color: #64748b; border-radius: 0.25rem; cursor: pointer; font-size: 0.7rem;
+            font-family: inherit; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+            transition: all 0.15s;
         }
-
+        .news-filter-btn:hover { border-color: #3b82f6; color: #94a3b8; }
+        .news-filter-btn.active { background: #1e40af; border-color: #1e40af; color: white; }
         .news-empty { text-align: center; color: #475569; padding: 3rem 1rem; font-size: 0.875rem; }
         .news-loading { text-align: center; color: #64748b; padding: 2rem; font-size: 0.8rem; }
-
-        @media (max-width: 1100px) {
-            .news-layout { grid-template-columns: 1fr; height: auto; }
-            .news-sidebar, .news-detail { display: none; }
+        .news-section-divider {
+            font-size: 0.7rem; color: #475569; text-transform: uppercase; letter-spacing: 0.06em;
+            font-weight: 600; padding: 0.5rem 0; border-bottom: 1px solid #1e293b; margin-bottom: 0.25rem;
         }
 
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
@@ -547,23 +460,23 @@
     <div class="dashboard-grid">
         <div class="metric-card">
             <div class="metric-label">Market Breadth</div>
-            <div class="metric-value negative" id="dashBreadthValue">—</div>
-            <div class="metric-subtitle" id="dashBreadthSub">Adv/Dec · NYSE</div>
+            <div class="metric-value negative">1,847 / 3,112</div>
+            <div class="metric-subtitle">Adv/Dec · NYSE</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">VIX</div>
-            <div class="metric-value positive" id="dashVixValue">—</div>
-            <div class="metric-subtitle" id="dashVixSub">Loading...</div>
+            <div class="metric-value positive">29.42</div>
+            <div class="metric-subtitle">+22.4% · Fear Elevated</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">Put/Call Ratio</div>
-            <div class="metric-value" id="dashPCValue">—</div>
-            <div class="metric-subtitle" id="dashPCSub">Loading...</div>
+            <div class="metric-value">1.14</div>
+            <div class="metric-subtitle">Bearish · 30d avg 0.84</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">Sector Leader</div>
-            <div class="metric-value" id="dashSectorValue">—</div>
-            <div class="metric-subtitle" id="dashSectorSub">Loading...</div>
+            <div class="metric-value">Utilities</div>
+            <div class="metric-subtitle">XLU +0.31% (defensive bid)</div>
         </div>
     </div>
 
@@ -621,6 +534,56 @@
 <!-- ── WATCHLIST ──────────────────────────────────────── -->
 <div class="tab-content" id="watchlist">
 <div class="wl-panels">
+
+    <!-- WEEKLY WATCHLIST -->
+    <div class="wl-panel">
+        <div class="wl-panel-header">
+            <div class="wl-panel-title">
+                <div class="wl-panel-dot weekly"></div>
+                <span>Weekly Watchlist</span>
+                <small>— swing setups · 1–4 week holding horizon</small>
+                <span class="wl-count" id="wlWeeklyCount">0</span>
+            </div>
+            <div class="wl-add-row">
+                <input class="wl-input" id="wlWeeklyInput" type="text" placeholder="TICKER" maxlength="6">
+                <select class="wl-add-select" id="wlWeeklyStage">
+                    <option value="s1">S1 — Basing</option>
+                    <option value="s2" selected>S2 — Advancing</option>
+                    <option value="s3">S3 — Top</option>
+                    <option value="s4">S4 — Declining</option>
+                </select>
+                <input class="wl-input" id="wlWeeklyRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
+                <select class="wl-add-select" id="wlWeeklySetupAdd">
+                    <option value="">Setup...</option>
+                    <option value="Breakout">Breakout</option>
+                    <option value="Consolidation">Consolidation</option>
+                    <option value="Pullback">Pullback</option>
+                    <option value="Early Stage 2">Early S2</option>
+                    <option value="RS New High">RS New High</option>
+                    <option value="Basing">Basing</option>
+                    <option value="Distribution">Distribution</option>
+                    <option value="Stage 4 Decline">S4 Decline</option>
+                </select>
+                <button class="wl-add-btn" onclick="addToWatchlist('weekly')">+ Add</button>
+            </div>
+        </div>
+        <table class="wl-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>Price</th>
+                    <th class="right">Day %</th>
+                    <th class="right">Week %</th>
+                    <th class="right">Month %</th>
+                    <th>Stage</th>
+                    <th class="right">RS</th>
+                    <th>Setup / Notes</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="wlWeeklyBody"></tbody>
+        </table>
+    </div>
 
     <!-- DAILY WATCHLIST -->
     <div class="wl-panel">
@@ -719,206 +682,6 @@
                 </tr>
             </thead>
             <tbody id="wlOndeckBody"></tbody>
-        </table>
-    </div>
-
-    <!-- SHORTS WATCHLIST -->
-    <div class="wl-panel">
-        <div class="wl-panel-header">
-            <div class="wl-panel-title">
-                <div class="wl-panel-dot shorts"></div>
-                <span>Shorts</span>
-                <small>— stage 4 declines · short candidates</small>
-                <span class="wl-count" id="wlShortsCount">0</span>
-            </div>
-            <div class="wl-add-row">
-                <input class="wl-input" id="wlShortsInput" type="text" placeholder="TICKER" maxlength="6">
-                <select class="wl-add-select" id="wlShortsStage">
-                    <option value="s1">S1 — Basing</option>
-                    <option value="s2">S2 — Advancing</option>
-                    <option value="s3">S3 — Top</option>
-                    <option value="s4" selected>S4 — Declining</option>
-                </select>
-                <input class="wl-input" id="wlShortsRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
-                <select class="wl-add-select" id="wlShortsSetupAdd">
-                    <option value="">Setup...</option>
-                    <option value="Breakout">Breakout</option>
-                    <option value="Consolidation">Consolidation</option>
-                    <option value="Pullback">Pullback</option>
-                    <option value="Early Stage 2">Early S2</option>
-                    <option value="RS New High">RS New High</option>
-                    <option value="Basing">Basing</option>
-                    <option value="Distribution" selected>Distribution</option>
-                    <option value="Stage 4 Decline">S4 Decline</option>
-                </select>
-                <button class="wl-add-btn" onclick="addToWatchlist('shorts')">+ Add</button>
-            </div>
-        </div>
-        <table class="wl-table">
-            <thead>
-                <tr>
-                    <th>Ticker</th>
-                    <th>Price</th>
-                    <th class="right">Day %</th>
-                    <th class="right">Week %</th>
-                    <th class="right">Month %</th>
-                    <th>Stage</th>
-                    <th class="right">RS</th>
-                    <th>Setup / Notes</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="wlShortsBody"></tbody>
-        </table>
-    </div>
-
-    <!-- FOCUS LIST -->
-    <div class="wl-panel">
-        <div class="wl-panel-header">
-            <div class="wl-panel-title">
-                <div class="wl-panel-dot focus"></div>
-                <span>Focus List</span>
-                <small>— high-conviction names · core positions</small>
-                <span class="wl-count" id="wlFocusCount">0</span>
-            </div>
-            <div class="wl-add-row">
-                <input class="wl-input" id="wlFocusInput" type="text" placeholder="TICKER" maxlength="6">
-                <select class="wl-add-select" id="wlFocusStage">
-                    <option value="s1">S1 — Basing</option>
-                    <option value="s2" selected>S2 — Advancing</option>
-                    <option value="s3">S3 — Top</option>
-                    <option value="s4">S4 — Declining</option>
-                </select>
-                <input class="wl-input" id="wlFocusRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
-                <select class="wl-add-select" id="wlFocusSetupAdd">
-                    <option value="">Setup...</option>
-                    <option value="Breakout">Breakout</option>
-                    <option value="Consolidation">Consolidation</option>
-                    <option value="Pullback">Pullback</option>
-                    <option value="Early Stage 2">Early S2</option>
-                    <option value="RS New High">RS New High</option>
-                    <option value="Basing">Basing</option>
-                    <option value="Distribution">Distribution</option>
-                    <option value="Stage 4 Decline">S4 Decline</option>
-                </select>
-                <button class="wl-add-btn" onclick="addToWatchlist('focus')">+ Add</button>
-            </div>
-        </div>
-        <table class="wl-table">
-            <thead>
-                <tr>
-                    <th>Ticker</th>
-                    <th>Price</th>
-                    <th class="right">Day %</th>
-                    <th class="right">Week %</th>
-                    <th class="right">Month %</th>
-                    <th>Stage</th>
-                    <th class="right">RS</th>
-                    <th>Setup / Notes</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="wlFocusBody"></tbody>
-        </table>
-    </div>
-
-    <!-- RELATIVE STRENGTH -->
-    <div class="wl-panel">
-        <div class="wl-panel-header">
-            <div class="wl-panel-title">
-                <div class="wl-panel-dot rs"></div>
-                <span>Relative Strength</span>
-                <small>— RS leaders · new highs in RS line</small>
-                <span class="wl-count" id="wlRsCount">0</span>
-            </div>
-            <div class="wl-add-row">
-                <input class="wl-input" id="wlRsInput" type="text" placeholder="TICKER" maxlength="6">
-                <select class="wl-add-select" id="wlRsStage">
-                    <option value="s1">S1 — Basing</option>
-                    <option value="s2" selected>S2 — Advancing</option>
-                    <option value="s3">S3 — Top</option>
-                    <option value="s4">S4 — Declining</option>
-                </select>
-                <input class="wl-input" id="wlRsRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
-                <select class="wl-add-select" id="wlRsSetupAdd">
-                    <option value="">Setup...</option>
-                    <option value="Breakout">Breakout</option>
-                    <option value="Consolidation">Consolidation</option>
-                    <option value="Pullback">Pullback</option>
-                    <option value="Early Stage 2">Early S2</option>
-                    <option value="RS New High" selected>RS New High</option>
-                    <option value="Basing">Basing</option>
-                    <option value="Distribution">Distribution</option>
-                    <option value="Stage 4 Decline">S4 Decline</option>
-                </select>
-                <button class="wl-add-btn" onclick="addToWatchlist('rs')">+ Add</button>
-            </div>
-        </div>
-        <table class="wl-table">
-            <thead>
-                <tr>
-                    <th>Ticker</th>
-                    <th>Price</th>
-                    <th class="right">Day %</th>
-                    <th class="right">Week %</th>
-                    <th class="right">Month %</th>
-                    <th>Stage</th>
-                    <th class="right">RS</th>
-                    <th>Setup / Notes</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="wlRsBody"></tbody>
-        </table>
-    </div>
-
-    <!-- TOP DAWG -->
-    <div class="wl-panel">
-        <div class="wl-panel-header">
-            <div class="wl-panel-title">
-                <div class="wl-panel-dot topdawg"></div>
-                <span>Top Dawg</span>
-                <small>— best of the best · top setups across all lists</small>
-                <span class="wl-count" id="wlTopdawgCount">0</span>
-            </div>
-            <div class="wl-add-row">
-                <input class="wl-input" id="wlTopdawgInput" type="text" placeholder="TICKER" maxlength="6">
-                <select class="wl-add-select" id="wlTopdawgStage">
-                    <option value="s1">S1 — Basing</option>
-                    <option value="s2" selected>S2 — Advancing</option>
-                    <option value="s3">S3 — Top</option>
-                    <option value="s4">S4 — Declining</option>
-                </select>
-                <input class="wl-input" id="wlTopdawgRS" type="number" min="1" max="99" placeholder="RS" style="width:52px;">
-                <select class="wl-add-select" id="wlTopdawgSetupAdd">
-                    <option value="">Setup...</option>
-                    <option value="Breakout">Breakout</option>
-                    <option value="Consolidation">Consolidation</option>
-                    <option value="Pullback">Pullback</option>
-                    <option value="Early Stage 2">Early S2</option>
-                    <option value="RS New High" selected>RS New High</option>
-                    <option value="Basing">Basing</option>
-                    <option value="Distribution">Distribution</option>
-                    <option value="Stage 4 Decline">S4 Decline</option>
-                </select>
-                <button class="wl-add-btn" onclick="addToWatchlist('topdawg')">+ Add</button>
-            </div>
-        </div>
-        <table class="wl-table">
-            <thead>
-                <tr>
-                    <th>Ticker</th>
-                    <th>Price</th>
-                    <th class="right">Day %</th>
-                    <th class="right">Week %</th>
-                    <th class="right">Month %</th>
-                    <th>Stage</th>
-                    <th class="right">RS</th>
-                    <th>Setup / Notes</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody id="wlTopdawgBody"></tbody>
         </table>
     </div>
 
@@ -1047,7 +810,46 @@
     <div class="movers-section">
         <div class="section-title">Trade Log</div>
         <div id="journalEntries">
-            <div style="text-align:center;color:#475569;padding:2rem;font-size:0.8rem" id="journalLoading">Loading trade journal...</div>
+            <!-- pre-seeded entries -->
+            <div class="journal-entry long-win">
+                <div class="journal-entry-header">
+                    <div><span class="journal-entry-title">GLD — Long Call</span><span class="wl-badge positive">+$840</span></div>
+                    <div class="journal-entry-meta">Feb 24, 2026 · Stage 2 · Equity</div>
+                </div>
+                <div class="journal-stats">
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$255.40</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$262.11</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$5,000</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">2.8:1</span></div>
+                </div>
+                <div class="journal-notes">Stage 2 uptrend with RS line breaking to 52-week high vs SPY. Kell trend intact above 10/20 EMA. Risk-off macro regime confirms. HMM Bull on GLD.</div>
+            </div>
+            <div class="journal-entry short-win">
+                <div class="journal-entry-header">
+                    <div><span class="journal-entry-title">TSLA — Short</span><span class="wl-badge positive">+$1,230</span></div>
+                    <div class="journal-entry-meta">Mar 04, 2026 · Stage 4 · Equity</div>
+                </div>
+                <div class="journal-stats">
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$306.40</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$274.68</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$6,000</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">3.4:1</span></div>
+                </div>
+                <div class="journal-notes">Weinstein Stage 4 breakdown confirmed. 30-week MA acting as resistance. IWM HMM Bear regime macro tailwind. High relative volume on breakdown day. COT net short growing.</div>
+            </div>
+            <div class="journal-entry long-loss">
+                <div class="journal-entry-header">
+                    <div><span class="journal-entry-title">NVDA — Long Call</span><span class="wl-badge negative">-$420</span></div>
+                    <div class="journal-entry-meta">Feb 10, 2026 · Stage 3 · Call</div>
+                </div>
+                <div class="journal-stats">
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$138.20</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$124.80</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$2,800</span></div>
+                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">0.6:1</span></div>
+                </div>
+                <div class="journal-notes">Entered too early before base confirmed. Stock still in Stage 3 distribution. Lesson: wait for Stage 1 basing and volume dry-up before re-entry.</div>
+            </div>
         </div>
     </div>
 </div>
@@ -1243,99 +1045,70 @@
 </div><!-- /ai tab -->
 
 <!-- ── NEWS ──────────────────────────────────────────── -->
-<div class="tab-content" id="news" style="padding:0;max-width:1920px;margin:0 auto">
-    <div class="news-layout">
+<div class="tab-content" id="news" style="padding:1.5rem;max-width:1920px;margin:0 auto">
 
-        <!-- LEFT SIDEBAR — Filters -->
-        <div class="news-sidebar">
-            <div class="news-sidebar-section">
-                <input type="text" class="news-sidebar-input" id="newsSearchInput" placeholder="Search headlines..." oninput="applyNewsFilters()">
-            </div>
-            <div class="news-sidebar-section">
-                <input type="text" class="news-sidebar-input" id="newsTickerInput" placeholder="$ Filter by ticker..." style="text-transform:uppercase" oninput="applyNewsFilters()">
-            </div>
-
-            <div class="news-sidebar-section">
-                <div class="news-sidebar-label">Source</div>
-                <div class="nf-chips" id="nfSourceChips">
-                    <button class="nf-chip active" data-src="all" onclick="toggleSourceFilter(this)">All</button>
-                    <button class="nf-chip" data-src="bloomberg" onclick="toggleSourceFilter(this)">Bloomberg</button>
-                    <button class="nf-chip" data-src="reuters" onclick="toggleSourceFilter(this)">Reuters</button>
-                    <button class="nf-chip" data-src="cnbc" onclick="toggleSourceFilter(this)">CNBC</button>
-                    <button class="nf-chip" data-src="wsj" onclick="toggleSourceFilter(this)">WSJ</button>
-                    <button class="nf-chip" data-src="marketwatch" onclick="toggleSourceFilter(this)">MarketWatch</button>
-                </div>
-            </div>
-
-            <div class="news-sidebar-section">
-                <div class="news-sidebar-label">Category</div>
-                <div class="nf-chips" id="nfCatChips">
-                    <button class="nf-chip active" data-cat="all" onclick="toggleCatFilter(this)">All</button>
-                    <button class="nf-chip" data-cat="earnings" onclick="toggleCatFilter(this)">Earnings</button>
-                    <button class="nf-chip" data-cat="macro" onclick="toggleCatFilter(this)">Macro</button>
-                    <button class="nf-chip" data-cat="sector" onclick="toggleCatFilter(this)">Company</button>
-                    <button class="nf-chip" data-cat="technical" onclick="toggleCatFilter(this)">Markets</button>
-                    <button class="nf-chip" data-cat="options" onclick="toggleCatFilter(this)">Options Flow</button>
-                </div>
-            </div>
-
-            <div class="news-sidebar-section">
-                <div class="news-sidebar-label">Sentiment</div>
-                <div class="news-sent-bar">
-                    <div class="news-sent-box bull">
-                        <div id="nsBullCount">0</div>
-                        <div class="news-sent-label">Bullish</div>
-                    </div>
-                    <div class="news-sent-box bear">
-                        <div id="nsBearCount">0</div>
-                        <div class="news-sent-label">Bearish</div>
-                    </div>
-                </div>
-                <div class="news-sent-progress">
-                    <div class="news-sent-fill" id="nsSentBar" style="--bull-pct:50%"></div>
-                </div>
-            </div>
-
-            <div class="news-sidebar-section">
-                <div class="news-sidebar-label">Trending Tickers</div>
-                <div class="nf-trending" id="nfTrending">
-                    <span style="font-size:0.72rem;color:#475569">Fetch news to see trends</span>
-                </div>
-            </div>
-
-            <div class="news-sidebar-section" style="margin-top:1rem">
-                <div class="news-sidebar-label">Quick Feeds</div>
-                <div style="display:flex;flex-direction:column;gap:0.35rem">
-                    <button class="nf-chip" style="width:100%;text-align:left;padding:0.35rem 0.5rem;border-color:#1e293b" onclick="fetchNewsForTickers(['SPY','QQQ','IWM','DIA'])">📊 Index ETFs</button>
-                    <button class="nf-chip" style="width:100%;text-align:left;padding:0.35rem 0.5rem;border-color:#1e293b" onclick="fetchNewsForTickers(['NVDA','AAPL','MSFT','GOOGL','META','AMZN','TSLA'])">💻 Mag 7</button>
-                    <button class="nf-chip" style="width:100%;text-align:left;padding:0.35rem 0.5rem;border-color:#1e293b" onclick="fetchNewsFromWatchlist()">📋 My Watchlist</button>
-                    <button class="nf-chip" style="width:100%;text-align:left;padding:0.35rem 0.5rem;border-color:#1e293b" onclick="fetchNews(true)">↻ Refresh All</button>
-                </div>
-            </div>
+    <!-- Runner Panel -->
+    <div style="background-color:#1e293b;padding:1.5rem;border-radius:0.5rem;border:1px solid #334155;margin-bottom:1.5rem">
+        <div class="section-title">Market &amp; Ticker News</div>
+        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+            <input type="text" id="newsTickerInput" placeholder="SPY, AAPL, NVDA..." value="" style="padding:0.5rem 0.75rem;background-color:#0f172a;color:#e2e8f0;border:1px solid #334155;border-radius:0.25rem;font-size:0.875rem;font-family:inherit;text-transform:uppercase;width:220px" title="Comma-separated tickers or blank for general market news">
+            <button class="api-btn" id="newsFetchBtn" onclick="fetchNews()" style="margin:0;padding:0.5rem 1.25rem">▶ Fetch News</button>
+            <button class="api-btn" id="newsRefreshBtn" onclick="fetchNews(true)" style="margin:0;padding:0.5rem 1.25rem;background-color:#334155">↻ Refresh All</button>
+            <span id="newsStatus" style="font-size:0.7rem;color:#64748b;margin-left:auto"></span>
         </div>
-
-        <!-- CENTER — News Feed -->
-        <div class="news-center">
-            <div class="news-center-header">
-                <div style="display:flex;align-items:center;gap:0.75rem">
-                    <span class="news-center-title">NEWS</span>
-                    <span style="font-size:0.75rem;color:#64748b" id="newsArticleCount">0 articles</span>
-                </div>
-                <span class="news-live-dot" id="newsLiveIndicator" style="display:none">Live</span>
+        <div style="margin-top:0.75rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem">
+            <div class="news-filter-bar" id="newsFilterBar">
+                <button class="news-filter-btn active" data-filter="all" onclick="filterNews('all',this)">All</button>
+                <button class="news-filter-btn" data-filter="earnings" onclick="filterNews('earnings',this)">Earnings</button>
+                <button class="news-filter-btn" data-filter="macro" onclick="filterNews('macro',this)">Macro / Fed</button>
+                <button class="news-filter-btn" data-filter="sector" onclick="filterNews('sector',this)">Sector</button>
+                <button class="news-filter-btn" data-filter="technical" onclick="filterNews('technical',this)">Technical</button>
+                <button class="news-filter-btn" data-filter="options" onclick="filterNews('options',this)">Options Flow</button>
             </div>
+            <div style="font-size:0.7rem;color:#475569" id="newsCountLabel">0 articles loaded</div>
+        </div>
+    </div>
+
+    <!-- News Feed -->
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:1.5rem">
+
+        <!-- Main Feed -->
+        <div>
+            <div class="section-title" id="newsMainTitle">Latest News</div>
             <div class="news-feed" id="newsFeedMain">
                 <div class="news-empty">
                     <div style="font-size:2rem;margin-bottom:0.75rem">📰</div>
-                    <div>Click a quick feed or enter tickers to load news</div>
+                    <div>Enter tickers above or click "Refresh All" for market-wide news</div>
+                    <div style="font-size:0.75rem;color:#334155;margin-top:0.5rem">Pulls from Yahoo Finance via Nexus backend</div>
                 </div>
             </div>
         </div>
 
-        <!-- RIGHT SIDEBAR — Article Detail -->
-        <div class="news-detail" id="newsDetailPanel">
-            <div class="news-detail-empty">
-                <div style="font-size:1.5rem;margin-bottom:0.5rem">←</div>
-                <div>Click an article to see details</div>
+        <!-- Sidebar: Watchlist News + Quick Links -->
+        <div>
+            <div class="section-title">Watchlist Mentions</div>
+            <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1rem;margin-bottom:1.5rem;min-height:150px" id="newsWatchlistMentions">
+                <div style="text-align:center;color:#475569;padding:1rem;font-size:0.8rem">
+                    Fetch news to see watchlist ticker mentions
+                </div>
+            </div>
+
+            <div class="section-title">Quick Feeds</div>
+            <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1.5rem">
+                <button class="news-filter-btn" style="width:100%;text-align:left;padding:0.5rem 0.75rem" onclick="fetchNewsForTickers(['SPY','QQQ','IWM','DIA'])">📊 Index ETFs — SPY QQQ IWM DIA</button>
+                <button class="news-filter-btn" style="width:100%;text-align:left;padding:0.5rem 0.75rem" onclick="fetchNewsForTickers(['NVDA','AAPL','MSFT','GOOGL','META','AMZN','TSLA'])">💻 Mag 7 — NVDA AAPL MSFT GOOGL META AMZN TSLA</button>
+                <button class="news-filter-btn" style="width:100%;text-align:left;padding:0.5rem 0.75rem" onclick="fetchNewsFromWatchlist()">📋 My Watchlist Tickers</button>
+                <button class="news-filter-btn" style="width:100%;text-align:left;padding:0.5rem 0.75rem" onclick="fetchNewsForTickers(['GLD','SLV','TLT','DX-Y.NYB'])">🏛 Macro — GLD SLV TLT DXY</button>
+            </div>
+
+            <div class="section-title">News Stats</div>
+            <div style="background:#1e293b;border:1px solid #334155;border-radius:0.5rem;padding:1rem">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;font-size:0.8rem">
+                    <div><span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;display:block;margin-bottom:0.2rem">Total Articles</span><span style="font-weight:700;color:#e2e8f0" id="nsTotal">0</span></div>
+                    <div><span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;display:block;margin-bottom:0.2rem">Tickers Covered</span><span style="font-weight:700;color:#e2e8f0" id="nsTickers">0</span></div>
+                    <div><span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;display:block;margin-bottom:0.2rem">Bullish / Bearish</span><span style="font-weight:700" id="nsSentiment"><span style="color:#22c55e">0</span> / <span style="color:#ef4444">0</span></span></div>
+                    <div><span style="color:#64748b;font-size:0.7rem;text-transform:uppercase;display:block;margin-bottom:0.2rem">Last Refresh</span><span style="font-weight:700;color:#e2e8f0" id="nsLastRefresh">—</span></div>
+                </div>
             </div>
         </div>
 
@@ -1382,29 +1155,24 @@ updateClock();
 const NEXUS_API = 'https://nexus-terminal-production-9d34.up.railway.app';
 
 // ══════════════════════════════════════════════════════════════
-// WATCHLIST — six panels: daily / ondeck / shorts / focus / rs / topdawg
+// WATCHLIST — three panels: weekly / daily / ondeck
 // ══════════════════════════════════════════════════════════════
 
 // Seed data: { sym, company, sector, price, day, week, month, stage, rs, ema, above50, alertAbove, alertBelow, weeklySetup, rsNewHigh, notes }
 const WL_SEED = {
-    daily: [
+    weekly: [
+        { sym:'GLD',  company:'SPDR Gold Trust',       sector:'Macro / ETF',  price:'262.11', day:'+0.88', week:'+2.14', month:'+5.31', stage:'s2', rs:97, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'RS New High',    rsNewHigh:'yes', notes:'RS 52-wk high / defensive bid / risk-off tailwind' },
         { sym:'MSFT', company:'Microsoft Corp',         sector:'Technology',   price:'388.45', day:'-1.62', week:'-3.44', month:'-4.11', stage:'s2', rs:68, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'Consolidation',   rsNewHigh:'no',  notes:'Constructive above 30-wk MA · await pullback entry' },
+        { sym:'XLU',  company:'Utilities Select SPDR',  sector:'Utilities',    price:'81.44',  day:'+0.31', week:'+1.08', month:'+3.72', stage:'s2', rs:88, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'Breakout',        rsNewHigh:'yes', notes:'Defensive rotation active · stage 2 breakout' },
+    ],
+    daily: [
+        { sym:'TSLA', company:'Tesla Inc',              sector:'Consumer Disc.',price:'274.68', day:'-10.21',week:'-14.3', month:'-21.8', stage:'s4', rs:12, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Stage 4 Decline', rsNewHigh:'no',  notes:'Stage 4 breakdown / high vol / COT net short rising' },
+        { sym:'NVDA', company:'NVIDIA Corp',             sector:'Technology',   price:'107.49', day:'-5.74', week:'-9.18', month:'-22.4', stage:'s3', rs:44, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Distribution',    rsNewHigh:'no',  notes:'Distribution / failed breakout · watch for Stage 1 base' },
     ],
     ondeck: [
-        { sym:'AAPL', company:'Apple Inc',              sector:'Technology',   price:'221.53', day:'-1.46', week:'-4.22', month:'-8.11', stage:'s1', rs:55, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Basing',          rsNewHigh:'no',  notes:'Basing under 30-wk MA · wait for volume contraction' },
-        { sym:'GOOGL',company:'Alphabet Inc',            sector:'Comm. Services',price:'163.90',day:'-2.04',week:'-5.12', month:'-9.44', stage:'s1', rs:71, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'Basing',          rsNewHigh:'no',  notes:'RS holding vs peers · needs broader market stabilization' },
-    ],
-    shorts: [
-        { sym:'TSLA', company:'Tesla Inc',              sector:'Consumer Disc.',price:'274.68', day:'-10.21',week:'-14.3', month:'-21.8', stage:'s4', rs:12, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Distribution',    rsNewHigh:'no',  notes:'Stage 4 breakdown / high vol / COT net short rising' },
-        { sym:'NVDA', company:'NVIDIA Corp',             sector:'Technology',   price:'107.49', day:'-5.74', week:'-9.18', month:'-22.4', stage:'s4', rs:44, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Distribution',    rsNewHigh:'no',  notes:'Distribution / failed breakout · watch for Stage 1 base' },
-    ],
-    focus: [
-        { sym:'GLD',  company:'SPDR Gold Trust',       sector:'Macro / ETF',  price:'262.11', day:'+0.88', week:'+2.14', month:'+5.31', stage:'s2', rs:97, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'RS New High',    rsNewHigh:'yes', notes:'RS 52-wk high / defensive bid / risk-off tailwind' },
-    ],
-    rs: [
-        { sym:'XLU',  company:'Utilities Select SPDR',  sector:'Utilities',    price:'81.44',  day:'+0.31', week:'+1.08', month:'+3.72', stage:'s2', rs:88, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'RS New High',     rsNewHigh:'yes', notes:'Defensive rotation active · stage 2 breakout' },
-    ],
-    topdawg: []
+        { sym:'AAPL', company:'Apple Inc',              sector:'Technology',   price:'221.53', day:'-1.46', week:'-4.22', month:'-8.11', stage:'s3', rs:55, ema:'no',  above50:'no',  alertAbove:0, alertBelow:0, weeklySetup:'Basing',          rsNewHigh:'no',  notes:'Basing under 30-wk MA · wait for volume contraction' },
+        { sym:'GOOGL',company:'Alphabet Inc',            sector:'Comm. Services',price:'163.90',day:'-2.04',week:'-5.12', month:'-9.44', stage:'s2', rs:71, ema:'yes', above50:'yes', alertAbove:0, alertBelow:0, weeklySetup:'Consolidation',   rsNewHigh:'no',  notes:'RS holding vs peers · needs broader market stabilization' },
+    ]
 };
 
 function chgClass(val) {
@@ -1489,7 +1257,6 @@ function startInlineEdit(e, td, tr) {
             tr.dataset.stage = sel.value;
             td.innerHTML = `<span class="wl-stage ${sel.value}">${stageLabel(sel.value)}</span>`;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
-            saveWatchlistToStorage();
         };
         sel.addEventListener('change', commit);
         sel.addEventListener('blur', commit);
@@ -1507,7 +1274,6 @@ function startInlineEdit(e, td, tr) {
             tr.dataset.rs = v;
             td.innerHTML = `<span class="wl-rs" style="color:${rsColor(v)}">${v}</span>`;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
-            saveWatchlistToStorage();
         };
         inp.addEventListener('blur', commit);
         inp.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();commit();} if(e.key==='Escape'){td.innerHTML=`<span class="wl-rs" style="color:${rsColor(tr.dataset.rs)}">${tr.dataset.rs}</span>`;td.addEventListener('click',ev=>startInlineEdit(ev,td,tr));} });
@@ -1525,7 +1291,6 @@ function startInlineEdit(e, td, tr) {
             tr.dataset.sym = v;
             td.textContent = v;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
-            saveWatchlistToStorage();
         };
         inp.addEventListener('blur', commit);
         inp.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();commit();} if(e.key==='Escape'){td.textContent=tr.dataset.sym;td.addEventListener('click',ev=>startInlineEdit(ev,td,tr));} });
@@ -1545,7 +1310,6 @@ function startInlineEdit(e, td, tr) {
             td.textContent = v;
             td.title = v;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
-            saveWatchlistToStorage();
         };
         inp.addEventListener('blur', commit);
         inp.addEventListener('keydown', e => { if(e.key==='Enter'){e.preventDefault();commit();} if(e.key==='Escape'){td.textContent=tr.dataset.notes;td.title=tr.dataset.notes;td.addEventListener('click',ev=>startInlineEdit(ev,td,tr));} });
@@ -1569,117 +1333,16 @@ function updateCount(listKey) {
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
-function saveWatchlistToStorage() {
-    const data = {};
-    ['daily','ondeck','shorts','focus','rs','topdawg'].forEach(key => {
-        const rows = [];
-        document.querySelectorAll(`#wl${cap(key)}Body tr[data-sym]`).forEach(tr => {
-            const d = tr.dataset;
-            const priceCell = tr.querySelector('.wl-price');
-            const price = priceCell ? priceCell.textContent.replace('$','') : '—';
-            const cells = tr.querySelectorAll('td');
-            const dayCell = cells[2]?.textContent?.match(/([\-\+]?[\d\.]+)/);
-            const weekCell = cells[3]?.textContent?.match(/([\-\+]?[\d\.]+)/);
-            const monthCell = cells[4]?.textContent?.match(/([\-\+]?[\d\.]+)/);
-            rows.push({
-                sym: d.sym,
-                company: d.company || '',
-                sector: d.sector || '',
-                price: price,
-                day: dayCell ? dayCell[1] : '0',
-                week: weekCell ? weekCell[1] : '0',
-                month: monthCell ? monthCell[1] : '0',
-                stage: d.stage || 's1',
-                rs: parseInt(d.rs) || 0,
-                ema: d.ema || '',
-                above50: d.above50 || '',
-                alertAbove: d.alertAbove || 0,
-                alertBelow: d.alertBelow || 0,
-                weeklySetup: d.weeklySetup || '',
-                rsNewHigh: d.rsNewHigh || 'no',
-                notes: d.notes || '',
-            });
-        });
-        data[key] = rows;
-    });
-
-    // Save to localStorage (instant)
-    localStorage.setItem('apex_watchlist', JSON.stringify(data));
-
-    // Sync to Postgres (background, non-blocking)
-    fetch(`${NEXUS_API}/api/watchlist`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ watchlist: data })
-    }).then(() => console.log('[Watchlist] Synced to Postgres'))
-      .catch(e => console.warn('[Watchlist] Backend sync failed:', e.message));
-}
-
-function loadWatchlistFromStorage() {
-    try {
-        const raw = localStorage.getItem('apex_watchlist');
-        if (raw) {
-            const data = JSON.parse(raw);
-            if (data && typeof data === 'object' && (data.daily || data.ondeck || data.shorts || data.focus || data.rs || data.topdawg)) {
-                return data;
-            }
-        }
-    } catch (e) { /* ignore parse errors */ }
-    return null;
-}
-
-async function syncWatchlistFromBackend() {
-    try {
-        const resp = await fetch(`${NEXUS_API}/api/watchlist`);
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const wl = data.watchlist;
-
-        if (!wl || (!wl.daily && !wl.ondeck && !wl.shorts && !wl.focus && !wl.rs && !wl.topdawg)) {
-            // Backend is empty — first time ever. Save current UI (seed) to backend.
-            console.log('[Watchlist] Backend empty — saving current watchlist as initial data');
-            saveWatchlistToStorage();
-            return;
-        }
-
-        // Backend has data — overwrite localStorage and rebuild UI
-        localStorage.setItem('apex_watchlist', JSON.stringify(wl));
-
-        ['daily','ondeck','shorts','focus','rs','topdawg'].forEach(key => {
-            const tbody = document.getElementById(`wl${cap(key)}Body`);
-            tbody.innerHTML = '';
-            (wl[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
-            updateCount(key);
-        });
-        console.log('[Watchlist] Synced from Postgres — backend is source of truth');
-    } catch (e) {
-        console.warn('[Watchlist] Backend fetch failed, using local data:', e.message);
-    }
-}
-
 function initWatchlists() {
-    const saved = loadWatchlistFromStorage();
-    const source = saved || WL_SEED;
-
-    ['daily','ondeck','shorts','focus','rs','topdawg'].forEach(key => {
+    ['weekly','daily','ondeck'].forEach(key => {
         const tbody = document.getElementById(`wl${cap(key)}Body`);
-        (source[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
+        (WL_SEED[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
         updateCount(key);
 
         document.getElementById(`wl${cap(key)}Input`).addEventListener('keydown', e => {
             if (e.key === 'Enter') addToWatchlist(key);
         });
     });
-
-    if (saved) {
-        console.log('[Watchlist] Loaded from localStorage');
-    } else {
-        console.log('[Watchlist] Initialized from seed data — will sync from backend');
-        // Do NOT save seed to backend — backend sync will overwrite with real data
-    }
-
-    // Sync from backend (always overwrites local — Postgres is source of truth)
-    setTimeout(syncWatchlistFromBackend, 1500);
 }
 
 function addToWatchlist(listKey) {
@@ -1717,8 +1380,6 @@ function addToWatchlist(listKey) {
     inputEl.value = '';
     if (rsEl) rsEl.value = '';
     if (setupEl) setupEl.value = '';
-
-    saveWatchlistToStorage();
 }
 
 function removeWatchlistRow(btn) {
@@ -1726,7 +1387,6 @@ function removeWatchlistRow(btn) {
     const listKey = tr.dataset.list;
     tr.remove();
     updateCount(listKey);
-    saveWatchlistToStorage();
 }
 
 // ── EDIT MODAL ────────────────────────────────────────────
@@ -1739,7 +1399,7 @@ function openEditModal(tr) {
     document.getElementById('editTicker').value       = d.sym;
     document.getElementById('editCompany').value      = d.company    || '';
     document.getElementById('editSector').value       = d.sector     || '';
-    document.getElementById('editListKey').value      = d.list       || 'daily';
+    document.getElementById('editListKey').value      = d.list       || 'weekly';
     document.getElementById('editStage').value        = d.stage      || 's1';
     document.getElementById('editRS').value           = d.rs         || '';
     document.getElementById('editEma').value          = d.ema        || '';
@@ -1816,7 +1476,6 @@ function saveEditModal() {
         }).catch(() => {});
     }
 
-    saveWatchlistToStorage();
     closeEditModal();
 }
 
@@ -1965,99 +1624,11 @@ buildHeatmap();
 // ══════════════════════════════════════════════════════════════
 // JOURNAL
 // ══════════════════════════════════════════════════════════════
-let journalTrades = [];
-
-// ── Load from localStorage immediately, then sync from backend ──
-function loadJournalFromCache() {
-    try {
-        const cached = localStorage.getItem('apex_journal');
-        if (cached) {
-            const entries = JSON.parse(cached);
-            if (Array.isArray(entries) && entries.length > 0) {
-                renderJournalEntries(entries);
-                journalTrades = entries.map(e => ({ dir: e.direction, pnl: e.pnl || 0, win: e.win || false }));
-                updateJournalStats();
-                console.log(`[Journal] Loaded ${entries.length} entries from cache`);
-            }
-        }
-    } catch (e) { /* ignore cache errors */ }
-}
-
-async function loadJournalFromBackend() {
-    try {
-        const resp = await fetch(`${NEXUS_API}/api/journal?limit=200`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
-        const entries = data.entries || [];
-
-        // Update localStorage cache
-        localStorage.setItem('apex_journal', JSON.stringify(entries));
-
-        // Update in-memory stats
-        journalTrades = entries.map(e => ({ dir: e.direction, pnl: e.pnl || 0, win: e.win || false }));
-
-        // Render
-        renderJournalEntries(entries);
-        updateJournalStats();
-
-        const loadingEl = document.getElementById('journalLoading');
-        if (loadingEl) loadingEl.remove();
-
-        console.log(`[Journal] Synced ${entries.length} entries from Postgres`);
-    } catch (e) {
-        console.warn('[Journal] Backend sync failed, using cache:', e.message);
-        const loadingEl = document.getElementById('journalLoading');
-        if (loadingEl) loadingEl.textContent = 'Offline — showing cached entries';
-    }
-}
-
-function renderJournalEntries(entries) {
-    const container = document.getElementById('journalEntries');
-    if (!entries || entries.length === 0) {
-        container.innerHTML = '<div style="text-align:center;color:#475569;padding:2rem;font-size:0.8rem">No trades logged yet. Use the form above to log your first trade.</div>';
-        return;
-    }
-
-    container.innerHTML = entries.map(e => {
-        const pnl = e.pnl || 0;
-        const win = pnl >= 0;
-        const pnlClass = win ? 'positive' : 'negative';
-        const entryClass = win ? 'long-win' : 'long-loss';
-        const dir = e.direction || 'long';
-        const type = e.trade_type || 'equity';
-        const ticker = e.ticker || '—';
-        const entryP = e.entry_price ? `$${parseFloat(e.entry_price).toFixed(2)}` : '—';
-        const exitP = e.exit_price ? `$${parseFloat(e.exit_price).toFixed(2)}` : '—';
-        const size = e.position_size ? `$${parseFloat(e.position_size).toLocaleString()}` : '—';
-        const pnlPct = e.pnl_pct ? `${parseFloat(e.pnl_pct).toFixed(2)}%` : '—';
-        const stage = e.stage || '';
-        const notes = e.notes || '';
-        const dateStr = e.trade_date
-            ? new Date(e.trade_date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            : 'No date';
-        const id = e.id || '';
-
-        return `<div class="journal-entry ${entryClass}" data-id="${id}">
-            <div class="journal-entry-header">
-                <div>
-                    <span class="journal-entry-title">${escapeHtml(ticker)} — ${dir.charAt(0).toUpperCase()+dir.slice(1)} ${type.charAt(0).toUpperCase()+type.slice(1)}</span>
-                    <span class="wl-badge ${pnlClass}">${pnl >= 0 ? '+' : ''}$${Math.abs(Math.round(pnl)).toLocaleString()}</span>
-                </div>
-                <div style="display:flex;align-items:center;gap:0.5rem">
-                    <div class="journal-entry-meta">${dateStr}${stage ? ' · ' + stage : ''} · ${type}</div>
-                    ${id ? `<button onclick="deleteJournalEntry(${id})" style="background:none;border:none;color:#64748b;cursor:pointer;font-size:0.75rem;padding:0.2rem 0.4rem;border-radius:0.2rem;transition:all 0.15s" onmouseover="this.style.color='#ef4444';this.style.background='rgba(239,68,68,0.1)'" onmouseout="this.style.color='#64748b';this.style.background='none'" title="Delete entry">✕</button>` : ''}
-                </div>
-            </div>
-            <div class="journal-stats">
-                <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">${entryP}</span></div>
-                <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">${exitP}</span></div>
-                <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">${size}</span></div>
-                <div class="journal-stat-item"><span class="journal-stat-lbl">P&L %</span><span class="journal-stat-val ${pnlClass}">${pnlPct}</span></div>
-            </div>
-            ${notes ? `<div class="journal-notes">${escapeHtml(notes)}</div>` : ''}
-        </div>`;
-    }).join('');
-}
+let journalTrades = [
+    { dir:'long',  pnl: 840,  win: true },
+    { dir:'short', pnl: 1230, win: true },
+    { dir:'long',  pnl:-420,  win: false }
+];
 
 function updateJournalStats() {
     const wins   = journalTrades.filter(t => t.win);
@@ -2070,7 +1641,7 @@ function updateJournalStats() {
     const grossL   = Math.abs(losses.reduce((s,t)=>s+t.pnl,0));
     const pf       = grossL > 0 ? (grossW / grossL).toFixed(2) : wins.length ? '∞' : '—';
 
-    document.getElementById('jPnl').textContent    = (totalPnl >= 0 ? '+' : '') + '$' + Math.round(totalPnl).toLocaleString();
+    document.getElementById('jPnl').textContent    = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toLocaleString();
     document.getElementById('jPnl').className      = 'pnl-val ' + (totalPnl >= 0 ? 'positive' : 'negative');
     document.getElementById('jWinRate').textContent = wins.length ? winRate + '%' : '—';
     document.getElementById('jAvgWin').textContent  = avgWin !== '—' ? '+$' + avgWin : '—';
@@ -2079,7 +1650,7 @@ function updateJournalStats() {
     document.getElementById('jTotal').textContent   = journalTrades.length;
 }
 
-async function addJournalEntry() {
+function addJournalEntry() {
     const ticker = document.getElementById('jTicker').value.trim().toUpperCase();
     const dir    = document.getElementById('jDir').value;
     const type   = document.getElementById('jType').value;
@@ -2092,68 +1663,37 @@ async function addJournalEntry() {
 
     if (!ticker || isNaN(entry) || isNaN(exit) || isNaN(size)) return;
 
-    // POST to backend
-    try {
-        const resp = await fetch(`${NEXUS_API}/api/journal`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                ticker: ticker,
-                direction: dir,
-                trade_type: type,
-                entry_price: entry,
-                exit_price: exit,
-                position_size: size,
-                trade_date: date || null,
-                stage: stage,
-                notes: notes,
-            })
-        });
+    const pctMove = dir === 'long' ? (exit - entry) / entry : (entry - exit) / entry;
+    const pnl     = Math.round(pctMove * size);
+    const win     = pnl >= 0;
 
-        const data = await resp.json();
-        if (data.error) {
-            console.error('[Journal] Save failed:', data.error);
-            alert('Failed to save: ' + data.error);
-            return;
-        }
+    journalTrades.push({ dir, pnl, win });
+    updateJournalStats();
 
-        console.log('[Journal] Trade saved to Postgres:', data.entry?.ticker);
+    const pnlClass = win ? 'positive' : 'negative';
+    const entryClass = (dir === 'long' && win) || (dir === 'short' && win) ? 'long-win' : 'long-loss';
 
-        // Reload from backend to get fresh data
-        await loadJournalFromBackend();
+    const div = document.createElement('div');
+    div.className = `journal-entry ${entryClass}`;
+    div.innerHTML = `
+        <div class="journal-entry-header">
+            <div><span class="journal-entry-title">${ticker} — ${dir.charAt(0).toUpperCase()+dir.slice(1)} ${type.charAt(0).toUpperCase()+type.slice(1)}</span>
+            <span class="wl-badge ${pnlClass}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toLocaleString()}</span></div>
+            <div class="journal-entry-meta">${date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'Today'} · ${stage} · ${type}</div>
+        </div>
+        <div class="journal-stats">
+            <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$${entry.toFixed(2)}</span></div>
+            <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$${exit.toFixed(2)}</span></div>
+            <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$${size.toLocaleString()}</span></div>
+            <div class="journal-stat-item"><span class="journal-stat-lbl">P&L %</span><span class="journal-stat-val ${pnlClass}">${(pctMove*100).toFixed(2)}%</span></div>
+        </div>
+        ${notes ? `<div class="journal-notes">${notes}</div>` : ''}`;
+    document.getElementById('journalEntries').prepend(div);
 
-        // Clear form
-        ['jTicker','jEntry','jExit','jSize','jNotes'].forEach(id => document.getElementById(id).value = '');
-
-    } catch (e) {
-        console.error('[Journal] Network error:', e.message);
-        alert('Failed to save — check your connection');
-    }
+    ['jTicker','jEntry','jExit','jSize','jNotes'].forEach(id => document.getElementById(id).value = '');
 }
 
-async function deleteJournalEntry(id) {
-    if (!confirm('Delete this trade entry?')) return;
-
-    try {
-        const resp = await fetch(`${NEXUS_API}/api/journal/${id}`, { method: 'DELETE' });
-        const data = await resp.json();
-
-        if (data.error) {
-            console.error('[Journal] Delete failed:', data.error);
-            return;
-        }
-
-        console.log(`[Journal] Entry ${id} deleted`);
-        await loadJournalFromBackend();
-
-    } catch (e) {
-        console.error('[Journal] Delete error:', e.message);
-    }
-}
-
-// Load journal on page init
-loadJournalFromCache();
-setTimeout(loadJournalFromBackend, 1500);
+// init journal stats
 
 // ══════════════════════════════════════════════════════════════
 // MARKET BREADTH
@@ -2166,7 +1706,6 @@ const BD = {
     mcclellan: -87.4,
     summation: -312,
     ema19: -41.2, ema39: -18.6,
-    weinstein30w: 44,   // % above 30-week (150-day) SMA
     aboveMA: [
         { label: '20-Day MA',  pct: 28 },
         { label: '50-Day MA',  pct: 31 },
@@ -2274,8 +1813,7 @@ function buildBreadthMetrics() {
         { label: 'Up/Down Vol Ratio',   val: volRatio,               color: parseFloat(volRatio) >= 1 ? '#22c55e' : '#ef4444', sub: `${BD.upVol}B up · ${BD.downVol}B dn` },
         { label: 'TRIN (Arms Index)',   val: BD.trin.toFixed(2),     color: BD.trin > 2 ? '#8b5cf6' : BD.trin > 1.25 ? '#ef4444' : BD.trin < 0.75 ? '#22c55e' : '#f59e0b', sub: BD.trin > 2 ? 'Panic selling' : BD.trin > 1.25 ? 'Selling pressure' : 'Neutral' },
         { label: 'McClellan Osc.',      val: BD.mcclellan.toFixed(1),color: BD.mcclellan > 0 ? '#22c55e' : BD.mcclellan < -80 ? '#8b5cf6' : '#ef4444', sub: BD.mcclellan < -80 ? 'Oversold territory' : 'Bearish' },
-        { label: '% Above 200-Day MA', val: (BD.aboveMA.find(m => m.label.includes('200'))?.pct || 0) + '%', color: bdBarColor(BD.aboveMA.find(m => m.label.includes('200'))?.pct || 0), sub: 'S&P 500 constituents' },
-        { label: '% Above 30-Wk SMA', val: BD.weinstein30w + '%', color: bdBarColor(BD.weinstein30w), sub: 'Weinstein momentum' },
+        { label: '% Above 200-Day MA', val: '44%',                  color: '#ef4444', sub: 'S&P 500 constituents' },
     ];
 
     document.getElementById('breadthMetrics').innerHTML = metrics.map(m => `
@@ -2360,60 +1898,34 @@ function buildBreadthMetrics() {
             <div style="width:36px;text-align:right;font-size:.72rem;font-weight:700;color:${bdBarColor(s.pct)}">${s.pct}%</div>
         </div>`).join('');
 
-    // Interpretation panel — dynamic signals from live data
-    const above200 = BD.aboveMA.find(m => m.label.includes('200'))?.pct || 0;
-    const signals = [];
-
-    // A/D Ratio signal
-    const adVal = parseFloat(adRatio);
-    signals.push({
-        title: adVal >= 1 ? 'A/D Ratio — Bullish' : 'A/D Ratio — Bearish',
-        color: adVal >= 1 ? '#22c55e' : '#ef4444',
-        body: adVal >= 1
-            ? `NYSE advancing issues (${BD.advancing.toLocaleString()}) represent ${advPct}% of total. Broad participation supports the current advance.`
-            : `NYSE advancing issues (${BD.advancing.toLocaleString()}) represent only ${advPct}% of total. Broad participation severely lacking — distribution signature.`
-    });
-
-    // McClellan signal
-    const mcVal = BD.mcclellan;
-    signals.push({
-        title: mcVal < -100 ? 'McClellan Oscillator — Deeply Oversold' :
-               mcVal < -50  ? 'McClellan Oscillator — Oversold Watch' :
-               mcVal > 100  ? 'McClellan Oscillator — Overbought' :
-               mcVal > 0    ? 'McClellan Oscillator — Bullish' :
-                              'McClellan Oscillator — Bearish',
-        color: mcVal < -100 ? '#8b5cf6' : mcVal < 0 ? '#ef4444' : mcVal > 100 ? '#f59e0b' : '#22c55e',
-        body: `At ${mcVal.toFixed(1)}, the McClellan Oscillator is ${mcVal < -100 ? 'deeply oversold — watch for reversal signal' : mcVal < -50 ? 'approaching oversold territory' : mcVal > 100 ? 'overbought — expect consolidation' : mcVal > 0 ? 'above zero — positive breadth thrust' : 'negative — declining participation'}. Summation Index at ${BD.summation.toLocaleString()} ${BD.summation > 0 ? 'confirms upward pressure' : 'confirms persistent downward pressure'}.`
-    });
-
-    // New Highs / Lows signal
-    const hlVal = parseFloat(hlRatio);
-    signals.push({
-        title: hlVal >= 1 ? 'New Highs Leading — Healthy Trend' : 'New Lows Dominating — Distribution Confirmed',
-        color: hlVal >= 1 ? '#22c55e' : '#ef4444',
-        body: hlVal >= 1
-            ? `52-week new highs (${BD.newHighs}) outnumber new lows (${BD.newLows}). Broad market showing healthy participation in the advance.`
-            : `52-week new lows (${BD.newLows}) outnumber new highs (${BD.newHighs}) by ${(BD.newLows / Math.max(BD.newHighs, 1)).toFixed(1)}:1. Consistent with Stage 4 deterioration across the broad market.`
-    });
-
-    // TRIN signal
-    signals.push({
-        title: BD.trin > 2 ? 'TRIN > 2.0 — Panic Selling / Potential Exhaustion' :
-               BD.trin > 1.25 ? 'TRIN > 1.25 — Selling Pressure' :
-               BD.trin < 0.75 ? 'TRIN < 0.75 — Strong Buying Pressure' :
-                                'TRIN — Neutral Range',
-        color: BD.trin > 2 ? '#8b5cf6' : BD.trin > 1.25 ? '#ef4444' : BD.trin < 0.75 ? '#22c55e' : '#f59e0b',
-        body: `TRIN at ${BD.trin.toFixed(2)}. ${BD.trin > 2 ? 'Extreme selling pressure relative to volume. Historically, TRIN > 2.0 on high-volume days can mark short-term capitulation.' : BD.trin > 1.25 ? 'Sellers dominating on a volume-adjusted basis.' : BD.trin < 0.75 ? 'Buyers dominating with heavy volume behind advances.' : 'Volume participation roughly balanced between advances and declines.'}`
-    });
-
-    // Weinstein 30-Week + 200-Day structural signal
-    signals.push({
-        title: above200 < 40 ? '% Above 200-Day MA — Structural Bear Risk' :
-               above200 < 60 ? '% Above 200-Day MA — Weakening Trend' :
-                                '% Above 200-Day MA — Broad Strength',
-        color: above200 < 40 ? '#ef4444' : above200 < 60 ? '#f59e0b' : '#22c55e',
-        body: `${above200}% of S&P 500 constituents above their 200-day MA. ${BD.weinstein30w}% above 30-week SMA. ${above200 < 40 ? 'Below 40% has historically coincided with bear market confirmation. Stage analysis: macro regime is late Stage 3 / early Stage 4.' : above200 < 60 ? 'Participation thinning — monitor for further deterioration. Stage 2B / early Stage 3 territory.' : 'Healthy breadth supporting Stage 2 continuation.'}`
-    });
+    // Interpretation panel
+    const signals = [
+        {
+            title: 'A/D Ratio — Bearish',
+            color: '#ef4444',
+            body: `NYSE advancing issues (${BD.advancing.toLocaleString()}) represent only ${advPct}% of total issues. Broad market participation is severely lacking — this is a hallmark of distribution, not a healthy selloff.`
+        },
+        {
+            title: 'McClellan Oscillator — Oversold Watch',
+            color: '#8b5cf6',
+            body: `At ${BD.mcclellan.toFixed(1)}, the McClellan Oscillator is approaching oversold territory (<-100). Summation Index at ${BD.summation} confirms persistent downward pressure. Watch for a bounce signal if Osc reaches -150 with positive divergence.`
+        },
+        {
+            title: 'New Lows Dominating — Distribution Confirmed',
+            color: '#ef4444',
+            body: `52-week new lows (${BD.newLows}) are outnumbering new highs (${BD.newHighs}) by ${(BD.newLows / BD.newHighs).toFixed(1)}:1. This level of new-low expansion is consistent with Stage 4 deterioration across the broad market.`
+        },
+        {
+            title: 'TRIN > 2.0 — Panic Selling / Potential Exhaustion',
+            color: '#8b5cf6',
+            body: `TRIN at ${BD.trin.toFixed(2)} signals extreme selling pressure relative to volume. Historically, TRIN > 2.0 on high-volume days can mark short-term capitulation. Watch for intraday reversal or next-day bounce potential.`
+        },
+        {
+            title: '% Above 200-Day MA — Structural Bear Risk',
+            color: '#ef4444',
+            body: `Only 44% of S&P 500 constituents remain above their 200-day MA. A reading below 40% has historically coincided with bear market confirmation. Stage analysis: macro regime is late Stage 3 / early Stage 4 deterioration.`
+        },
+    ];
 
     document.getElementById('bdInterpretation').innerHTML = signals.map(s => `
         <div style="padding:.75rem;background:#0f172a;border-radius:.3rem;border-left:3px solid ${s.color}">
@@ -2691,6 +2203,82 @@ document.getElementById('optionsExpirySelect').addEventListener('change', () => 
 // AI ANALYSIS ENGINE — Claude-powered market commentary
 // ══════════════════════════════════════════════════════════════
 
+const INDEX_ETFS = new Set(['SPY', 'QQQ', 'IWM', 'DIA']);
+
+function gatherIndexContext(ticker) {
+    const ctx = { ticker, type: 'index_etf' };
+
+    // 1. Breadth snapshot (from global BD object)
+    if (typeof BD !== 'undefined') {
+        ctx.breadth = {
+            advDecl: `${BD.advancing} / ${BD.declining}`,
+            advDeclRatio: (BD.advancing / (BD.declining || 1)).toFixed(2),
+            newHighsLows: `${BD.newHighs} / ${BD.newLows}`,
+            trin: BD.trin,
+            mcclellan: BD.mcclellan,
+            summation: BD.summation,
+            aboveMA: BD.aboveMA,          // [{label, pct}, ...]
+            sectorBreadth: BD.sectorBreadth // [{name, pct}, ...]
+        };
+    }
+
+    // 2. VIX reading
+    const vix = PRICE_CACHE['^VIX'];
+    if (vix) {
+        ctx.vix = {
+            price: vix.price,
+            dayChange: vix.dayPct
+        };
+    }
+
+    // 3. Index ETF prices (SPY, QQQ, IWM, DIA)
+    ctx.indexPrices = {};
+    ['SPY', 'QQQ', 'IWM', 'DIA'].forEach(sym => {
+        const d = PRICE_CACHE[sym];
+        if (d) ctx.indexPrices[sym] = { price: d.price, dayPct: d.dayPct };
+    });
+
+    // 4. Watchlist stage distribution (Weinstein)
+    const allItems = [];
+    ['weekly', 'daily', 'ondeck'].forEach(key => {
+        const stored = localStorage.getItem(`apex_wl_${key}`);
+        const items = stored ? JSON.parse(stored) : (WL_SEED[key] || []);
+        allItems.push(...items);
+    });
+
+    if (allItems.length) {
+        const dist = { s1: 0, s2: 0, s3: 0, s4: 0, total: allItems.length };
+        allItems.forEach(item => {
+            if (dist.hasOwnProperty(item.stage)) dist[item.stage]++;
+        });
+        dist.pctStage2 = ((dist.s2 / dist.total) * 100).toFixed(1);
+        dist.pctStage4 = ((dist.s4 / dist.total) * 100).toFixed(1);
+        ctx.stageDistribution = dist;
+
+        // Flag hostile environment per Weinstein hard rule
+        ctx.hostileEnvironment = parseFloat(dist.pctStage4) >= 60;
+    }
+
+    // 5. COT positioning summary (read from rendered table if available)
+    const cotBody = document.getElementById('cotBody');
+    if (cotBody && cotBody.rows.length) {
+        ctx.cotSummary = [];
+        for (const row of cotBody.rows) {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 5) {
+                ctx.cotSummary.push({
+                    contract: cells[0].textContent.trim(),
+                    netPosition: cells[1].textContent.trim(),
+                    weeklyChange: cells[2].textContent.trim(),
+                    signal: cells[4].textContent.trim()
+                });
+            }
+        }
+    }
+
+    return ctx;
+}
+
 async function runAIAnalysis() {
     const ticker = (document.getElementById('aiTickerInput').value.trim().toUpperCase()) || 'SPY';
     const btn = document.getElementById('aiRunBtn');
@@ -2703,12 +2291,18 @@ async function runAIAnalysis() {
     statusEl.textContent = `Sending ${ticker} to Claude...`;
     statusEl.style.color = '#f59e0b';
 
-    // Show loading state
+    const isIndex = INDEX_ETFS.has(ticker);
+
+    // Show loading state — differentiate index vs. single-name
     outputEl.innerHTML = `
         <div style="text-align:center;padding:3rem">
             <div style="font-size:1.5rem;margin-bottom:1rem;animation:pulse 1.5s infinite">🧠</div>
-            <div style="color:#94a3b8;font-size:0.875rem">Aggregating HMM signals, macro data, and prices...</div>
-            <div style="color:#475569;font-size:0.75rem;margin-top:0.5rem">Claude is generating institutional-grade analysis for ${ticker}</div>
+            <div style="color:#94a3b8;font-size:0.875rem">${isIndex
+                ? 'Searching live pre-market data, VIX, IV, economic calendar...'
+                : 'Aggregating HMM signals, macro data, and prices...'}</div>
+            <div style="color:#475569;font-size:0.75rem;margin-top:0.5rem">${isIndex
+                ? `Claude is building a 0DTE gameplan for ${ticker} (web search — may take 30-60s)`
+                : `Claude is generating institutional-grade analysis for ${ticker}`}</div>
         </div>`;
 
     // Reset data source indicators
@@ -2717,10 +2311,32 @@ async function runAIAnalysis() {
     updateDataSource('aiSrcPrice', 'Fetching...', '#f59e0b');
 
     try {
-        const resp = await fetch(`${NEXUS_API}/api/ai/commentary/${ticker}`, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' }
-        });
+        let resp;
+
+        if (isIndex) {
+            // Index ETF path: POST enriched context for 0DTE gameplan
+            // Longer timeout — Claude uses web search (30-60s typical)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+            const indexCtx = gatherIndexContext(ticker);
+            resp = await fetch(`${NEXUS_API}/api/ai/commentary/${ticker}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ index_context: indexCtx }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+        } else {
+            // Single-name equity path: unchanged GET
+            resp = await fetch(`${NEXUS_API}/api/ai/commentary/${ticker}`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+        }
 
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
@@ -2729,13 +2345,31 @@ async function runAIAnalysis() {
 
         const data = await resp.json();
 
-        // Update data source indicators
-        updateDataSource('aiSrcSignal', data.data_sources?.signal ? '✓ Connected' : '✗ Unavailable',
-            data.data_sources?.signal ? '#22c55e' : '#ef4444');
-        updateDataSource('aiSrcMacro', data.data_sources?.macro ? '✓ Connected' : '✗ Unavailable',
-            data.data_sources?.macro ? '#22c55e' : '#ef4444');
-        updateDataSource('aiSrcPrice', data.data_sources?.prices ? '✓ Connected' : '✗ Unavailable',
-            data.data_sources?.prices ? '#22c55e' : '#ef4444');
+        // Update data source indicators — relabel for index ETFs
+        if (isIndex) {
+            // Relabel the three cards dynamically
+            setDataSourceLabel('aiSrcSignal', 'Breadth / Stage');
+            setDataSourceLabel('aiSrcMacro', 'COT / Positioning');
+            setDataSourceLabel('aiSrcPrice', 'Web Search (Live)');
+
+            updateDataSource('aiSrcSignal', typeof BD !== 'undefined' ? '✓ Loaded' : '✗ Unavailable',
+                typeof BD !== 'undefined' ? '#22c55e' : '#ef4444');
+            updateDataSource('aiSrcMacro', document.getElementById('cotBody')?.rows.length ? '✓ Loaded' : '✗ Unavailable',
+                document.getElementById('cotBody')?.rows.length ? '#22c55e' : '#ef4444');
+            updateDataSource('aiSrcPrice', '✓ Web Search', '#22c55e');
+        } else {
+            // Reset labels for single-name tickers
+            setDataSourceLabel('aiSrcSignal', 'HMM Signal');
+            setDataSourceLabel('aiSrcMacro', 'Macro Data');
+            setDataSourceLabel('aiSrcPrice', 'Price Data');
+
+            updateDataSource('aiSrcSignal', data.data_sources?.signal ? '✓ Connected' : '✗ Unavailable',
+                data.data_sources?.signal ? '#22c55e' : '#ef4444');
+            updateDataSource('aiSrcMacro', data.data_sources?.macro ? '✓ Connected' : '✗ Unavailable',
+                data.data_sources?.macro ? '#22c55e' : '#ef4444');
+            updateDataSource('aiSrcPrice', data.data_sources?.prices ? '✓ Connected' : '✗ Unavailable',
+                data.data_sources?.prices ? '#22c55e' : '#ef4444');
+        }
 
         // Render commentary
         renderAICommentary(data.commentary, ticker, data.timestamp);
@@ -2768,8 +2402,10 @@ function renderAICommentary(text, ticker, timestamp) {
         return;
     }
 
-    // Parse sections from the commentary
-    const sections = [
+    // Index ETFs get market-regime-focused sections; single names get the original set
+    const isIndex = INDEX_ETFS.has(ticker);
+
+    const singleNameSections = [
         { key: 'REGIME ASSESSMENT', icon: '📊', color: '#8b5cf6' },
         { key: 'TICKER ANALYSIS', icon: '📈', color: '#3b82f6' },
         { key: 'MACRO CONTEXT', icon: '🏛', color: '#f59e0b' },
@@ -2777,13 +2413,29 @@ function renderAICommentary(text, ticker, timestamp) {
         { key: 'KEY RISKS', icon: '⚠️', color: '#ef4444' },
     ];
 
+    const indexSections = [
+        { key: 'MARKET REGIME', icon: '🔬', color: '#8b5cf6' },
+        { key: 'IV CONTEXT', icon: '📊', color: '#06b6d4' },
+        { key: 'KEY LEVELS', icon: '🎯', color: '#3b82f6' },
+        { key: '0DTE GAMEPLAN', icon: '⚡', color: '#22c55e' },
+        { key: 'RISK MAP', icon: '⚠️', color: '#ef4444' },
+    ];
+
+    const sections = isIndex ? indexSections : singleNameSections;
+
+    const headerLabel = isIndex ? `0DTE Regime Analysis — ${ticker}` : `Claude Analysis — ${ticker}`;
+
     let html = `<div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:0.85rem;font-weight:700;color:#e2e8f0">Claude Analysis — ${ticker}</span>
+        <span style="font-size:0.85rem;font-weight:700;color:#e2e8f0">${headerLabel}</span>
         <span style="font-size:0.7rem;color:#475569">${timestamp ? new Date(timestamp).toLocaleString() : ''}</span>
     </div>`;
 
     // Try to split into sections
-    let remaining = text;
+    // Normalize: strip markdown bold/headers that Claude sometimes uses despite instructions
+    let remaining = text
+        .replace(/\*\*([A-Z0-9\s/]+)\*\*/g, '$1')   // **MARKET REGIME** → MARKET REGIME
+        .replace(/^#{1,3}\s*/gm, '')                   // ### MARKET REGIME → MARKET REGIME
+        .replace(/\*\*/g, '');                          // stray bold markers
     let hasSections = false;
 
     sections.forEach(sec => {
@@ -2818,8 +2470,12 @@ function renderAICommentary(text, ticker, timestamp) {
         </div>`;
     }
 
+    const sourceNote = isIndex
+        ? 'Powered by Claude (claude-sonnet-4-20250514) · Web Search + Terminal Breadth/COT/Stage Data'
+        : 'Powered by Claude (claude-sonnet-4-20250514) · Source: Nexus /api/signal + /api/macro + /api/prices';
+
     html += `<div style="margin-top:1rem;font-size:0.65rem;color:#334155;text-align:right">
-        Powered by Claude (claude-sonnet-4-20250514) · Source: Nexus /api/signal + /api/macro + /api/prices
+        ${sourceNote}
     </div>`;
 
     outputEl.innerHTML = html;
@@ -2829,6 +2485,13 @@ function updateDataSource(elId, text, color) {
     const el = document.getElementById(elId);
     if (!el) return;
     el.querySelector('.metric-value').innerHTML = `<span style="color:${color};font-size:1rem">${text}</span>`;
+}
+
+function setDataSourceLabel(elId, label) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    const labelEl = el.querySelector('.metric-label');
+    if (labelEl) labelEl.textContent = label;
 }
 
 // Enter key triggers analysis
@@ -2953,23 +2616,21 @@ function updateTickerStrip() {
     });
 }
 
-// Dashboard metric cards — update from live data
+// Dashboard metric cards (VIX card)
 function updateDashboardCards() {
-    // VIX card
     const vix = PRICE_CACHE['^VIX'];
     if (vix) {
-        const el = document.getElementById('dashVixValue');
-        const sub = document.getElementById('dashVixSub');
-        if (el) {
-            el.textContent = vix.price;
+        const vixCard = document.querySelector('#dashboard .metric-card:nth-child(2)');
+        if (vixCard) {
+            vixCard.querySelector('.metric-value').textContent = vix.price;
             const pct = parseFloat(vix.dayPct);
             const label = pct > 20 ? 'Fear Extreme' : pct > 10 ? 'Fear Elevated' : pct > 0 ? 'Fear Rising' : 'Fear Neutral';
-            sub.textContent = `${fmtPct(vix.dayPct)} · ${label}`;
-            el.className = `metric-value ${pct >= 0 ? 'positive' : 'negative'}`;
+            vixCard.querySelector('.metric-subtitle').textContent = `${fmtPct(vix.dayPct)} · ${label}`;
+            vixCard.querySelector('.metric-value').className = `metric-value ${pct >= 0 ? 'positive' : 'negative'}`;
         }
     }
 
-    // Sector leader — find best performing heatmap sector
+    // Sector leader — find the best performing heatmap sector
     let bestSector = null, bestAvg = -Infinity;
     HEATMAP_DATA.forEach(sector => {
         const vals = sector.stocks.map(s => {
@@ -2980,11 +2641,10 @@ function updateDashboardCards() {
         if (avg > bestAvg) { bestAvg = avg; bestSector = sector.sector; }
     });
     if (bestSector) {
-        const el = document.getElementById('dashSectorValue');
-        const sub = document.getElementById('dashSectorSub');
-        if (el) {
-            el.textContent = bestSector;
-            sub.textContent = `Avg ${fmtPct(bestAvg.toFixed(2))} today`;
+        const sectorCard = document.querySelector('#dashboard .metric-card:nth-child(4)');
+        if (sectorCard) {
+            sectorCard.querySelector('.metric-value').textContent = bestSector;
+            sectorCard.querySelector('.metric-subtitle').textContent = `Avg ${fmtPct(bestAvg.toFixed(2))} today`;
         }
     }
 }
@@ -3424,23 +3084,15 @@ async function fetchMacroData() {
 // ══════════════════════════════════════════════════════════════
 
 let NEWS_CACHE = []; // all fetched articles
-let NEWS_ACTIVE_CAT = 'all';
-let NEWS_ACTIVE_SRC = 'all';
-let NEWS_SELECTED = null; // currently selected article index
+let NEWS_ACTIVE_FILTER = 'all';
 
 // Keyword buckets for filtering
 const NEWS_FILTER_KEYWORDS = {
     earnings:  ['earnings','revenue','profit','loss','eps','guidance','quarter','fiscal','beat','miss','outlook','forecast'],
     macro:     ['fed','fomc','rate','inflation','cpi','ppi','gdp','treasury','yield','employment','jobs','nonfarm','tariff','trade war','recession','stimulus','monetary','fiscal policy','powell'],
     sector:    ['sector','rotation','industry','etf','xlk','xlf','xlv','xle','xlu','xli','xlp','xly','xlb','xlc','semis','chip','pharma','biotech','banks','fintech'],
-    technical: ['breakout','breakdown','support','resistance','moving average','volume','rsi','macd','chart','trend','consolidation','pullback','rally','correction','bear','bull','market'],
+    technical: ['breakout','breakdown','support','resistance','moving average','volume','rsi','macd','chart','trend','consolidation','pullback','rally','correction','bear','bull'],
     options:   ['options','calls','puts','implied volatility','iv','gamma','delta','vega','straddle','strangle','spread','open interest','unusual activity','flow','sweep','block trade']
-};
-
-const NEWS_SOURCE_COLORS = {
-    bloomberg: 'src-bloomberg', reuters: 'src-reuters', cnbc: 'src-cnbc',
-    'wall street journal': 'src-wsj', wsj: 'src-wsj', marketwatch: 'src-marketwatch',
-    'yahoo finance': 'src-yahoo', yahoo: 'src-yahoo',
 };
 
 function classifyArticle(title, summary) {
@@ -3455,30 +3107,13 @@ function classifyArticle(title, summary) {
 function guessSentiment(title) {
     if (!title) return 'neutral';
     const t = title.toLowerCase();
-    const bullWords = ['surge','rally','soar','beat','upgrade','breakout','boom','record high','outperform','bullish','upside','growth','strong','jump','raises','climbs','gains'];
-    const bearWords = ['crash','plunge','drop','miss','downgrade','breakdown','sell','decline','fear','risk','cut','weak','fall','slump','loss','bearish','warning','crisis','recalls','warns'];
+    const bullWords = ['surge','rally','soar','beat','upgrade','breakout','boom','record high','outperform','bullish','upside','growth','strong','jump'];
+    const bearWords = ['crash','plunge','drop','miss','downgrade','breakdown','sell','decline','fear','risk','cut','weak','fall','slump','loss','bearish','warning','crisis'];
     const bull = bullWords.filter(w => t.includes(w)).length;
     const bear = bearWords.filter(w => t.includes(w)).length;
     if (bull > bear) return 'bullish';
     if (bear > bull) return 'bearish';
     return 'neutral';
-}
-
-function guessImpact(article) {
-    const cats = article._categories || [];
-    const sent = article._sentiment;
-    if (cats.includes('earnings') || cats.includes('macro')) return 'high';
-    if (sent !== 'neutral') return 'medium';
-    return 'low';
-}
-
-function getSourceClass(publisher) {
-    if (!publisher) return 'src-other';
-    const p = publisher.toLowerCase();
-    for (const [key, cls] of Object.entries(NEWS_SOURCE_COLORS)) {
-        if (p.includes(key)) return cls;
-    }
-    return 'src-other';
 }
 
 function formatNewsTime(ts) {
@@ -3490,21 +3125,13 @@ function formatNewsTime(ts) {
     const diffMin = Math.floor(diffMs / 60000);
     const diffHr = Math.floor(diffMin / 60);
     const diffDay = Math.floor(diffHr / 24);
+
     if (diffMin < 1) return 'Just now';
     if (diffMin < 60) return `${diffMin}m ago`;
     if (diffHr < 24) return `${diffHr}h ago`;
     if (diffDay < 7) return `${diffDay}d ago`;
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
-
-function formatNewsTimeFull(ts) {
-    if (!ts) return '—';
-    const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts);
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleString('en-US', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
-}
-
-// ── Fetching ──────────────────────────────────────────
 
 async function fetchNewsForTicker(ticker) {
     try {
@@ -3518,9 +3145,8 @@ async function fetchNewsForTicker(ticker) {
             ...a,
             _ticker: ticker,
             _categories: classifyArticle(a.title, a.summary || a.description || ''),
-            _sentiment: a.sentiment && a.sentiment !== 'neutral' ? a.sentiment : guessSentiment(a.title),
-            _ts: a.providerPublishTime || a.published || a.timestamp || a.date || 0,
-            link: a.url || a.link || a.article_url || '#',
+            _sentiment: guessSentiment(a.title),
+            _ts: a.providerPublishTime || a.published || a.timestamp || a.date || 0
         })) : [];
     } catch (e) {
         console.warn(`[APEX News] Failed for ${ticker}:`, e.message);
@@ -3530,10 +3156,13 @@ async function fetchNewsForTicker(ticker) {
 
 async function fetchNews(refreshAll) {
     const inputEl = document.getElementById('newsTickerInput');
+    const btn = document.getElementById('newsFetchBtn');
+    const statusEl = document.getElementById('newsStatus');
     const feedEl = document.getElementById('newsFeedMain');
 
     let tickers = [];
     if (refreshAll) {
+        // Fetch for index ETFs + any watchlist tickers
         tickers = ['SPY', 'QQQ', 'IWM'];
         document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
             const sym = tr.dataset.sym;
@@ -3548,12 +3177,18 @@ async function fetchNews(refreshAll) {
         }
     }
 
+    btn.textContent = '⏳ Loading...';
+    btn.disabled = true;
+    statusEl.textContent = `Fetching news for ${tickers.length} ticker${tickers.length > 1 ? 's' : ''}...`;
+    statusEl.style.color = '#f59e0b';
+
     feedEl.innerHTML = `<div class="news-loading"><span class="spinner"></span> Fetching news for ${tickers.join(', ')}...</div>`;
 
     try {
         const results = await Promise.allSettled(tickers.map(t => fetchNewsForTicker(t)));
         const allArticles = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
 
+        // Deduplicate by title similarity (first 60 chars)
         const seen = new Set();
         const deduped = allArticles.filter(a => {
             const key = (a.title || '').substring(0, 60).toLowerCase();
@@ -3562,24 +3197,28 @@ async function fetchNews(refreshAll) {
             return true;
         });
 
+        // Sort newest first
         deduped.sort((a, b) => {
             const ta = typeof a._ts === 'number' ? a._ts : 0;
             const tb = typeof b._ts === 'number' ? b._ts : 0;
             return tb - ta;
         });
 
-        // Add impact to each article
-        deduped.forEach(a => { a._impact = guessImpact(a); });
-
         NEWS_CACHE = deduped;
-        NEWS_SELECTED = null;
         renderNews();
-        updateNewsSidebar();
-        document.getElementById('newsLiveIndicator').style.display = 'flex';
+        updateNewsStats(tickers);
+        updateWatchlistMentions();
 
-        console.log(`[APEX News] ✓ ${deduped.length} articles loaded from ${tickers.length} tickers`);
+        const successCount = results.filter(r => r.status === 'fulfilled' && r.value.length > 0).length;
+        statusEl.textContent = `✓ ${deduped.length} articles from ${successCount}/${tickers.length} tickers · ${new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}`;
+        statusEl.style.color = '#22c55e';
     } catch (err) {
         feedEl.innerHTML = `<div class="news-empty" style="color:#ef4444">⚠ News fetch failed: ${err.message}</div>`;
+        statusEl.textContent = `✗ Error: ${err.message}`;
+        statusEl.style.color = '#ef4444';
+    } finally {
+        btn.textContent = '▶ Fetch News';
+        btn.disabled = false;
     }
 }
 
@@ -3588,259 +3227,162 @@ function fetchNewsForTickers(tickers) {
     fetchNews();
 }
 
-function escapeHtml(str) {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
-}
-
 function fetchNewsFromWatchlist() {
     const tickers = [];
     document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
         const sym = tr.dataset.sym;
         if (!tickers.includes(sym)) tickers.push(sym);
     });
-    if (tickers.length === 0) return;
+    if (tickers.length === 0) {
+        document.getElementById('newsStatus').textContent = 'No watchlist tickers found';
+        document.getElementById('newsStatus').style.color = '#f59e0b';
+        return;
+    }
     document.getElementById('newsTickerInput').value = tickers.join(', ');
     fetchNews();
 }
 
-// ── Filtering ─────────────────────────────────────────
-
-function getFilteredNews() {
-    let filtered = NEWS_CACHE;
-
-    // Category filter
-    if (NEWS_ACTIVE_CAT !== 'all') {
-        filtered = filtered.filter(a => a._categories.includes(NEWS_ACTIVE_CAT));
-    }
-
-    // Source filter
-    if (NEWS_ACTIVE_SRC !== 'all') {
-        filtered = filtered.filter(a => {
-            const pub = (a.publisher || a.source || '').toLowerCase();
-            return pub.includes(NEWS_ACTIVE_SRC);
-        });
-    }
-
-    // Search filter
-    const searchVal = (document.getElementById('newsSearchInput')?.value || '').toLowerCase().trim();
-    if (searchVal) {
-        filtered = filtered.filter(a => (a.title || '').toLowerCase().includes(searchVal));
-    }
-
-    // Ticker filter from sidebar input
-    const tickerFilter = (document.getElementById('newsTickerInput')?.value || '').toUpperCase().trim();
-    if (tickerFilter && !tickerFilter.includes(',')) {
-        filtered = filtered.filter(a => {
-            const tickers = a.relatedTickers || [a._ticker];
-            return tickers.some(t => t.includes(tickerFilter)) || (a.title || '').toUpperCase().includes(tickerFilter);
-        });
-    }
-
-    return filtered;
-}
-
-function toggleSourceFilter(btn) {
-    const src = btn.dataset.src;
-    NEWS_ACTIVE_SRC = src;
-    document.querySelectorAll('#nfSourceChips .nf-chip').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderNews();
-}
-
-function toggleCatFilter(btn) {
-    const cat = btn.dataset.cat;
-    NEWS_ACTIVE_CAT = cat;
-    document.querySelectorAll('#nfCatChips .nf-chip').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    renderNews();
-}
-
-function applyNewsFilters() {
-    renderNews();
-}
-
-// ── Rendering ─────────────────────────────────────────
-
 function renderNews() {
     const feedEl = document.getElementById('newsFeedMain');
-    const filtered = getFilteredNews();
-
-    document.getElementById('newsArticleCount').textContent = `${filtered.length} article${filtered.length !== 1 ? 's' : ''}`;
+    const filtered = NEWS_ACTIVE_FILTER === 'all'
+        ? NEWS_CACHE
+        : NEWS_CACHE.filter(a => a._categories.includes(NEWS_ACTIVE_FILTER));
 
     if (filtered.length === 0) {
         feedEl.innerHTML = `<div class="news-empty">${NEWS_CACHE.length > 0
-            ? 'No articles match current filters.'
-            : 'Click a quick feed or enter tickers to load news.'}</div>`;
+            ? 'No articles match this filter. Try "All".'
+            : 'No news loaded yet. Enter tickers or click a quick feed.'}</div>`;
         return;
     }
 
-    feedEl.innerHTML = filtered.map((article, idx) => {
-        const globalIdx = NEWS_CACHE.indexOf(article);
+    // Group by time buckets
+    const now = Date.now() / 1000;
+    const buckets = [
+        { label: 'Last Hour',    max: 3600 },
+        { label: 'Today',        max: 86400 },
+        { label: 'This Week',    max: 604800 },
+        { label: 'Older',        max: Infinity }
+    ];
+
+    let html = '';
+    let lastBucket = '';
+
+    filtered.forEach(article => {
+        const ts = typeof article._ts === 'number' ? article._ts : 0;
+        const age = now - ts;
+        const bucket = buckets.find(b => age < b.max) || buckets[buckets.length - 1];
+
+        if (bucket.label !== lastBucket) {
+            html += `<div class="news-section-divider">${bucket.label}</div>`;
+            lastBucket = bucket.label;
+        }
+
+        const url = article.link || article.url || '#';
         const source = article.publisher || article.source || '—';
-        const srcClass = getSourceClass(source);
         const title = article.title || 'Untitled';
+        const summary = article.summary || article.description || '';
         const relatedTickers = article.relatedTickers || (article._ticker ? [article._ticker] : []);
         const sentiment = article._sentiment;
-        const impact = article._impact || 'low';
-        const impactColor = impact === 'high' ? '#ef4444' : impact === 'medium' ? '#f59e0b' : '#475569';
-        const catLabel = article._categories.find(c => c !== 'general') || '';
-        const isSelected = NEWS_SELECTED === globalIdx;
+        const sentLabel = sentiment === 'bullish' ? '▲ Bullish' : sentiment === 'bearish' ? '▼ Bearish' : '';
 
-        return `<div class="news-card${isSelected ? ' selected' : ''}" onclick="selectNewsArticle(${globalIdx})">
-            <div class="news-card-top">
-                <span class="news-time">${formatNewsTime(article._ts)}</span>
-                <span class="news-badge ${srcClass}">${escapeHtml(source)}</span>
-                ${catLabel ? `<span class="news-badge cat">${catLabel}</span>` : ''}
-                <span class="news-badge sent-${sentiment}">${sentiment.toUpperCase()}</span>
-                <span class="news-badge impact-${impact}"><span class="news-impact-dot" style="background:${impactColor}"></span> ${impact.toUpperCase()}</span>
+        html += `<a class="news-card" href="${url}" target="_blank" rel="noopener" title="Open article">
+            <div class="news-card-header">
+                <div class="news-headline">${escapeHtml(title)}</div>
+                <div class="news-time">${formatNewsTime(ts)}</div>
             </div>
-            <div class="news-headline">${escapeHtml(title)}</div>
-            <div class="news-tickers">
-                ${relatedTickers.map(t => `<span class="news-ticker-tag">$${escapeHtml(t)}</span>`).join('')}
+            ${summary ? `<div class="news-summary">${escapeHtml(summary.substring(0, 200))}${summary.length > 200 ? '…' : ''}</div>` : ''}
+            <div class="news-meta" style="margin-top:0.5rem">
+                <span class="news-source">${escapeHtml(source)}</span>
+                ${relatedTickers.map(t => `<span class="news-ticker-tag">${escapeHtml(t)}</span>`).join('')}
+                ${sentLabel ? `<span class="news-sentiment ${sentiment}">${sentLabel}</span>` : ''}
+                ${article._categories.filter(c => c !== 'general').map(c =>
+                    `<span style="font-size:0.65rem;color:#475569;text-transform:uppercase;letter-spacing:0.04em">${c}</span>`
+                ).join('')}
             </div>
-        </div>`;
-    }).join('');
-}
-
-function selectNewsArticle(idx) {
-    NEWS_SELECTED = idx;
-    const article = NEWS_CACHE[idx];
-    if (!article) return;
-
-    // Re-render feed to update selected state
-    renderNews();
-
-    const panel = document.getElementById('newsDetailPanel');
-    const source = article.publisher || article.source || '—';
-    const srcClass = getSourceClass(source);
-    const sentiment = article._sentiment;
-    const impact = article._impact || 'low';
-    const impactColor = impact === 'high' ? '#ef4444' : impact === 'medium' ? '#f59e0b' : '#475569';
-    const catLabel = article._categories.find(c => c !== 'general') || '';
-    const summary = article.summary || article.description || '';
-    const relatedTickers = article.relatedTickers || (article._ticker ? [article._ticker] : []);
-    const url = article.link || article.url || '#';
-
-    // Compute simple sentiment score
-    const title = (article.title || '').toLowerCase();
-    const bullWords = ['surge','rally','soar','beat','upgrade','breakout','boom','record','outperform','bullish','upside','growth','strong','jump','raises','climbs','gains'];
-    const bearWords = ['crash','plunge','drop','miss','downgrade','breakdown','sell','decline','fear','risk','cut','weak','fall','slump','loss','bearish','warning','crisis'];
-    const bullHits = bullWords.filter(w => title.includes(w));
-    const bearHits = bearWords.filter(w => title.includes(w));
-    const allHits = [...bullHits, ...bearHits];
-    const sentScore = allHits.length > 0 ? ((bullHits.length - bearHits.length) / allHits.length).toFixed(2) : '0.00';
-    const sentScoreNum = parseFloat(sentScore);
-    const sentScoreColor = sentScoreNum > 0.3 ? '#22c55e' : sentScoreNum < -0.3 ? '#ef4444' : '#f59e0b';
-    const markerPct = ((sentScoreNum + 1) / 2 * 100).toFixed(0);
-
-    // Extract key phrases from title
-    const keywords = [...bullHits, ...bearHits].filter((v, i, a) => a.indexOf(v) === i);
-
-    panel.innerHTML = `
-        <div class="news-detail-header">
-            <span class="news-badge ${srcClass}">${escapeHtml(source)}</span>
-            ${catLabel ? `<span class="news-badge cat">${catLabel}</span>` : ''}
-            <span class="news-badge sent-${sentiment}">${sentiment.toUpperCase()}</span>
-            <span class="news-badge impact-${impact}"><span class="news-impact-dot" style="background:${impactColor}"></span> ${impact.toUpperCase()}</span>
-            <span class="news-detail-time">${formatNewsTimeFull(article._ts)}</span>
-        </div>
-
-        <div class="news-detail-title">${escapeHtml(article.title || 'Untitled')}</div>
-
-        <div class="news-detail-body">${escapeHtml(summary.substring(0, 600))}${summary.length > 600 ? '…' : ''}</div>
-
-        ${url !== '#' ? `<a href="${url}" target="_blank" rel="noopener" style="display:inline-block;padding:0.4rem 0.8rem;background:#1e40af;color:white;border-radius:0.25rem;font-size:0.75rem;font-weight:600;text-decoration:none;margin-bottom:1.25rem">Read Full Article →</a>` : ''}
-
-        <div class="news-detail-section">
-            <div class="news-detail-section-title">Mentioned Tickers</div>
-            <div>
-                ${relatedTickers.map(t => `
-                    <span class="news-mentioned-ticker">
-                        <span class="sym">${escapeHtml(t)}</span>
-                        <span class="news-badge sent-${sentiment}" style="font-size:0.6rem">${sentiment.toUpperCase()}</span>
-                    </span>
-                `).join('')}
-            </div>
-        </div>
-
-        <div class="news-detail-section">
-            <div class="news-detail-section-title">AI Sentiment Analysis</div>
-            <div class="news-ai-score">
-                <div style="font-size:0.7rem;color:#64748b">Sentiment Score</div>
-                <div class="news-ai-value" style="color:${sentScoreColor}">${sentScoreNum > 0 ? '+' : ''}${sentScore}</div>
-                <div class="news-ai-bar">
-                    <div class="news-ai-marker" style="left:${markerPct}%"></div>
-                </div>
-                <div class="news-ai-labels">
-                    <span>Bearish</span><span>Neutral</span><span>Bullish</span>
-                </div>
-                ${keywords.length > 0 ? `
-                    <div class="news-keyword-tags">
-                        ${keywords.map(k => `<span class="news-keyword">${k}</span>`).join('')}
-                    </div>
-                ` : ''}
-            </div>
-        </div>
-    `;
-}
-
-// ── Sidebar Updates ───────────────────────────────────
-
-function updateNewsSidebar() {
-    const bull = NEWS_CACHE.filter(a => a._sentiment === 'bullish').length;
-    const bear = NEWS_CACHE.filter(a => a._sentiment === 'bearish').length;
-    const total = bull + bear || 1;
-    const bullPct = ((bull / total) * 100).toFixed(0);
-
-    document.getElementById('nsBullCount').textContent = bull;
-    document.getElementById('nsBearCount').textContent = bear;
-    document.getElementById('nsSentBar').style.setProperty('--bull-pct', bullPct + '%');
-
-    // Trending tickers
-    const tickerCounts = {};
-    NEWS_CACHE.forEach(a => {
-        const tickers = a.relatedTickers || [a._ticker];
-        tickers.forEach(t => {
-            if (t) tickerCounts[t] = (tickerCounts[t] || 0) + 1;
-        });
+        </a>`;
     });
 
-    const sorted = Object.entries(tickerCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
-    const trendEl = document.getElementById('nfTrending');
-    if (sorted.length > 0) {
-        trendEl.innerHTML = sorted.map(([sym, count]) =>
-            `<span class="nf-trend-chip" onclick="document.getElementById('newsTickerInput').value='${sym}';applyNewsFilters()">${sym} <span class="nf-trend-count">${count}</span></span>`
-        ).join('');
-    } else {
-        trendEl.innerHTML = '<span style="font-size:0.72rem;color:#475569">No data yet</span>';
-    }
+    feedEl.innerHTML = html;
+    document.getElementById('newsCountLabel').textContent = `${filtered.length}${filtered.length !== NEWS_CACHE.length ? ` / ${NEWS_CACHE.length}` : ''} articles`;
+}
+
+function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
 }
 
 function filterNews(cat, btn) {
-    NEWS_ACTIVE_CAT = cat;
-    if (btn) {
-        document.querySelectorAll('#nfCatChips .nf-chip').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-    }
+    NEWS_ACTIVE_FILTER = cat;
+    document.querySelectorAll('#newsFilterBar .news-filter-btn').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
     renderNews();
 }
 
 function updateNewsStats(tickers) {
-    // kept for compatibility — sidebar handles this now
+    document.getElementById('nsTotal').textContent = NEWS_CACHE.length;
+    document.getElementById('nsTickers').textContent = new Set(NEWS_CACHE.map(a => a._ticker)).size;
+    const bull = NEWS_CACHE.filter(a => a._sentiment === 'bullish').length;
+    const bear = NEWS_CACHE.filter(a => a._sentiment === 'bearish').length;
+    document.getElementById('nsSentiment').innerHTML = `<span style="color:#22c55e">${bull}</span> / <span style="color:#ef4444">${bear}</span>`;
+    document.getElementById('nsLastRefresh').textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
 function updateWatchlistMentions() {
-    // functionality moved to trending tickers in sidebar
+    const container = document.getElementById('newsWatchlistMentions');
+    if (!container) return;
+
+    // Gather all watchlist tickers
+    const wlTickers = new Set();
+    document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => wlTickers.add(tr.dataset.sym));
+
+    if (wlTickers.size === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#475569;padding:1rem;font-size:0.8rem">No watchlist tickers</div>';
+        return;
+    }
+
+    // Find articles that mention watchlist tickers
+    const mentions = {};
+    NEWS_CACHE.forEach(article => {
+        const relTickers = article.relatedTickers || [];
+        const titleText = (article.title || '').toUpperCase();
+        wlTickers.forEach(sym => {
+            if (relTickers.includes(sym) || titleText.includes(sym)) {
+                if (!mentions[sym]) mentions[sym] = [];
+                mentions[sym].push(article);
+            }
+        });
+    });
+
+    const entries = Object.entries(mentions).sort((a, b) => b[1].length - a[1].length);
+    if (entries.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#475569;padding:1rem;font-size:0.8rem">No news mentions for watchlist tickers in current feed</div>';
+        return;
+    }
+
+    container.innerHTML = entries.map(([sym, articles]) => {
+        const latest = articles[0];
+        const sent = articles.reduce((acc, a) => {
+            if (a._sentiment === 'bullish') acc.bull++;
+            if (a._sentiment === 'bearish') acc.bear++;
+            return acc;
+        }, { bull: 0, bear: 0 });
+        const sentColor = sent.bull > sent.bear ? '#22c55e' : sent.bear > sent.bull ? '#ef4444' : '#94a3b8';
+        const sentLabel = sent.bull > sent.bear ? 'Bullish' : sent.bear > sent.bull ? 'Bearish' : 'Mixed';
+
+        return `<div style="padding:0.6rem 0;border-bottom:1px solid #1e293b;font-size:0.8rem">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.25rem">
+                <span style="font-weight:700;color:#e2e8f0;letter-spacing:0.04em">${sym}</span>
+                <span style="font-size:0.68rem;color:${sentColor};font-weight:600">${sentLabel} · ${articles.length} article${articles.length > 1 ? 's' : ''}</span>
+            </div>
+            <div style="color:#94a3b8;font-size:0.75rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(latest.title || '')}">${escapeHtml(latest.title || '—')}</div>
+        </div>`;
+    }).join('');
 }
 
-// Enter key in news inputs
+// Enter key in news input triggers fetch
 document.getElementById('newsTickerInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') fetchNews();
-});
-document.getElementById('newsSearchInput').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') applyNewsFilters();
 });
 
 // ── 7c. MARKET BREADTH — live data from Nexus backend ──────
@@ -3850,95 +3392,63 @@ async function fetchBreadthData() {
         const resp = await fetch(`${NEXUS_API}/api/market-breadth`);
         if (!resp.ok) throw new Error(`API ${resp.status}`);
         const data = await resp.json();
-        if (data.error) throw new Error(data.error);
 
-        // ── Market-level fields ──
-        if (data.advancing != null)           BD.advancing = data.advancing;
-        if (data.declining != null)           BD.declining = data.declining;
-        if (data.unchanged != null)           BD.unchanged = data.unchanged;
-        if (data.new_highs != null)           BD.newHighs = data.new_highs;
-        if (data.new_lows != null)            BD.newLows = data.new_lows;
-        if (data.up_volume != null)           BD.upVol = data.up_volume;
-        if (data.down_volume != null)         BD.downVol = data.down_volume;
-        if (data.trin != null)                BD.trin = data.trin;
+        // Map backend response into BD object
+        if (data.advancing !== undefined) BD.advancing = data.advancing;
+        if (data.declining !== undefined) BD.declining = data.declining;
+        if (data.unchanged !== undefined) BD.unchanged = data.unchanged;
+        if (data.newHighs !== undefined) BD.newHighs = data.newHighs;
+        if (data.newLows !== undefined) BD.newLows = data.newLows;
+        if (data.new_highs !== undefined) BD.newHighs = data.new_highs;
+        if (data.new_lows !== undefined) BD.newLows = data.new_lows;
+        if (data.upVol !== undefined) BD.upVol = data.upVol;
+        if (data.downVol !== undefined) BD.downVol = data.downVol;
+        if (data.up_volume !== undefined) BD.upVol = data.up_volume;
+        if (data.down_volume !== undefined) BD.downVol = data.down_volume;
+        if (data.trin !== undefined) BD.trin = data.trin;
+        if (data.mcclellan !== undefined) BD.mcclellan = data.mcclellan;
+        if (data.mcclellan_oscillator !== undefined) BD.mcclellan = data.mcclellan_oscillator;
+        if (data.summation !== undefined) BD.summation = data.summation;
+        if (data.summation_index !== undefined) BD.summation = data.summation_index;
 
-        // ── McClellan + Summation ──
-        if (data.mcclellan_oscillator != null) BD.mcclellan = data.mcclellan_oscillator;
-        if (data.summation_index != null)      BD.summation = data.summation_index;
-        if (data.ema19 != null)                BD.ema19 = data.ema19;
-        if (data.ema39 != null)                BD.ema39 = data.ema39;
-
-        // McClellan sparkline from backend
-        if (data.mc_line && Array.isArray(data.mc_line)) {
-            BD.mcLine = data.mc_line;
+        // AD ratio
+        if (data.ad_ratio !== undefined) {
+            // already computed, just use it
         }
 
-        // ── MA Breadth bars ──
+        // MA breadth bars
         if (data.ma_breadth && Array.isArray(data.ma_breadth)) {
             BD.aboveMA = data.ma_breadth.map(m => ({
                 label: m.label || m.name || m.ma,
-                pct: m.pct ?? m.percent ?? m.value ?? 0
+                pct: m.pct || m.percent || m.value || 0
+            }));
+        }
+        if (data.above_ma !== undefined && typeof data.above_ma === 'object' && !Array.isArray(data.above_ma)) {
+            BD.aboveMA = Object.entries(data.above_ma).map(([k, v]) => ({
+                label: k, pct: typeof v === 'number' ? v : parseFloat(v) || 0
             }));
         }
 
-        // ── Weinstein 30-week SMA ──
-        if (data.weinstein_30w_pct != null) {
-            BD.weinstein30w = data.weinstein_30w_pct;
-        }
-
-        // ── Sector breadth ──
+        // Sector breadth
         if (data.sector_breadth && Array.isArray(data.sector_breadth)) {
             BD.sectorBreadth = data.sector_breadth.map(s => ({
                 name: s.name || s.sector,
-                pct: s.pct ?? s.percent ?? s.value ?? 0
+                pct: s.pct || s.percent || s.value || 0
+            })).sort((a, b) => b.pct - a.pct);
+        }
+        if (data.sectors && typeof data.sectors === 'object' && !Array.isArray(data.sectors)) {
+            BD.sectorBreadth = Object.entries(data.sectors).map(([k, v]) => ({
+                name: k, pct: typeof v === 'number' ? v : parseFloat(v) || 0
             })).sort((a, b) => b.pct - a.pct);
         }
 
-        // ── Re-render breadth tab ──
+        // Re-render
         buildBreadthMetrics();
         setTimeout(renderBreadthCharts, 100);
 
-        // ── Update dashboard cards ──
-        const dashBreadth = document.getElementById('dashBreadthValue');
-        const dashBreadthSub = document.getElementById('dashBreadthSub');
-        if (dashBreadth) {
-            dashBreadth.textContent = `${BD.advancing.toLocaleString()} / ${BD.declining.toLocaleString()}`;
-            const isBullish = BD.advancing > BD.declining;
-            dashBreadth.className = `metric-value ${isBullish ? 'positive' : 'negative'}`;
-            const adRatio = (BD.advancing / Math.max(BD.declining, 1)).toFixed(2);
-            dashBreadthSub.textContent = `A/D ${adRatio} · TRIN ${BD.trin ? BD.trin.toFixed(2) : '—'}`;
-        }
-
-        // Sector leader from breadth data
-        const dashSector = document.getElementById('dashSectorValue');
-        const dashSectorSub = document.getElementById('dashSectorSub');
-        if (dashSector && BD.sectorBreadth.length > 0) {
-            const leader = BD.sectorBreadth[0];
-            dashSector.textContent = leader.name;
-            dashSectorSub.textContent = `${leader.pct}% above 50-day MA`;
-        }
-
-        // Put/Call ratio card
-        if (data.put_call_ratio != null) {
-            const pcEl = document.getElementById('dashPCValue');
-            const pcSub = document.getElementById('dashPCSub');
-            if (pcEl) {
-                const pcr = data.put_call_ratio;
-                pcEl.textContent = pcr.toFixed(2);
-                pcEl.className = `metric-value ${pcr > 1 ? 'negative' : pcr < 0.7 ? 'positive' : ''}`;
-                const label = pcr > 1.2 ? 'Extreme Fear' : pcr > 1.0 ? 'Bearish' : pcr > 0.85 ? 'Neutral' : pcr > 0.7 ? 'Mild Bullish' : 'Bullish';
-                const putK = Math.round(data.put_volume / 1000);
-                const callK = Math.round(data.call_volume / 1000);
-                pcSub.textContent = `${label} · ${putK}K puts / ${callK}K calls`;
-            }
-        }
-
-        const src = data.source ? data.source.join(', ') : 'unknown';
-        const scanned = data.total_scanned || 0;
-        console.log(`[APEX Breadth] ✓ Live data loaded — ${scanned} constituents scanned, sources: ${src}`);
-
+        console.log('[APEX Breadth] Live data loaded:', JSON.stringify(data).substring(0, 200));
     } catch (e) {
-        console.warn('[APEX Breadth] Fetch failed, using static fallback:', e.message);
+        console.warn('[APEX Breadth] Fetch failed, using static data:', e.message);
     }
 }
 
@@ -3953,9 +3463,6 @@ setTimeout(() => {
 
 // Auto-refresh prices every 5 minutes
 setInterval(refreshAllLiveData, 5 * 60 * 1000);
-
-// Auto-refresh breadth every 15 minutes
-setInterval(fetchBreadthData, 15 * 60 * 1000);
 
 // Also refresh watchlist prices when that tab is opened
 document.querySelectorAll('.nav-btn').forEach(btn => {
@@ -4026,12 +3533,9 @@ console.log('[APEX Live] Data engine initialized. Prices refresh every 5 min. CO
             <div class="wl-modal-field">
                 <label class="wl-modal-label">Watchlist</label>
                 <select class="wl-modal-select" id="editListKey">
+                    <option value="weekly">🔵 Weekly List</option>
                     <option value="daily">🟢 Daily List</option>
-                    <option value="ondeck">🟣 On Deck</option>
-                    <option value="shorts">🔴 Shorts</option>
-                    <option value="focus">🔵 Focus List</option>
-                    <option value="rs">🩵 Relative Strength</option>
-                    <option value="topdawg">🟡 Top Dawg</option>
+                    <option value="ondeck">🟡 On Deck</option>
                 </select>
             </div>
 
