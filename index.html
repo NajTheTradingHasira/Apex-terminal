@@ -2238,18 +2238,14 @@ function gatherIndexContext(ticker) {
         if (d) ctx.indexPrices[sym] = { price: d.price, dayPct: d.dayPct };
     });
 
-    // 4. Watchlist stage distribution (Weinstein)
-    const allItems = [];
-    ['weekly', 'daily', 'ondeck'].forEach(key => {
-        const stored = localStorage.getItem(`apex_wl_${key}`);
-        const items = stored ? JSON.parse(stored) : (WL_SEED[key] || []);
-        allItems.push(...items);
-    });
+    // 4. Watchlist stage distribution (Weinstein) — read from rendered DOM rows
+    const allRows = document.querySelectorAll('#watchlist tbody tr[data-sym]');
 
-    if (allItems.length) {
-        const dist = { s1: 0, s2: 0, s3: 0, s4: 0, total: allItems.length };
-        allItems.forEach(item => {
-            if (dist.hasOwnProperty(item.stage)) dist[item.stage]++;
+    if (allRows.length) {
+        const dist = { s1: 0, s2: 0, s3: 0, s4: 0, total: allRows.length };
+        allRows.forEach(tr => {
+            const stage = tr.dataset.stage || '';
+            if (dist.hasOwnProperty(stage)) dist[stage]++;
         });
         dist.pctStage2 = ((dist.s2 / dist.total) * 100).toFixed(1);
         dist.pctStage4 = ((dist.s4 / dist.total) * 100).toFixed(1);
