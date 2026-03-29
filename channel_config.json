@@ -2,10 +2,14 @@
   "channels": {
     "20-20-screener": "C0APG8ERD7Y",
     "40-40-screener": "C0APJAFQLCA",
+    "episodic-pivots": "CXXXXXXXXXX",
     "firehose": "C0ANZDPD4AU"
   },
   "routing": {
     "2020": "20-20-screener",
-    "4040": "40-40-screener"
+    "4040": "40-40-screener",
+    "__20_20__": "20-20-screener",
+    "__40_40__": "40-40-screener",
+    "__episodic_pivot__": "episodic-pivots"
   }
 }

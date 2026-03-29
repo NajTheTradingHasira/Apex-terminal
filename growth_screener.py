@@ -1,20 +1,28 @@
+#!/usr/bin/env python3
 """
-growth_screener.py — CANSLIM Growth Screener
-═══════════════════════════════════════════════
-Screens US index constituents for high-growth stocks using yfinance.
+Growth Screener — 20/20 and 40/40 modes.
+
+Screens for stocks with minimum YoY sales growth AND EPS growth,
+filtered by price and dollar volume liquidity.
 
 Modes:
-  2020  →  ≥20% revenue growth AND ≥20% EPS growth (QoQ or YoY)
-  4040  →  ≥40% revenue growth AND ≥40% EPS growth (QoQ or YoY)
+  20/20 → ≥20% sales growth + ≥20% EPS growth
+  40/40 → ≥40% sales growth + ≥40% EPS growth
+
+Universe: S&P 500 + Nasdaq 100 + Dow 30 + Russell 2000 (deduplicated)
 
 Usage:
   python growth_screener.py --mode 2020
   python growth_screener.py --mode 4040
   python growth_screener.py --mode 2020 --slack --config channel_config.json
+  python growth_screener.py --mode 4040 --min-price 10 --min-dollar-vol 10000000
+
+Route keys emitted:
+  __20_20__  → #20-20-screener
+  __40_40__  → #40-40-screener
 """
 
 import argparse
-import csv
 import json
 import os
 import sys
@@ -22,474 +30,426 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-try:
-    import yfinance as yf
-    import pandas as pd
-except ImportError:
-    print("Missing dependencies. Install with:")
-    print("  pip install yfinance pandas")
-    sys.exit(1)
+import numpy as np
+import pandas as pd
+import yfinance as yf
 
 
-# ═══════════════════════════════════════════════════════════════
-# INDEX CONSTITUENTS
-# ═══════════════════════════════════════════════════════════════
+# ---------------------------------------------------------------------------
+# Universe loader — pulls tickers from all major US indexes
+# ---------------------------------------------------------------------------
 
-def _fetch_wiki_table(url: str, match: str) -> list[str]:
-    """Pull ticker list from a Wikipedia table."""
+def load_universe(indexes: list[str] | None = None, cache_path: str = "universe_cache.json") -> list[str]:
+    """
+    Load deduplicated ticker universe from major US indexes.
+
+    Indexes supported: sp500, nasdaq100, dow30, russell2000
+    Default: all four.
+
+    Caches to disk for 24 hours to avoid repeated Wikipedia scrapes.
+    """
+    if indexes is None:
+        indexes = ["sp500", "nasdaq100", "dow30", "russell2000"]
+
+    # Check cache
+    cache = Path(cache_path)
+    if cache.exists():
+        try:
+            cached = json.loads(cache.read_text())
+            cache_time = datetime.fromisoformat(cached.get("timestamp", "2000-01-01"))
+            age_hours = (datetime.now() - cache_time).total_seconds() / 3600
+            if age_hours < 24 and set(indexes).issubset(set(cached.get("indexes", []))):
+                print(f"  Using cached universe ({len(cached['tickers'])} tickers, {age_hours:.1f}h old)")
+                return cached["tickers"]
+        except Exception:
+            pass
+
+    all_tickers = set()
+
+    if "sp500" in indexes:
+        try:
+            print("  Fetching S&P 500 constituents...")
+            tables = pd.read_html("https://en.wikipedia.org/wiki/List_of_S%26P_500_companies")
+            sp500 = tables[0]["Symbol"].str.replace(".", "-", regex=False).tolist()
+            all_tickers.update(sp500)
+            print(f"    → {len(sp500)} tickers")
+        except Exception as e:
+            print(f"    ⚠ S&P 500 fetch failed: {e}")
+
+    if "nasdaq100" in indexes:
+        try:
+            print("  Fetching Nasdaq 100 constituents...")
+            tables = pd.read_html("https://en.wikipedia.org/wiki/Nasdaq-100")
+            # Find the table with a 'Ticker' or 'Symbol' column
+            for t in tables:
+                for col in ["Ticker", "Symbol"]:
+                    if col in t.columns:
+                        nq100 = t[col].str.replace(".", "-", regex=False).tolist()
+                        all_tickers.update(nq100)
+                        print(f"    → {len(nq100)} tickers")
+                        break
+                else:
+                    continue
+                break
+        except Exception as e:
+            print(f"    ⚠ Nasdaq 100 fetch failed: {e}")
+
+    if "dow30" in indexes:
+        try:
+            print("  Fetching Dow 30 constituents...")
+            tables = pd.read_html("https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average")
+            for t in tables:
+                for col in ["Symbol", "Ticker"]:
+                    if col in t.columns:
+                        dow = t[col].str.replace(".", "-", regex=False).tolist()
+                        all_tickers.update(dow)
+                        print(f"    → {len(dow)} tickers")
+                        break
+                else:
+                    continue
+                break
+        except Exception as e:
+            print(f"    ⚠ Dow 30 fetch failed: {e}")
+
+    if "russell2000" in indexes:
+        try:
+            print("  Fetching Russell 2000 constituents...")
+            # Russell 2000 isn't easily scraped from Wikipedia.
+            # Use the iShares IWM holdings as a proxy.
+            iwm = yf.Ticker("IWM")
+            # Try to get holdings if available
+            try:
+                holdings = iwm.get_holdings()
+                if holdings is not None and not holdings.empty:
+                    for col in ["Symbol", "Ticker", "symbol", "ticker"]:
+                        if col in holdings.columns:
+                            r2k = holdings[col].dropna().tolist()
+                            all_tickers.update(r2k)
+                            print(f"    → {len(r2k)} tickers (from IWM holdings)")
+                            break
+                else:
+                    raise ValueError("No holdings data")
+            except Exception:
+                # Fallback: use a broader Wikipedia scrape
+                try:
+                    tables = pd.read_html(
+                        "https://en.wikipedia.org/wiki/Russell_2000_Index",
+                        match="Ticker|Symbol",
+                    )
+                    if tables:
+                        for col in ["Ticker", "Symbol"]:
+                            if col in tables[0].columns:
+                                r2k = tables[0][col].str.replace(".", "-", regex=False).tolist()
+                                all_tickers.update(r2k)
+                                print(f"    → {len(r2k)} tickers")
+                                break
+                except Exception:
+                    print("    ⚠ Russell 2000 not available — using S&P SmallCap 600 as proxy")
+                    try:
+                        tables = pd.read_html(
+                            "https://en.wikipedia.org/wiki/List_of_S%26P_600_companies"
+                        )
+                        sp600 = tables[0]["Symbol"].str.replace(".", "-", regex=False).tolist()
+                        all_tickers.update(sp600)
+                        print(f"    → {len(sp600)} tickers (S&P 600 proxy)")
+                    except Exception as e2:
+                        print(f"    ⚠ SmallCap fallback also failed: {e2}")
+        except Exception as e:
+            print(f"    ⚠ Russell 2000 fetch failed: {e}")
+
+    tickers = sorted(all_tickers)
+
+    # Cache
     try:
-        tables = pd.read_html(url, match=match)
-        if not tables:
-            return []
-        df = tables[0]
-        # Find the column that looks like tickers
-        for col in ["Symbol", "Ticker", "Ticker symbol"]:
-            if col in df.columns:
-                tickers = df[col].astype(str).str.strip().str.replace(".", "-", regex=False).tolist()
-                return [t for t in tickers if t and t != "nan"]
-        # Fallback: first column
-        tickers = df.iloc[:, 0].astype(str).str.strip().str.replace(".", "-", regex=False).tolist()
-        return [t for t in tickers if t and t != "nan"]
-    except Exception as e:
-        print(f"  ⚠ Failed to fetch from {url}: {e}")
-        return []
-
-
-def get_sp500() -> list[str]:
-    """S&P 500 constituents from Wikipedia."""
-    print("  Fetching S&P 500...")
-    return _fetch_wiki_table(
-        "https://en.wikipedia.org/wiki/List_of_S%26P_500_companies",
-        "Symbol"
-    )
-
-
-def get_nasdaq100() -> list[str]:
-    """Nasdaq-100 constituents from Wikipedia."""
-    print("  Fetching Nasdaq 100...")
-    return _fetch_wiki_table(
-        "https://en.wikipedia.org/wiki/Nasdaq-100",
-        "Ticker"
-    )
-
-
-def get_dow30() -> list[str]:
-    """Dow 30 constituents from Wikipedia."""
-    print("  Fetching Dow 30...")
-    return _fetch_wiki_table(
-        "https://en.wikipedia.org/wiki/Dow_Jones_Industrial_Average",
-        "Symbol"
-    )
-
-
-def get_russell2000() -> list[str]:
-    """Russell 2000 — use IWM holdings as proxy (top ~200) or a static fallback."""
-    print("  Fetching Russell 2000 (IWM proxy)...")
-    try:
-        iwm = yf.Ticker("IWM")
-        holdings = iwm.get_holdings()
-        if holdings is not None and not holdings.empty:
-            # holdings index or 'Symbol' column
-            if "Symbol" in holdings.columns:
-                return holdings["Symbol"].tolist()
-            return holdings.index.tolist()
+        cache.write_text(json.dumps({
+            "timestamp": datetime.now().isoformat(),
+            "indexes": indexes,
+            "tickers": tickers,
+        }))
     except Exception:
         pass
-    # Fallback: skip Russell if we can't get holdings
-    print("  ⚠ Russell 2000 holdings unavailable — using S&P 500 + Nasdaq 100 + Dow 30 only")
-    return []
+
+    print(f"  Total universe: {len(tickers)} unique tickers\n")
+    return tickers
 
 
-def build_universe() -> list[str]:
-    """Deduplicated universe from all US indexes."""
-    sp500 = get_sp500()
-    ndx100 = get_nasdaq100()
-    dow30 = get_dow30()
-    russell = get_russell2000()
+# ---------------------------------------------------------------------------
+# Growth computation helpers
+# ---------------------------------------------------------------------------
 
-    all_tickers = set(sp500 + ndx100 + dow30 + russell)
-    # Filter out obvious non-tickers
-    all_tickers = {t for t in all_tickers if t.isalpha() or "-" in t or "." in t}
-    universe = sorted(all_tickers)
-    print(f"\n  Universe: {len(universe)} unique tickers")
-    print(f"    S&P 500: {len(sp500)} | Nasdaq 100: {len(ndx100)} | Dow 30: {len(dow30)} | Russell 2000: {len(russell)}")
-    return universe
+def pct_change_safe(current: float, prev: float) -> float:
+    """Safe percentage change calculation."""
+    if prev is None or prev == 0 or np.isnan(prev):
+        return np.nan
+    return (current - prev) / abs(prev) * 100.0
 
 
-# ═══════════════════════════════════════════════════════════════
-# GROWTH ANALYSIS
-# ═══════════════════════════════════════════════════════════════
-
-def calc_growth_pct(current, previous) -> float | None:
-    """Calculate growth percentage. Returns None if invalid."""
-    if current is None or previous is None:
-        return None
-    if previous == 0:
-        return None
-    return ((current - previous) / abs(previous)) * 100
-
-
-def analyze_ticker(ticker: str) -> dict | None:
+def get_growth_metrics(ticker: str) -> dict | None:
     """
-    Pull quarterly financials from yfinance and compute:
-      - Revenue growth (QoQ and YoY)
-      - EPS growth (QoQ and YoY)
-    Returns a dict with growth metrics or None if data insufficient.
+    Fetch price, volume, and fundamental growth metrics for a single ticker.
+
+    Returns dict with keys:
+      ticker, close, avg_dollar_vol, sales_growth_pct, eps_growth_pct
+    or None if data is unavailable.
     """
     try:
-        tk = yf.Ticker(ticker)
-        info = tk.info or {}
+        stk = yf.Ticker(ticker)
 
-        # Quarterly financials
-        q_income = tk.quarterly_income_stmt
-        if q_income is None or q_income.empty or q_income.shape[1] < 2:
+        # Price & liquidity
+        hist = stk.history(period="3mo")
+        if hist.empty or len(hist) < 5:
             return None
 
-        # Sort columns by date descending (most recent first)
-        q_income = q_income.sort_index(axis=1, ascending=False)
-        dates = q_income.columns.tolist()
+        close = hist["Close"].iloc[-1]
+        avg_vol = hist["Volume"].tail(20).mean()
+        avg_dollar_vol = close * avg_vol
 
-        # Revenue (Total Revenue or Operating Revenue)
-        rev_row = None
-        for label in ["Total Revenue", "Operating Revenue", "Revenue"]:
-            if label in q_income.index:
-                rev_row = q_income.loc[label]
-                break
-
-        # Net Income / EPS
-        eps_row = None
-        for label in ["Diluted EPS", "Basic EPS"]:
-            if label in q_income.index:
-                eps_row = q_income.loc[label]
-                break
-
-        # If no EPS row, try computing from net income + shares
-        ni_row = None
-        if eps_row is None:
-            for label in ["Net Income", "Net Income Common Stockholders"]:
-                if label in q_income.index:
-                    ni_row = q_income.loc[label]
-                    break
-
-        if rev_row is None and eps_row is None and ni_row is None:
+        # Financials
+        fin = stk.financials
+        if fin is None or fin.empty:
             return None
 
-        result = {
+        # Revenue growth
+        rev_row = fin.loc[fin.index.str.lower().str.contains("total revenue")]
+        if rev_row.empty:
+            return None
+
+        rev = rev_row.iloc[0]
+        if len(rev) < 2:
+            return None
+
+        rev_curr = float(rev.iloc[0])
+        rev_prev = float(rev.iloc[1])
+        sales_growth = pct_change_safe(rev_curr, rev_prev)
+
+        # EPS growth (net income as proxy)
+        net_income_row = fin.loc[fin.index.str.lower().str.contains("net income")]
+        if net_income_row.empty:
+            eps_growth = np.nan
+        else:
+            ni = net_income_row.iloc[0]
+            if len(ni) < 2:
+                eps_growth = np.nan
+            else:
+                ni_curr = float(ni.iloc[0])
+                ni_prev = float(ni.iloc[1])
+                eps_growth = pct_change_safe(ni_curr, ni_prev)
+
+        return {
             "ticker": ticker,
-            "company": info.get("shortName", info.get("longName", "")),
-            "sector": info.get("sector", ""),
-            "market_cap": info.get("marketCap", 0),
-            "price": info.get("currentPrice", info.get("regularMarketPrice", 0)),
+            "close": round(close, 2),
+            "avg_dollar_vol": round(avg_dollar_vol, 0),
+            "sales_growth_pct": round(sales_growth, 1) if not np.isnan(sales_growth) else np.nan,
+            "eps_growth_pct": round(eps_growth, 1) if not np.isnan(eps_growth) else np.nan,
         }
-
-        # ── Revenue growth ──
-        if rev_row is not None:
-            rev_current = _safe_float(rev_row.iloc[0])
-            rev_prev_q = _safe_float(rev_row.iloc[1]) if len(dates) >= 2 else None
-            rev_prev_y = _safe_float(rev_row.iloc[4]) if len(dates) >= 5 else None
-
-            result["rev_current"] = rev_current
-            result["rev_growth_qoq"] = calc_growth_pct(rev_current, rev_prev_q)
-            result["rev_growth_yoy"] = calc_growth_pct(rev_current, rev_prev_y)
-            # Best revenue growth (prefer YoY if available)
-            result["rev_growth"] = result["rev_growth_yoy"] if result["rev_growth_yoy"] is not None else result["rev_growth_qoq"]
-        else:
-            result["rev_current"] = None
-            result["rev_growth_qoq"] = None
-            result["rev_growth_yoy"] = None
-            result["rev_growth"] = None
-
-        # ── EPS growth ──
-        if eps_row is not None:
-            eps_current = _safe_float(eps_row.iloc[0])
-            eps_prev_q = _safe_float(eps_row.iloc[1]) if len(dates) >= 2 else None
-            eps_prev_y = _safe_float(eps_row.iloc[4]) if len(dates) >= 5 else None
-
-            result["eps_current"] = eps_current
-            result["eps_growth_qoq"] = calc_growth_pct(eps_current, eps_prev_q)
-            result["eps_growth_yoy"] = calc_growth_pct(eps_current, eps_prev_y)
-            result["eps_growth"] = result["eps_growth_yoy"] if result["eps_growth_yoy"] is not None else result["eps_growth_qoq"]
-        elif ni_row is not None:
-            ni_current = _safe_float(ni_row.iloc[0])
-            ni_prev_q = _safe_float(ni_row.iloc[1]) if len(dates) >= 2 else None
-            ni_prev_y = _safe_float(ni_row.iloc[4]) if len(dates) >= 5 else None
-
-            result["eps_current"] = ni_current  # Using net income as proxy
-            result["eps_growth_qoq"] = calc_growth_pct(ni_current, ni_prev_q)
-            result["eps_growth_yoy"] = calc_growth_pct(ni_current, ni_prev_y)
-            result["eps_growth"] = result["eps_growth_yoy"] if result["eps_growth_yoy"] is not None else result["eps_growth_qoq"]
-        else:
-            result["eps_current"] = None
-            result["eps_growth_qoq"] = None
-            result["eps_growth_yoy"] = None
-            result["eps_growth"] = None
-
-        return result
 
     except Exception:
         return None
 
 
-def _safe_float(val) -> float | None:
-    """Convert a value to float, handling NaN/None."""
-    if val is None:
-        return None
-    try:
-        f = float(val)
-        if pd.isna(f):
-            return None
-        return f
-    except (ValueError, TypeError):
-        return None
+# ---------------------------------------------------------------------------
+# Screener
+# ---------------------------------------------------------------------------
 
+def run_growth_screen(
+    mode: str = "2020",
+    min_price: float = 20.0,
+    min_dollar_vol: float = 20_000_000,
+    indexes: list[str] | None = None,
+    batch_size: int = 50,
+) -> pd.DataFrame:
+    """
+    Run the growth screener.
 
-def screen(universe: list[str], min_rev: float, min_eps: float) -> list[dict]:
-    """Screen universe for stocks meeting growth thresholds."""
-    hits = []
-    total = len(universe)
+    Args:
+        mode: "2020" or "4040" — sets the growth threshold
+        min_price: minimum stock price filter
+        min_dollar_vol: minimum average daily dollar volume
+        indexes: which indexes to include in universe
+        batch_size: how many tickers to process before printing progress
 
-    for i, ticker in enumerate(universe, 1):
-        pct = (i / total) * 100
-        sys.stdout.write(f"\r  Screening: {i}/{total} ({pct:.0f}%) — {ticker:<6}")
-        sys.stdout.flush()
+    Returns:
+        DataFrame of passing tickers sorted by sales + EPS growth
+    """
+    threshold = 20.0 if mode == "2020" else 40.0
+    label = f"{int(threshold)}/{int(threshold)}"
 
-        result = analyze_ticker(ticker)
-        if result is None:
-            continue
+    print("=" * 60)
+    print(f"GROWTH SCREENER — {label} MODE")
+    print(f"  Min price: ${min_price:.0f}")
+    print(f"  Min dollar volume: ${min_dollar_vol:,.0f}/day")
+    print(f"  Sales growth threshold: ≥{threshold:.0f}%")
+    print(f"  EPS growth threshold: ≥{threshold:.0f}%")
+    print("=" * 60)
 
-        rev_g = result.get("rev_growth")
-        eps_g = result.get("eps_growth")
-
-        if rev_g is not None and eps_g is not None:
-            if rev_g >= min_rev and eps_g >= min_eps:
-                hits.append(result)
-
-        # Rate limit: ~2 requests per ticker, stay under yfinance limits
-        if i % 10 == 0:
-            time.sleep(0.5)
-
-    sys.stdout.write("\r" + " " * 60 + "\r")
-    return hits
-
-
-# ═══════════════════════════════════════════════════════════════
-# OUTPUT — TERMINAL + CSV
-# ═══════════════════════════════════════════════════════════════
-
-def fmt_pct(val) -> str:
-    if val is None:
-        return "—"
-    return f"{val:+.1f}%"
-
-
-def fmt_mcap(val) -> str:
-    if not val:
-        return "—"
-    if val >= 1e12:
-        return f"${val/1e12:.1f}T"
-    if val >= 1e9:
-        return f"${val/1e9:.1f}B"
-    if val >= 1e6:
-        return f"${val/1e6:.0f}M"
-    return f"${val:,.0f}"
-
-
-def print_table(hits: list[dict], mode: str):
-    """Print results as a formatted terminal table."""
-    if not hits:
-        print(f"\n  No stocks passed the {mode} screen.")
-        return
-
-    # Sort by revenue growth descending
-    hits.sort(key=lambda x: x.get("rev_growth") or 0, reverse=True)
-
-    header = f"{'Ticker':<7} {'Company':<28} {'Sector':<18} {'Mkt Cap':>9} {'Rev YoY':>9} {'Rev QoQ':>9} {'EPS YoY':>9} {'EPS QoQ':>9}"
-    sep = "─" * len(header)
-
-    print(f"\n  ══ {mode} GROWTH SCREEN — {len(hits)} hits ══")
-    print(f"  {sep}")
-    print(f"  {header}")
-    print(f"  {sep}")
-
-    for h in hits:
-        line = (
-            f"  {h['ticker']:<7} "
-            f"{h.get('company','')[:27]:<28} "
-            f"{h.get('sector','')[:17]:<18} "
-            f"{fmt_mcap(h.get('market_cap')):>9} "
-            f"{fmt_pct(h.get('rev_growth_yoy')):>9} "
-            f"{fmt_pct(h.get('rev_growth_qoq')):>9} "
-            f"{fmt_pct(h.get('eps_growth_yoy')):>9} "
-            f"{fmt_pct(h.get('eps_growth_qoq')):>9}"
-        )
-        print(line)
-
-    print(f"  {sep}")
-    print(f"  {len(hits)} stocks with ≥{int(min_from_mode(mode))}% revenue + ≥{int(min_from_mode(mode))}% EPS growth")
-
-
-def write_csv(hits: list[dict], mode: str) -> str:
-    """Write results to a timestamped CSV file."""
-    if not hits:
-        return ""
-
-    hits.sort(key=lambda x: x.get("rev_growth") or 0, reverse=True)
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"growth_screen_{mode}_{ts}.csv"
-
-    fields = [
-        "ticker", "company", "sector", "market_cap", "price",
-        "rev_growth_yoy", "rev_growth_qoq", "eps_growth_yoy", "eps_growth_qoq",
-    ]
-
-    with open(filename, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
-        writer.writeheader()
-        for h in hits:
-            row = {k: h.get(k, "") for k in fields}
-            # Format percentages for CSV
-            for pct_field in ["rev_growth_yoy", "rev_growth_qoq", "eps_growth_yoy", "eps_growth_qoq"]:
-                val = row.get(pct_field)
-                if val is not None and val != "":
-                    row[pct_field] = f"{val:.2f}"
-            writer.writerow(row)
-
-    print(f"\n  CSV saved: {filename}")
-    return filename
-
-
-# ═══════════════════════════════════════════════════════════════
-# SLACK INTEGRATION
-# ═══════════════════════════════════════════════════════════════
-
-def send_to_slack(hits: list[dict], mode: str, config_path: str):
-    """Post screen results to Slack channels defined in config."""
-    try:
-        from slack_sdk import WebClient
-        from slack_sdk.errors import SlackApiError
-    except ImportError:
-        print("\n  ⚠ slack-sdk not installed. Run: pip install slack-sdk")
-        return
-
-    token = os.environ.get("SLACK_BOT_TOKEN")
-    if not token:
-        print("\n  ⚠ SLACK_BOT_TOKEN not set. Export it before using --slack.")
-        return
-
-    # Load channel config
-    try:
-        with open(config_path) as f:
-            config = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        print(f"\n  ⚠ Failed to load {config_path}: {e}")
-        return
-
-    channels = config.get("channels", {})
-    routing = config.get("routing", {})
-
-    # Determine target channel
-    route_key = routing.get(mode)
-    channel_id = channels.get(route_key) if route_key else None
-    firehose_id = channels.get("firehose")
-
-    if not channel_id and not firehose_id:
-        print(f"\n  ⚠ No channel configured for mode '{mode}'")
-        return
-
-    client = WebClient(token=token)
-
-    # Build message
-    threshold = int(min_from_mode(mode))
-    header = f"*{mode} Growth Screen* — {len(hits)} hits (≥{threshold}% Rev + ≥{threshold}% EPS)"
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
-
-    if not hits:
-        text = f"{header}\n_{ts} — No stocks passed the screen._"
-    else:
-        hits.sort(key=lambda x: x.get("rev_growth") or 0, reverse=True)
-        lines = [f"{header}\n_{ts}_\n"]
-        lines.append("```")
-        lines.append(f"{'Ticker':<7} {'Rev YoY':>9} {'EPS YoY':>9} {'Mkt Cap':>9}  {'Company'}")
-        lines.append("─" * 60)
-        for h in hits[:50]:  # Cap at 50 for Slack message limits
-            lines.append(
-                f"{h['ticker']:<7} "
-                f"{fmt_pct(h.get('rev_growth_yoy')):>9} "
-                f"{fmt_pct(h.get('eps_growth_yoy')):>9} "
-                f"{fmt_mcap(h.get('market_cap')):>9}  "
-                f"{h.get('company', '')[:30]}"
-            )
-        lines.append("```")
-        if len(hits) > 50:
-            lines.append(f"_...and {len(hits) - 50} more (see CSV)_")
-        text = "\n".join(lines)
-
-    # Post to routed channel
-    targets = []
-    if channel_id:
-        targets.append((route_key, channel_id))
-    if firehose_id:
-        targets.append(("firehose", firehose_id))
-
-    for name, cid in targets:
-        try:
-            client.chat_postMessage(channel=cid, text=text, mrkdwn=True)
-            print(f"  ✓ Posted to #{name} ({cid})")
-        except SlackApiError as e:
-            print(f"  ✗ Failed to post to #{name}: {e.response['error']}")
-
-
-# ═══════════════════════════════════════════════════════════════
-# MAIN
-# ═══════════════════════════════════════════════════════════════
-
-def min_from_mode(mode: str) -> float:
-    if mode == "4040":
-        return 40.0
-    return 20.0
-
-
-def main():
-    parser = argparse.ArgumentParser(description="CANSLIM Growth Screener")
-    parser.add_argument("--mode", choices=["2020", "4040"], required=True,
-                        help="Screen mode: 2020 (≥20%/20%) or 4040 (≥40%/40%)")
-    parser.add_argument("--slack", action="store_true",
-                        help="Post results to Slack")
-    parser.add_argument("--config", default="channel_config.json",
-                        help="Path to channel_config.json (default: channel_config.json)")
-    args = parser.parse_args()
-
-    threshold = min_from_mode(args.mode)
-    print(f"\n{'═' * 60}")
-    print(f"  APEX Growth Screener — {args.mode} Mode")
-    print(f"  Threshold: ≥{threshold:.0f}% Revenue + ≥{threshold:.0f}% EPS")
-    print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"{'═' * 60}\n")
-
-    # Build universe
-    print("  Building universe...")
-    universe = build_universe()
-
-    if not universe:
-        print("\n  ✗ Failed to build universe. Check your internet connection.")
-        sys.exit(1)
+    # Load universe
+    print("\n📡 Loading universe...")
+    tickers = load_universe(indexes)
 
     # Screen
-    print(f"\n  Screening {len(universe)} tickers (this may take 10-20 minutes)...\n")
-    hits = screen(universe, min_rev=threshold, min_eps=threshold)
+    results = []
+    skipped = 0
+    errors = 0
 
-    # Output — terminal table
-    print_table(hits, args.mode)
+    print(f"🔍 Screening {len(tickers)} tickers...\n")
 
-    # Output — CSV
-    csv_file = write_csv(hits, args.mode)
+    for i, t in enumerate(tickers):
+        if (i + 1) % batch_size == 0:
+            print(f"  Progress: {i + 1}/{len(tickers)} "
+                  f"({len(results)} passing so far, {skipped} filtered, {errors} errors)")
 
-    # Output — Slack
+        metrics = get_growth_metrics(t)
+
+        if metrics is None:
+            errors += 1
+            continue
+
+        # Price filter
+        if metrics["close"] < min_price:
+            skipped += 1
+            continue
+
+        # Liquidity filter
+        if metrics["avg_dollar_vol"] < min_dollar_vol:
+            skipped += 1
+            continue
+
+        # Growth filters
+        if pd.isna(metrics["sales_growth_pct"]) or metrics["sales_growth_pct"] < threshold:
+            skipped += 1
+            continue
+
+        if pd.isna(metrics["eps_growth_pct"]) or metrics["eps_growth_pct"] < threshold:
+            skipped += 1
+            continue
+
+        results.append(metrics)
+
+    df = pd.DataFrame(results)
+
+    if df.empty:
+        print(f"\n⚠ No tickers passed the {label} screen.")
+        return df
+
+    # Sort by combined growth
+    df["combined_growth"] = df["sales_growth_pct"] + df["eps_growth_pct"]
+    df = df.sort_values("combined_growth", ascending=False).reset_index(drop=True)
+
+    print(f"\n{'=' * 60}")
+    print(f"RESULTS — {len(df)} tickers passed {label} screen")
+    print(f"  Screened: {len(tickers)} | Passed: {len(df)} "
+          f"| Filtered: {skipped} | Errors: {errors}")
+    print(f"{'=' * 60}\n")
+
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Slack integration
+# ---------------------------------------------------------------------------
+
+def format_growth_alert(row: dict, mode: str) -> str:
+    """Format a single screener result as a Slack message."""
+    emoji = "📐"
+    label = "20/20" if mode == "2020" else "40/40"
+    return (
+        f"{emoji} *{row['ticker']}* — {label} Screen\n"
+        f"> Price: ${row['close']:.2f} | "
+        f"Sales Growth: +{row['sales_growth_pct']:.1f}% | "
+        f"EPS Growth: +{row['eps_growth_pct']:.1f}% | "
+        f"Dollar Vol: ${row['avg_dollar_vol']:,.0f}/day"
+    )
+
+
+def send_to_slack(df: pd.DataFrame, mode: str, config_path: str, bot_token: str | None = None):
+    """Send screener results to the appropriate Slack channel via router."""
+    try:
+        from slack_router import SlackRouter
+    except ImportError:
+        print("  ⚠ slack_router.py not found — skipping Slack delivery")
+        return
+
+    router = SlackRouter.from_config(config_path, bot_token)
+    route_key = "__20_20__" if mode == "2020" else "__40_40__"
+    label = "20/20" if mode == "2020" else "40/40"
+
+    # Resolve channel
+    channel_id = router._resolve_channel(route_key)
+    if not channel_id:
+        print(f"  ⚠ No channel configured for route key {route_key}")
+        return
+
+    # Header
+    header = (
+        f"📐 *{label} GROWTH SCREEN — {datetime.now().strftime('%Y-%m-%d')}*\n"
+        f"> {len(df)} names passed | Min growth: {20 if mode == '2020' else 40}% sales + EPS"
+    )
+    router._post_message(channel_id, header)
+    router._post_message(router.firehose_id, header)
+
+    # Individual alerts (top 30)
+    for _, row in df.head(30).iterrows():
+        msg = format_growth_alert(row.to_dict(), mode)
+        router._post_message(channel_id, msg)
+        router._post_message(router.firehose_id, msg)
+
+    if len(df) > 30:
+        overflow = f"> +{len(df) - 30} more names passed — see CSV for full list"
+        router._post_message(channel_id, overflow)
+
+    print(f"  ✓ Sent {min(len(df), 30)} alerts to #{router._channel_id_by_name(route_key) or label}")
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(description="Growth screener (20/20 and 40/40)")
+    parser.add_argument("--mode", required=True, choices=["2020", "4040"],
+                        help="Screening mode: 2020 or 4040")
+    parser.add_argument("--min-price", type=float, default=20.0,
+                        help="Minimum stock price (default: $20)")
+    parser.add_argument("--min-dollar-vol", type=float, default=20_000_000,
+                        help="Minimum avg daily dollar volume (default: $20M)")
+    parser.add_argument("--indexes", nargs="+",
+                        default=["sp500", "nasdaq100", "dow30", "russell2000"],
+                        help="Indexes to include (default: all)")
+    parser.add_argument("--output", default=None,
+                        help="Output CSV path (default: growth_{mode}_{date}.csv)")
+    parser.add_argument("--slack", action="store_true",
+                        help="Send results to Slack via router")
+    parser.add_argument("--config", default="channel_config.json",
+                        help="Channel config path for Slack routing")
+    parser.add_argument("--bot-token", default=None,
+                        help="Slack bot token (or set SLACK_BOT_TOKEN)")
+    parser.add_argument("--top", type=int, default=30,
+                        help="Print top N results to console (default: 30)")
+    args = parser.parse_args()
+
+    # Run screen
+    df = run_growth_screen(
+        mode=args.mode,
+        min_price=args.min_price,
+        min_dollar_vol=args.min_dollar_vol,
+        indexes=args.indexes,
+    )
+
+    if df.empty:
+        return
+
+    # Console output
+    print(df.head(args.top).to_string(index=False))
+
+    # Save CSV
+    outpath = args.output or f"growth_{args.mode}_{datetime.now().strftime('%Y%m%d')}.csv"
+    df.to_csv(outpath, index=False)
+    print(f"\n✓ Saved {outpath} ({len(df)} rows)")
+
+    # Slack
     if args.slack:
-        print(f"\n  Sending to Slack...")
-        send_to_slack(hits, args.mode, args.config)
-
-    print(f"\n  Done. {len(hits)} stocks passed the {args.mode} screen.\n")
+        print("\n📤 Sending to Slack...")
+        send_to_slack(df, args.mode, args.config, args.bot_token)
 
 
 if __name__ == "__main__":
