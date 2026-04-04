@@ -3443,24 +3443,43 @@ function formatNewsTime(ts) {
 }
 
 async function fetchNewsForTicker(ticker) {
-    try {
-        const resp = await fetch(`${NEXUS_API}/api/news/${encodeURIComponent(ticker)}`, {
-            headers: { 'Accept': 'application/json' }
-        });
-        if (!resp.ok) throw new Error(`${resp.status}`);
-        const data = await resp.json();
-        const articles = data.news || data.articles || data || [];
-        return Array.isArray(articles) ? articles.map(a => ({
-            ...a,
-            _ticker: ticker,
-            _categories: classifyArticle(a.title, a.summary || a.description || ''),
-            _sentiment: guessSentiment(a.title),
-            _ts: a.providerPublishTime || a.published || a.timestamp || a.date || 0
-        })) : [];
-    } catch (e) {
-        console.warn(`[APEX News] Failed for ${ticker}:`, e.message);
-        return [];
+    const normalize = (articles, source) => (Array.isArray(articles) ? articles : []).map(a => ({
+        ...a,
+        _ticker: ticker,
+        _source: source,
+        _categories: classifyArticle(a.title, a.summary || a.description || ''),
+        _sentiment: a.sentiment?.label?.toLowerCase().includes('bull') ? 'bullish'
+            : a.sentiment?.label?.toLowerCase().includes('bear') ? 'bearish'
+            : guessSentiment(a.title),
+        _ts: a.providerPublishTime || (typeof a.published === 'string' ? new Date(a.published.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6')).getTime() / 1000 : 0) || a.timestamp || a.date || 0
+    }));
+
+    // Fetch Polygon + Alpha Vantage in parallel
+    const [polygonResult, avResult] = await Promise.allSettled([
+        fetch(`${NEXUS_API}/api/news/${encodeURIComponent(ticker)}`, { headers: { 'Accept': 'application/json' } })
+            .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
+            .then(data => normalize(data.news || data.articles || data || [], 'Polygon')),
+        fetch(`${NEXUS_API}/api/news/av/${encodeURIComponent(ticker)}`, { headers: { 'Accept': 'application/json' } })
+            .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
+            .then(data => normalize(data.articles || [], 'Alpha Vantage'))
+    ]);
+
+    const polygonArticles = polygonResult.status === 'fulfilled' ? polygonResult.value : [];
+    const avArticles = avResult.status === 'fulfilled' ? avResult.value : [];
+
+    if (polygonResult.status === 'rejected') console.warn(`[APEX News] Polygon failed for ${ticker}:`, polygonResult.reason?.message);
+    if (avResult.status === 'rejected') console.warn(`[APEX News] Alpha Vantage failed for ${ticker}:`, avResult.reason?.message);
+
+    // Merge and deduplicate by URL
+    const seen = new Set();
+    const merged = [];
+    for (const a of [...polygonArticles, ...avArticles]) {
+        const key = (a.url || a.link || '').toLowerCase();
+        if (key && seen.has(key)) continue;
+        if (key) seen.add(key);
+        merged.push(a);
     }
+    return merged;
 }
 
 async function fetchNews(refreshAll) {
@@ -3497,10 +3516,12 @@ async function fetchNews(refreshAll) {
         const results = await Promise.allSettled(tickers.map(t => fetchNewsForTicker(t)));
         const allArticles = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
 
-        // Deduplicate by title similarity (first 60 chars)
+        // Deduplicate by URL (primary) then title similarity (fallback)
         const seen = new Set();
         const deduped = allArticles.filter(a => {
-            const key = (a.title || '').substring(0, 60).toLowerCase();
+            const urlKey = (a.url || a.link || '').toLowerCase();
+            const titleKey = (a.title || '').substring(0, 60).toLowerCase();
+            const key = urlKey || titleKey;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
@@ -3602,6 +3623,7 @@ function renderNews() {
             ${summary ? `<div class="news-summary">${escapeHtml(summary.substring(0, 200))}${summary.length > 200 ? '…' : ''}</div>` : ''}
             <div class="news-meta" style="margin-top:0.5rem">
                 <span class="news-source">${escapeHtml(source)}</span>
+                ${article._source ? `<span style="font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:0.2rem;font-weight:600;letter-spacing:0.03em;${article._source === 'Alpha Vantage' ? 'background:rgba(139,92,246,0.15);color:var(--purple)' : 'background:rgba(0,212,255,0.12);color:var(--accent)'}">${article._source}</span>` : ''}
                 ${relatedTickers.map(t => `<span class="news-ticker-tag">${escapeHtml(t)}</span>`).join('')}
                 ${sentLabel ? `<span class="news-sentiment ${sentiment}">${sentLabel}</span>` : ''}
                 ${article._categories.filter(c => c !== 'general').map(c =>
