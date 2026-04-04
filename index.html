@@ -376,7 +376,15 @@
         .wl-bool-indicator { font-size: 0.85rem; }
 
 
-        /* Journal */
+        /* Journal — sub-tabs */
+        .journal-subtabs { display: flex; gap: 0.375rem; margin-bottom: 1.25rem; }
+        .journal-subtab { padding: 0.4rem 0.9rem; background: transparent; color: var(--text-muted); border: 1px solid var(--border); border-radius: 0.25rem; cursor: pointer; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; font-family: var(--font-ui); transition: all var(--dur) var(--ease); }
+        .journal-subtab:hover { background: var(--surface-1); color: var(--text); }
+        .journal-subtab.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+        .journal-subpanel { display: none; }
+        .journal-subpanel.active { display: block; }
+
+        /* Journal — forms */
         .journal-form { background-color: var(--surface-1); padding: 1.5rem; border-radius: var(--r-lg); border: 1px solid var(--border); box-shadow: var(--shadow-card); transition: border-color var(--dur) var(--ease); margin-bottom: 1.5rem; }
         .journal-form:hover { border-color: var(--border-strong); }
         .journal-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem; }
@@ -385,30 +393,43 @@
         .journal-input { padding: 0.5rem 0.75rem; background-color: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 0.25rem; font-size: 0.875rem; font-family: var(--font-mono); }
         .journal-input:focus { outline: none; border-color: var(--accent); }
         .journal-select { padding: 0.5rem 0.75rem; background-color: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 0.25rem; font-size: 0.875rem; font-family: inherit; cursor: pointer; }
+        .journal-select option { background: var(--surface-2); }
         .journal-textarea { padding: 0.5rem 0.75rem; background-color: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 0.25rem; font-size: 0.875rem; font-family: inherit; resize: vertical; min-height: 80px; width: 100%; }
         .journal-textarea:focus { outline: none; border-color: var(--accent); }
         .journal-submit { padding: 0.5rem 1.5rem; background-color: var(--accent-dim); color: white; border: none; border-radius: 0.25rem; cursor: pointer; font-size: 0.875rem; font-family: inherit; font-weight: 600; margin-top: 0.5rem; }
         .journal-submit:hover { background-color: var(--accent); }
+        .journal-btn-danger { padding: 0.4rem 1rem; background: var(--bear-dim); color: var(--bear); border: 1px solid var(--bear); border-radius: 0.25rem; cursor: pointer; font-size: 0.75rem; font-family: inherit; font-weight: 600; }
+        .journal-btn-danger:hover { background: var(--bear); color: white; }
+        .journal-btn-secondary { padding: 0.4rem 1rem; background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border-strong); border-radius: 0.25rem; cursor: pointer; font-size: 0.75rem; font-family: inherit; font-weight: 600; }
+        .journal-btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
 
-        .journal-entry { background-color: var(--surface-2); border-radius: 0.375rem; padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid var(--border-strong); }
-        .journal-entry.long-win { border-left-color: var(--bull); }
-        .journal-entry.long-loss { border-left-color: var(--bear); }
-        .journal-entry.short-win { border-left-color: var(--bull); }
-        .journal-entry.short-loss { border-left-color: var(--bear); }
+        /* Journal — entries */
+        .journal-entry { background-color: var(--surface-2); border-radius: 0.375rem; padding: 1rem; margin-bottom: 0.75rem; border-left: 4px solid var(--border-strong); position: relative; }
+        .journal-entry.trade-win { border-left-color: var(--bull); }
+        .journal-entry.trade-loss { border-left-color: var(--bear); }
+        .journal-entry.daily-positive { border-left-color: var(--bull); }
+        .journal-entry.daily-negative { border-left-color: var(--bear); }
         .journal-entry-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem; }
         .journal-entry-title { font-weight: 700; color: var(--text); font-size: 0.95rem; }
         .journal-entry-meta { font-size: 0.75rem; color: var(--text-faint); }
         .journal-stats { display: flex; gap: 1.5rem; font-size: 0.8rem; flex-wrap: wrap; margin-bottom: 0.5rem; }
         .journal-stat-item { display: flex; flex-direction: column; gap: 0.1rem; }
         .journal-stat-lbl { color: var(--text-faint); font-size: 0.7rem; text-transform: uppercase; }
-        .journal-stat-val { color: var(--text); font-weight: 600; }
+        .journal-stat-val { color: var(--text); font-weight: 600; font-family: var(--font-mono); }
         .journal-notes { font-size: 0.8rem; color: var(--text-muted); font-style: italic; margin-top: 0.25rem; }
+        .journal-delete { position: absolute; top: 0.75rem; right: 0.75rem; background: none; border: none; color: var(--text-faint); cursor: pointer; font-size: 0.85rem; padding: 0.1rem 0.3rem; transition: color 0.15s; }
+        .journal-delete:hover { color: var(--bear); }
 
-        /* PnL Summary strip */
-        .pnl-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
-        .pnl-card { background-color: var(--surface-1); padding: 0.875rem 1rem; border-radius: 0.375rem; border: 1px solid var(--border-strong); }
-        .pnl-label { font-size: 0.7rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.25rem; }
-        .pnl-val { font-size: 1.25rem; font-weight: 700; }
+        /* Journal — stats */
+        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+        .stat-card { background-color: var(--surface-1); padding: 1rem; border-radius: var(--r-lg); border: 1px solid var(--border); box-shadow: var(--shadow-card); text-align: center; }
+        .stat-card-value { font-size: 1.5rem; font-weight: 700; font-family: var(--font-mono); color: var(--text); margin-bottom: 0.25rem; }
+        .stat-card-label { font-size: 0.7rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.05em; }
+        .journal-table { width: 100%; border-collapse: collapse; margin-top: 0.75rem; }
+        .journal-table th { text-align: left; padding: 0.5rem 0.75rem; color: var(--text-faint); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); background: var(--surface-2); font-weight: 600; }
+        .journal-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.8rem; font-family: var(--font-mono); }
+        .journal-table tr:hover td { background: rgba(0,212,255,0.03); }
+        .journal-export { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
 
         .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -975,82 +996,105 @@
 <!-- ── JOURNAL ───────────────────────────────────────── -->
 <div class="tab-content" id="journal">
 
-    <div class="pnl-strip" id="journalPnlStrip">
-        <div class="pnl-card"><div class="pnl-label">Total Realized P&L</div><div class="pnl-val positive" id="jPnl">+$0</div></div>
-        <div class="pnl-card"><div class="pnl-label">Win Rate</div><div class="pnl-val" id="jWinRate">—</div></div>
-        <div class="pnl-card"><div class="pnl-label">Avg Win</div><div class="pnl-val positive" id="jAvgWin">—</div></div>
-        <div class="pnl-card"><div class="pnl-label">Avg Loss</div><div class="pnl-val negative" id="jAvgLoss">—</div></div>
-        <div class="pnl-card"><div class="pnl-label">Profit Factor</div><div class="pnl-val" id="jPF">—</div></div>
-        <div class="pnl-card"><div class="pnl-label">Total Trades</div><div class="pnl-val" id="jTotal">0</div></div>
+    <!-- Sub-tab navigation -->
+    <div class="journal-subtabs">
+        <button class="journal-subtab active" onclick="switchJournalTab('daily')">Daily Journal</button>
+        <button class="journal-subtab" onclick="switchJournalTab('trades')">Trade Tracker</button>
+        <button class="journal-subtab" onclick="switchJournalTab('stats')">Stats</button>
     </div>
 
-    <div class="journal-form">
-        <div class="section-title">Log New Trade</div>
-        <div class="journal-row">
-            <div class="journal-field"><span class="journal-label">Ticker</span><input class="journal-input" id="jTicker" placeholder="AAPL" maxlength="6"></div>
-            <div class="journal-field"><span class="journal-label">Direction</span>
-                <select class="journal-select" id="jDir"><option value="long">Long</option><option value="short">Short</option></select>
+    <!-- ═══ DAILY JOURNAL SUB-TAB ═══ -->
+    <div class="journal-subpanel active" id="journalDaily">
+        <div class="journal-form">
+            <div class="section-title">Daily Journal Entry</div>
+            <div class="journal-row">
+                <div class="journal-field"><span class="journal-label">Date</span><input class="journal-input" id="djDate" type="date"></div>
+                <div class="journal-field"><span class="journal-label">Market Condition</span>
+                    <select class="journal-select" id="djMarket">
+                        <option value="Stage 2 - Bullish">Stage 2 - Bullish</option>
+                        <option value="Stage 2 Continuation">Stage 2 Continuation</option>
+                        <option value="Stage 3 - Choppy">Stage 3 - Choppy</option>
+                        <option value="Stage 4 - Bearish">Stage 4 - Bearish</option>
+                        <option value="Stage 1 - Basing">Stage 1 - Basing</option>
+                    </select>
+                </div>
+                <div class="journal-field"><span class="journal-label">Psychology</span>
+                    <select class="journal-select" id="djPsych">
+                        <option value="Focused & Disciplined">Focused & Disciplined</option>
+                        <option value="Confident">Confident</option>
+                        <option value="Neutral">Neutral</option>
+                        <option value="Anxious">Anxious</option>
+                        <option value="Revenge Trading">Revenge Trading</option>
+                        <option value="FOMO">FOMO</option>
+                        <option value="Overconfident">Overconfident</option>
+                    </select>
+                </div>
+                <div class="journal-field"><span class="journal-label"># Trades</span><input class="journal-input" id="djTradeCount" type="number" min="0" placeholder="0"></div>
+                <div class="journal-field"><span class="journal-label">Daily P&L ($)</span><input class="journal-input" id="djPnl" type="number" step="0.01" placeholder="+/- amount"></div>
             </div>
-            <div class="journal-field"><span class="journal-label">Type</span>
-                <select class="journal-select" id="jType"><option value="equity">Equity</option><option value="call">Call</option><option value="put">Put</option><option value="spread">Spread</option></select>
+            <div class="journal-field" style="margin-bottom:0.75rem"><span class="journal-label">Notes / Key Lessons</span><textarea class="journal-textarea" id="djNotes" placeholder="What worked, what didn't, key observations..."></textarea></div>
+            <div class="journal-row">
+                <div class="journal-field"><span class="journal-label">Rules Followed</span><textarea class="journal-textarea" id="djRulesFollowed" placeholder="Which rules did you execute well?" style="min-height:60px"></textarea></div>
+                <div class="journal-field"><span class="journal-label">Rules Broken</span><textarea class="journal-textarea" id="djRulesBroken" placeholder="Which rules did you violate? Why?" style="min-height:60px"></textarea></div>
             </div>
-            <div class="journal-field"><span class="journal-label">Entry Price</span><input class="journal-input" id="jEntry" type="number" placeholder="0.00"></div>
-            <div class="journal-field"><span class="journal-label">Exit Price</span><input class="journal-input" id="jExit" type="number" placeholder="0.00"></div>
-            <div class="journal-field"><span class="journal-label">Size ($)</span><input class="journal-input" id="jSize" type="number" placeholder="1000"></div>
-            <div class="journal-field"><span class="journal-label">Date</span><input class="journal-input" id="jDate" type="date"></div>
-            <div class="journal-field"><span class="journal-label">Stage</span>
-                <select class="journal-select" id="jStage"><option>Stage 2</option><option>Stage 3</option><option>Stage 4</option><option>Stage 1</option><option>N/A</option></select>
-            </div>
+            <button class="journal-submit" onclick="addDailyEntry()">Save Journal Entry</button>
         </div>
-        <div class="journal-field" style="margin-bottom:0.75rem"><span class="journal-label">Notes / Thesis</span><textarea class="journal-textarea" id="jNotes" placeholder="Setup rationale, Weinstein stage, Kell system criteria, exit reason..."></textarea></div>
-        <button class="journal-submit" onclick="addJournalEntry()">+ Log Trade</button>
+        <div class="section-title">Journal Entries</div>
+        <div id="dailyEntries"></div>
     </div>
 
-    <div class="movers-section">
+    <!-- ═══ TRADE TRACKER SUB-TAB ═══ -->
+    <div class="journal-subpanel" id="journalTrades">
+        <div class="journal-form">
+            <div class="section-title">Log Trade</div>
+            <div class="journal-row">
+                <div class="journal-field"><span class="journal-label">Ticker</span><input class="journal-input" id="jtTicker" placeholder="AAPL" maxlength="6"></div>
+                <div class="journal-field"><span class="journal-label">Direction</span>
+                    <select class="journal-select" id="jtDir"><option value="long">Long</option><option value="short">Short</option></select>
+                </div>
+                <div class="journal-field"><span class="journal-label">Type</span>
+                    <select class="journal-select" id="jtType"><option value="equity">Equity</option><option value="call">Call</option><option value="put">Put</option><option value="spread">Spread</option></select>
+                </div>
+                <div class="journal-field"><span class="journal-label">Stage</span>
+                    <select class="journal-select" id="jtStage"><option>Stage 2</option><option>Stage 3</option><option>Stage 4</option><option>Stage 1</option><option>N/A</option></select>
+                </div>
+                <div class="journal-field"><span class="journal-label">Entry Price</span><input class="journal-input" id="jtEntry" type="number" step="0.01" placeholder="0.00"></div>
+                <div class="journal-field"><span class="journal-label">Exit Price</span><input class="journal-input" id="jtExit" type="number" step="0.01" placeholder="0.00"></div>
+                <div class="journal-field"><span class="journal-label">Contracts / Shares</span><input class="journal-input" id="jtQty" type="number" min="1" placeholder="100"></div>
+                <div class="journal-field"><span class="journal-label">Days in Trade</span><input class="journal-input" id="jtDays" type="number" min="0" placeholder="0"></div>
+            </div>
+            <div class="journal-row">
+                <div class="journal-field"><span class="journal-label">Setup Notes</span><textarea class="journal-textarea" id="jtSetup" placeholder="Setup rationale, Weinstein stage, Kell criteria..." style="min-height:60px"></textarea></div>
+                <div class="journal-field"><span class="journal-label">Exit Reason</span><textarea class="journal-textarea" id="jtExitReason" placeholder="Why did you exit? Stop hit, target reached, thesis changed..." style="min-height:60px"></textarea></div>
+            </div>
+            <button class="journal-submit" onclick="addTradeEntry()">+ Log Trade</button>
+        </div>
         <div class="section-title">Trade Log</div>
-        <div id="journalEntries">
-            <!-- pre-seeded entries -->
-            <div class="journal-entry long-win">
-                <div class="journal-entry-header">
-                    <div><span class="journal-entry-title">GLD — Long Call</span><span class="wl-badge positive">+$840</span></div>
-                    <div class="journal-entry-meta">Feb 24, 2026 · Stage 2 · Equity</div>
-                </div>
-                <div class="journal-stats">
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$255.40</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$262.11</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$5,000</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">2.8:1</span></div>
-                </div>
-                <div class="journal-notes">Stage 2 uptrend with RS line breaking to 52-week high vs SPY. Kell trend intact above 10/20 EMA. Risk-off macro regime confirms. HMM Bull on GLD.</div>
+        <div id="tradeEntries"></div>
+    </div>
+
+    <!-- ═══ STATS SUB-TAB ═══ -->
+    <div class="journal-subpanel" id="journalStats">
+        <div class="stat-grid" id="statsGrid"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
+            <div>
+                <div class="section-title">Top 5 Winners</div>
+                <table class="journal-table"><thead><tr><th>Ticker</th><th>P&L</th><th>P&L %</th><th>Stage</th></tr></thead><tbody id="topWinners"></tbody></table>
             </div>
-            <div class="journal-entry short-win">
-                <div class="journal-entry-header">
-                    <div><span class="journal-entry-title">TSLA — Short</span><span class="wl-badge positive">+$1,230</span></div>
-                    <div class="journal-entry-meta">Mar 04, 2026 · Stage 4 · Equity</div>
-                </div>
-                <div class="journal-stats">
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$306.40</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$274.68</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$6,000</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">3.4:1</span></div>
-                </div>
-                <div class="journal-notes">Weinstein Stage 4 breakdown confirmed. 30-week MA acting as resistance. IWM HMM Bear regime macro tailwind. High relative volume on breakdown day. COT net short growing.</div>
-            </div>
-            <div class="journal-entry long-loss">
-                <div class="journal-entry-header">
-                    <div><span class="journal-entry-title">NVDA — Long Call</span><span class="wl-badge negative">-$420</span></div>
-                    <div class="journal-entry-meta">Feb 10, 2026 · Stage 3 · Call</div>
-                </div>
-                <div class="journal-stats">
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$138.20</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$124.80</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$2,800</span></div>
-                    <div class="journal-stat-item"><span class="journal-stat-lbl">R:R</span><span class="journal-stat-val">0.6:1</span></div>
-                </div>
-                <div class="journal-notes">Entered too early before base confirmed. Stock still in Stage 3 distribution. Lesson: wait for Stage 1 basing and volume dry-up before re-entry.</div>
+            <div>
+                <div class="section-title">Top 5 Losers</div>
+                <table class="journal-table"><thead><tr><th>Ticker</th><th>P&L</th><th>P&L %</th><th>Stage</th></tr></thead><tbody id="topLosers"></tbody></table>
             </div>
         </div>
+
+        <div class="journal-export">
+            <button class="journal-btn-secondary" onclick="exportTradesCSV()">Export Trades CSV</button>
+            <button class="journal-btn-secondary" onclick="exportJournalCSV()">Export Journal CSV</button>
+            <button class="journal-btn-danger" onclick="clearAllJournalData()">Clear All Data</button>
+        </div>
     </div>
+
 </div>
 
 </div><!-- /container -->
@@ -1937,76 +1981,231 @@ buildHeatmap();
 // ══════════════════════════════════════════════════════════════
 // JOURNAL
 // ══════════════════════════════════════════════════════════════
-let journalTrades = [
-    { dir:'long',  pnl: 840,  win: true },
-    { dir:'short', pnl: 1230, win: true },
-    { dir:'long',  pnl:-420,  win: false }
-];
+// ══════════════════════════════════════════════════════════════
+// JOURNAL — Daily Log + Trade Tracker + Stats
+// ══════════════════════════════════════════════════════════════
 
-function updateJournalStats() {
-    const wins   = journalTrades.filter(t => t.win);
-    const losses = journalTrades.filter(t => !t.win);
-    const totalPnl = journalTrades.reduce((s, t) => s + t.pnl, 0);
-    const winRate  = journalTrades.length ? (wins.length / journalTrades.length * 100).toFixed(0) : '—';
-    const avgWin   = wins.length   ? (wins.reduce((s,t)=>s+t.pnl,0)/wins.length).toFixed(0)     : '—';
-    const avgLoss  = losses.length ? (losses.reduce((s,t)=>s+t.pnl,0)/losses.length).toFixed(0) : '—';
-    const grossW   = wins.reduce((s,t)=>s+t.pnl,0);
-    const grossL   = Math.abs(losses.reduce((s,t)=>s+t.pnl,0));
-    const pf       = grossL > 0 ? (grossW / grossL).toFixed(2) : wins.length ? '∞' : '—';
-
-    document.getElementById('jPnl').textContent    = (totalPnl >= 0 ? '+' : '') + '$' + totalPnl.toLocaleString();
-    document.getElementById('jPnl').className      = 'pnl-val ' + (totalPnl >= 0 ? 'positive' : 'negative');
-    document.getElementById('jWinRate').textContent = wins.length ? winRate + '%' : '—';
-    document.getElementById('jAvgWin').textContent  = avgWin !== '—' ? '+$' + avgWin : '—';
-    document.getElementById('jAvgLoss').textContent = avgLoss !== '—' ? '-$' + Math.abs(avgLoss) : '—';
-    document.getElementById('jPF').textContent      = pf;
-    document.getElementById('jTotal').textContent   = journalTrades.length;
+function switchJournalTab(tab) {
+    document.querySelectorAll('.journal-subtab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.journal-subpanel').forEach(p => p.classList.remove('active'));
+    event.target.classList.add('active');
+    const panels = { daily: 'journalDaily', trades: 'journalTrades', stats: 'journalStats' };
+    document.getElementById(panels[tab]).classList.add('active');
+    if (tab === 'daily') renderDailyEntries();
+    if (tab === 'trades') renderTradeEntries();
+    if (tab === 'stats') renderStats();
 }
 
-function addJournalEntry() {
-    const ticker = document.getElementById('jTicker').value.trim().toUpperCase();
-    const dir    = document.getElementById('jDir').value;
-    const type   = document.getElementById('jType').value;
-    const entry  = parseFloat(document.getElementById('jEntry').value);
-    const exit   = parseFloat(document.getElementById('jExit').value);
-    const size   = parseFloat(document.getElementById('jSize').value);
-    const date   = document.getElementById('jDate').value;
-    const stage  = document.getElementById('jStage').value;
-    const notes  = document.getElementById('jNotes').value;
+// ── Daily Journal ────────────────────────────────────────────
 
-    if (!ticker || isNaN(entry) || isNaN(exit) || isNaN(size)) return;
+function getDailyEntries() {
+    try { return JSON.parse(localStorage.getItem('apex_journal_daily')) || []; }
+    catch { return []; }
+}
+
+function saveDailyEntries(entries) {
+    localStorage.setItem('apex_journal_daily', JSON.stringify(entries));
+}
+
+function addDailyEntry() {
+    const entry = {
+        id: Date.now(),
+        date: document.getElementById('djDate').value || new Date().toISOString().slice(0,10),
+        market: document.getElementById('djMarket').value,
+        psychology: document.getElementById('djPsych').value,
+        tradeCount: parseInt(document.getElementById('djTradeCount').value) || 0,
+        pnl: parseFloat(document.getElementById('djPnl').value) || 0,
+        notes: document.getElementById('djNotes').value,
+        rulesFollowed: document.getElementById('djRulesFollowed').value,
+        rulesBroken: document.getElementById('djRulesBroken').value,
+    };
+    const entries = getDailyEntries();
+    entries.unshift(entry);
+    saveDailyEntries(entries);
+    ['djTradeCount','djPnl','djNotes','djRulesFollowed','djRulesBroken'].forEach(id => document.getElementById(id).value = '');
+    renderDailyEntries();
+}
+
+function deleteDailyEntry(id) {
+    if (!confirm('Delete this journal entry?')) return;
+    const entries = getDailyEntries().filter(e => e.id !== id);
+    saveDailyEntries(entries);
+    renderDailyEntries();
+}
+
+function renderDailyEntries() {
+    const el = document.getElementById('dailyEntries');
+    const entries = getDailyEntries();
+    if (!entries.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-faint);padding:2rem">No journal entries yet.</div>'; return; }
+    el.innerHTML = entries.sort((a,b) => b.date.localeCompare(a.date)).map(e => `
+        <div class="journal-entry ${e.pnl >= 0 ? 'daily-positive' : 'daily-negative'}">
+            <button class="journal-delete" onclick="deleteDailyEntry(${e.id})">&times;</button>
+            <div class="journal-entry-header">
+                <div class="journal-entry-title">${new Date(e.date+'T12:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',year:'numeric'})}</div>
+                <span class="wl-badge ${e.pnl >= 0 ? 'positive' : 'negative'}">${e.pnl >= 0 ? '+' : ''}$${e.pnl.toFixed(2)}</span>
+            </div>
+            <div class="journal-stats">
+                <div class="journal-stat-item"><span class="journal-stat-lbl">Market</span><span class="journal-stat-val">${e.market}</span></div>
+                <div class="journal-stat-item"><span class="journal-stat-lbl">Psychology</span><span class="journal-stat-val">${e.psychology}</span></div>
+                <div class="journal-stat-item"><span class="journal-stat-lbl">Trades</span><span class="journal-stat-val">${e.tradeCount}</span></div>
+            </div>
+            ${e.notes ? `<div class="journal-notes">${e.notes}</div>` : ''}
+            ${e.rulesFollowed ? `<div class="journal-notes" style="color:var(--bull)">Rules followed: ${e.rulesFollowed}</div>` : ''}
+            ${e.rulesBroken ? `<div class="journal-notes" style="color:var(--bear)">Rules broken: ${e.rulesBroken}</div>` : ''}
+        </div>`).join('');
+}
+
+// ── Trade Tracker ────────────────────────────────────────────
+
+function getTradeEntries() {
+    try { return JSON.parse(localStorage.getItem('apex_journal_trades')) || []; }
+    catch { return []; }
+}
+
+function saveTradeEntries(entries) {
+    localStorage.setItem('apex_journal_trades', JSON.stringify(entries));
+}
+
+function addTradeEntry() {
+    const ticker = document.getElementById('jtTicker').value.trim().toUpperCase();
+    const dir = document.getElementById('jtDir').value;
+    const type = document.getElementById('jtType').value;
+    const stage = document.getElementById('jtStage').value;
+    const entry = parseFloat(document.getElementById('jtEntry').value);
+    const exit = parseFloat(document.getElementById('jtExit').value);
+    const qty = parseInt(document.getElementById('jtQty').value) || 1;
+    const days = parseInt(document.getElementById('jtDays').value) || 0;
+    const setup = document.getElementById('jtSetup').value;
+    const exitReason = document.getElementById('jtExitReason').value;
+
+    if (!ticker || isNaN(entry) || isNaN(exit)) return;
 
     const pctMove = dir === 'long' ? (exit - entry) / entry : (entry - exit) / entry;
-    const pnl     = Math.round(pctMove * size);
-    const win     = pnl >= 0;
+    const pnl = Math.round(pctMove * entry * qty * 100) / 100;
 
-    journalTrades.push({ dir, pnl, win });
-    updateJournalStats();
+    const trade = {
+        id: Date.now(),
+        date: new Date().toISOString().slice(0,10),
+        ticker, dir, type, stage, entry, exit, qty, days,
+        pnl, pnlPct: Math.round(pctMove * 10000) / 100,
+        setup, exitReason,
+    };
 
-    const pnlClass = win ? 'positive' : 'negative';
-    const entryClass = (dir === 'long' && win) || (dir === 'short' && win) ? 'long-win' : 'long-loss';
-
-    const div = document.createElement('div');
-    div.className = `journal-entry ${entryClass}`;
-    div.innerHTML = `
-        <div class="journal-entry-header">
-            <div><span class="journal-entry-title">${ticker} — ${dir.charAt(0).toUpperCase()+dir.slice(1)} ${type.charAt(0).toUpperCase()+type.slice(1)}</span>
-            <span class="wl-badge ${pnlClass}">${pnl >= 0 ? '+' : ''}$${Math.abs(pnl).toLocaleString()}</span></div>
-            <div class="journal-entry-meta">${date ? new Date(date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : 'Today'} · ${stage} · ${type}</div>
-        </div>
-        <div class="journal-stats">
-            <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$${entry.toFixed(2)}</span></div>
-            <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$${exit.toFixed(2)}</span></div>
-            <div class="journal-stat-item"><span class="journal-stat-lbl">Size</span><span class="journal-stat-val">$${size.toLocaleString()}</span></div>
-            <div class="journal-stat-item"><span class="journal-stat-lbl">P&L %</span><span class="journal-stat-val ${pnlClass}">${(pctMove*100).toFixed(2)}%</span></div>
-        </div>
-        ${notes ? `<div class="journal-notes">${notes}</div>` : ''}`;
-    document.getElementById('journalEntries').prepend(div);
-
-    ['jTicker','jEntry','jExit','jSize','jNotes'].forEach(id => document.getElementById(id).value = '');
+    const trades = getTradeEntries();
+    trades.unshift(trade);
+    saveTradeEntries(trades);
+    ['jtTicker','jtEntry','jtExit','jtQty','jtDays','jtSetup','jtExitReason'].forEach(id => document.getElementById(id).value = '');
+    renderTradeEntries();
 }
 
-// init journal stats
+function deleteTradeEntry(id) {
+    if (!confirm('Delete this trade?')) return;
+    const trades = getTradeEntries().filter(t => t.id !== id);
+    saveTradeEntries(trades);
+    renderTradeEntries();
+}
+
+function renderTradeEntries() {
+    const el = document.getElementById('tradeEntries');
+    const trades = getTradeEntries();
+    if (!trades.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-faint);padding:2rem">No trades logged yet.</div>'; return; }
+    el.innerHTML = trades.map(t => {
+        const win = t.pnl >= 0;
+        return `
+        <div class="journal-entry ${win ? 'trade-win' : 'trade-loss'}">
+            <button class="journal-delete" onclick="deleteTradeEntry(${t.id})">&times;</button>
+            <div class="journal-entry-header">
+                <div><span class="journal-entry-title">${t.ticker} — ${t.dir.charAt(0).toUpperCase()+t.dir.slice(1)} ${t.type.charAt(0).toUpperCase()+t.type.slice(1)}</span>
+                <span class="wl-badge ${win ? 'positive' : 'negative'}">${t.pnl >= 0 ? '+' : ''}$${Math.abs(t.pnl).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
+                <div class="journal-entry-meta">${new Date(t.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · ${t.stage} · ${t.days}d</div>
+            </div>
+            <div class="journal-stats">
+                <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$${t.entry.toFixed(2)}</span></div>
+                <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$${t.exit.toFixed(2)}</span></div>
+                <div class="journal-stat-item"><span class="journal-stat-lbl">Qty</span><span class="journal-stat-val">${t.qty}</span></div>
+                <div class="journal-stat-item"><span class="journal-stat-lbl">P&L %</span><span class="journal-stat-val" style="color:${win ? 'var(--bull)' : 'var(--bear)'}">${t.pnlPct >= 0 ? '+' : ''}${t.pnlPct.toFixed(2)}%</span></div>
+            </div>
+            ${t.setup ? `<div class="journal-notes">${t.setup}</div>` : ''}
+            ${t.exitReason ? `<div class="journal-notes" style="font-style:normal;color:var(--text-faint)">Exit: ${t.exitReason}</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
+// ── Stats ────────────────────────────────────────────────────
+
+function renderStats() {
+    const trades = getTradeEntries();
+    const wins = trades.filter(t => t.pnl >= 0);
+    const losses = trades.filter(t => t.pnl < 0);
+    const totalPnl = trades.reduce((s,t) => s + t.pnl, 0);
+    const winRate = trades.length ? (wins.length / trades.length * 100).toFixed(1) : '—';
+    const avgWin = wins.length ? (wins.reduce((s,t) => s + t.pnl, 0) / wins.length).toFixed(2) : '—';
+    const avgLoss = losses.length ? (losses.reduce((s,t) => s + t.pnl, 0) / losses.length).toFixed(2) : '—';
+    const grossW = wins.reduce((s,t) => s + t.pnl, 0);
+    const grossL = Math.abs(losses.reduce((s,t) => s + t.pnl, 0));
+    const pf = grossL > 0 ? (grossW / grossL).toFixed(2) : (wins.length ? '∞' : '—');
+    const avgDays = trades.length ? (trades.reduce((s,t) => s + (t.days||0), 0) / trades.length).toFixed(1) : '—';
+
+    document.getElementById('statsGrid').innerHTML = [
+        { label: 'Total Trades', value: trades.length, color: 'var(--accent)' },
+        { label: 'Win Rate', value: winRate !== '—' ? winRate + '%' : '—', color: 'var(--accent)' },
+        { label: 'Avg Winner', value: avgWin !== '—' ? '+$' + avgWin : '—', color: 'var(--bull)' },
+        { label: 'Avg Loser', value: avgLoss !== '—' ? '-$' + Math.abs(parseFloat(avgLoss)).toFixed(2) : '—', color: 'var(--bear)' },
+        { label: 'Profit Factor', value: pf, color: 'var(--accent)' },
+        { label: 'Avg Days', value: avgDays, color: 'var(--text-muted)' },
+    ].map(s => `<div class="stat-card"><div class="stat-card-value" style="color:${s.color}">${s.value}</div><div class="stat-card-label">${s.label}</div></div>`).join('');
+
+    // Top 5 winners
+    const topW = [...trades].filter(t => t.pnl > 0).sort((a,b) => b.pnl - a.pnl).slice(0,5);
+    document.getElementById('topWinners').innerHTML = topW.length ? topW.map(t =>
+        `<tr><td style="font-weight:700">${t.ticker}</td><td style="color:var(--bull)">+$${t.pnl.toFixed(2)}</td><td style="color:var(--bull)">+${t.pnlPct.toFixed(1)}%</td><td>${t.stage}</td></tr>`
+    ).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:1rem">No winning trades yet</td></tr>';
+
+    // Top 5 losers
+    const topL = [...trades].filter(t => t.pnl < 0).sort((a,b) => a.pnl - b.pnl).slice(0,5);
+    document.getElementById('topLosers').innerHTML = topL.length ? topL.map(t =>
+        `<tr><td style="font-weight:700">${t.ticker}</td><td style="color:var(--bear)">-$${Math.abs(t.pnl).toFixed(2)}</td><td style="color:var(--bear)">${t.pnlPct.toFixed(1)}%</td><td>${t.stage}</td></tr>`
+    ).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:1rem">No losing trades yet</td></tr>';
+}
+
+// ── Export / Clear ───────────────────────────────────────────
+
+function exportTradesCSV() {
+    const trades = getTradeEntries();
+    if (!trades.length) return alert('No trades to export.');
+    const headers = ['date','ticker','dir','type','stage','entry','exit','qty','days','pnl','pnlPct','setup','exitReason'];
+    const rows = trades.map(t => headers.map(h => `"${String(t[h]||'').replace(/"/g,'""')}"`).join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `apex_trades_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
+
+function exportJournalCSV() {
+    const entries = getDailyEntries();
+    if (!entries.length) return alert('No journal entries to export.');
+    const headers = ['date','market','psychology','tradeCount','pnl','notes','rulesFollowed','rulesBroken'];
+    const rows = entries.map(e => headers.map(h => `"${String(e[h]||'').replace(/"/g,'""')}"`).join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `apex_journal_${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
+
+function clearAllJournalData() {
+    if (!confirm('Clear ALL journal and trade data? This cannot be undone.')) return;
+    if (!confirm('Are you absolutely sure? All entries will be permanently deleted.')) return;
+    localStorage.removeItem('apex_journal_daily');
+    localStorage.removeItem('apex_journal_trades');
+    renderDailyEntries();
+    renderTradeEntries();
+    renderStats();
+    alert('All journal data cleared.');
+}
+
+// Init journal
+document.getElementById('djDate').valueAsDate = new Date();
+renderDailyEntries();
 
 // ══════════════════════════════════════════════════════════════
 // MARKET BREADTH
