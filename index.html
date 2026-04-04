@@ -2022,6 +2022,7 @@ function addDailyEntry() {
     const entries = getDailyEntries();
     entries.unshift(entry);
     saveDailyEntries(entries);
+    saveJournalDailyToBackend(entry);
     ['djTradeCount','djPnl','djNotes','djRulesFollowed','djRulesBroken'].forEach(id => document.getElementById(id).value = '');
     renderDailyEntries();
 }
@@ -2030,6 +2031,7 @@ function deleteDailyEntry(id) {
     if (!confirm('Delete this journal entry?')) return;
     const entries = getDailyEntries().filter(e => e.id !== id);
     saveDailyEntries(entries);
+    deleteJournalDailyFromBackend(id);
     renderDailyEntries();
 }
 
@@ -2066,6 +2068,139 @@ function saveTradeEntries(entries) {
     localStorage.setItem('apex_journal_trades', JSON.stringify(entries));
 }
 
+// ── Journal Backend Sync ─────────────────────────────────────
+
+function saveJournalDailyToBackend(entry) {
+    try {
+        fetch(`${NEXUS_API}/api/journal/daily`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: entry.date,
+                market_condition: entry.market,
+                psychology: entry.psychology,
+                trades_count: entry.tradeCount,
+                daily_pnl: entry.pnl,
+                notes: entry.notes,
+                rules_followed: entry.rulesFollowed,
+                rules_broken: entry.rulesBroken,
+            })
+        }).then(() => console.log('[Journal] Daily entry synced to Postgres'))
+          .catch(e => console.warn('[Journal] Daily sync failed:', e.message));
+    } catch (e) { console.warn('[Journal] Daily sync error:', e.message); }
+}
+
+function saveTradeToBackend(trade) {
+    try {
+        fetch(`${NEXUS_API}/api/journal/trades`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                date: trade.date,
+                ticker: trade.ticker,
+                direction: trade.dir,
+                type: trade.type,
+                stage: trade.stage,
+                entry_price: trade.entry,
+                exit_price: trade.exit,
+                contracts: trade.qty,
+                days_in_trade: trade.days,
+                pnl: trade.pnl,
+                pnl_percent: trade.pnlPct,
+                is_winner: trade.pnl >= 0,
+                setup_notes: trade.setup,
+                exit_reason: trade.exitReason,
+            })
+        }).then(() => console.log(`[Journal] Trade synced to Postgres: ${trade.ticker}`))
+          .catch(e => console.warn('[Journal] Trade sync failed:', e.message));
+    } catch (e) { console.warn('[Journal] Trade sync error:', e.message); }
+}
+
+function deleteJournalDailyFromBackend(id) {
+    try {
+        fetch(`${NEXUS_API}/api/journal/daily/${id}`, { method: 'DELETE' })
+            .then(() => console.log(`[Journal] Daily entry ${id} deleted from Postgres`))
+            .catch(e => console.warn('[Journal] Daily delete failed:', e.message));
+    } catch (e) { console.warn('[Journal] Daily delete error:', e.message); }
+}
+
+function deleteTradeFromBackend(id) {
+    try {
+        fetch(`${NEXUS_API}/api/journal/trades/${id}`, { method: 'DELETE' })
+            .then(() => console.log(`[Journal] Trade ${id} deleted from Postgres`))
+            .catch(e => console.warn('[Journal] Trade delete failed:', e.message));
+    } catch (e) { console.warn('[Journal] Trade delete error:', e.message); }
+}
+
+async function syncJournalFromBackend() {
+    try {
+        const [dailyResp, tradesResp] = await Promise.all([
+            fetch(`${NEXUS_API}/api/journal/daily`).then(r => r.ok ? r.json() : null),
+            fetch(`${NEXUS_API}/api/journal/trades`).then(r => r.ok ? r.json() : null),
+        ]);
+
+        // Daily entries
+        const backendDaily = dailyResp?.entries || [];
+        if (backendDaily.length > 0) {
+            // Backend has data — use it as source of truth
+            const mapped = backendDaily.map(e => ({
+                id: e.id,
+                date: e.date,
+                market: e.market_condition || '',
+                psychology: e.psychology || '',
+                tradeCount: e.trades_count || 0,
+                pnl: e.daily_pnl || 0,
+                notes: e.notes || '',
+                rulesFollowed: e.rules_followed || '',
+                rulesBroken: e.rules_broken || '',
+            }));
+            saveDailyEntries(mapped);
+            console.log(`[Journal] Synced ${mapped.length} daily entries from Postgres`);
+        } else {
+            // Backend empty — seed from localStorage
+            const local = getDailyEntries();
+            if (local.length > 0) {
+                console.log(`[Journal] Backend empty — seeding ${local.length} daily entries`);
+                local.forEach(e => saveJournalDailyToBackend(e));
+            }
+        }
+
+        // Trades
+        const backendTrades = tradesResp?.trades || [];
+        if (backendTrades.length > 0) {
+            const mapped = backendTrades.map(t => ({
+                id: t.id,
+                date: t.date,
+                ticker: t.ticker,
+                dir: t.direction,
+                type: t.type,
+                stage: t.stage || '',
+                entry: t.entry_price || 0,
+                exit: t.exit_price || 0,
+                qty: t.contracts || 1,
+                days: t.days_in_trade || 0,
+                pnl: t.pnl || 0,
+                pnlPct: t.pnl_percent || 0,
+                setup: t.setup_notes || '',
+                exitReason: t.exit_reason || '',
+            }));
+            saveTradeEntries(mapped);
+            console.log(`[Journal] Synced ${mapped.length} trades from Postgres`);
+        } else {
+            const local = getTradeEntries();
+            if (local.length > 0) {
+                console.log(`[Journal] Backend empty — seeding ${local.length} trades`);
+                local.forEach(t => saveTradeToBackend(t));
+            }
+        }
+
+        renderDailyEntries();
+        renderTradeEntries();
+    } catch (e) {
+        console.warn('[Journal] Backend sync failed, using local data:', e.message);
+    }
+}
+
 function addTradeEntry() {
     const ticker = document.getElementById('jtTicker').value.trim().toUpperCase();
     const dir = document.getElementById('jtDir').value;
@@ -2094,6 +2229,7 @@ function addTradeEntry() {
     const trades = getTradeEntries();
     trades.unshift(trade);
     saveTradeEntries(trades);
+    saveTradeToBackend(trade);
     ['jtTicker','jtEntry','jtExit','jtQty','jtDays','jtSetup','jtExitReason'].forEach(id => document.getElementById(id).value = '');
     renderTradeEntries();
 }
@@ -2102,6 +2238,7 @@ function deleteTradeEntry(id) {
     if (!confirm('Delete this trade?')) return;
     const trades = getTradeEntries().filter(t => t.id !== id);
     saveTradeEntries(trades);
+    deleteTradeFromBackend(id);
     renderTradeEntries();
 }
 
@@ -2206,6 +2343,7 @@ function clearAllJournalData() {
 // Init journal
 document.getElementById('djDate').valueAsDate = new Date();
 renderDailyEntries();
+setTimeout(syncJournalFromBackend, 2000);
 
 // ══════════════════════════════════════════════════════════════
 // MARKET BREADTH
