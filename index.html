@@ -3085,7 +3085,7 @@ async function fetchUWData() {
 
 const INDEX_ETFS = new Set(['SPY', 'QQQ', 'IWM', 'DIA']);
 
-function gatherIndexContext(ticker) {
+async function gatherIndexContext(ticker) {
     const ctx = { ticker, type: 'index_etf' };
 
     // 1. Breadth snapshot (from global BD object)
@@ -3097,8 +3097,8 @@ function gatherIndexContext(ticker) {
             trin: BD.trin,
             mcclellan: BD.mcclellan,
             summation: BD.summation,
-            aboveMA: BD.aboveMA,          // [{label, pct}, ...]
-            sectorBreadth: BD.sectorBreadth // [{name, pct}, ...]
+            aboveMA: BD.aboveMA,
+            sectorBreadth: BD.sectorBreadth
         };
     }
 
@@ -3130,8 +3130,6 @@ function gatherIndexContext(ticker) {
         dist.pctStage2 = ((dist.s2 / dist.total) * 100).toFixed(1);
         dist.pctStage4 = ((dist.s4 / dist.total) * 100).toFixed(1);
         ctx.stageDistribution = dist;
-
-        // Flag hostile environment per Weinstein hard rule
         ctx.hostileEnvironment = parseFloat(dist.pctStage4) >= 60;
     }
 
@@ -3150,6 +3148,83 @@ function gatherIndexContext(ticker) {
                 });
             }
         }
+    }
+
+    // 6. Unusual Whales data (fire all in parallel, best-effort)
+    try {
+        const [flowRes, tideRes, ivRes, dpRes] = await Promise.allSettled([
+            fetch(`${NEXUS_API}/api/uw/flow-alerts?ticker=${ticker}&limit=10`).then(r => r.ok ? r.json() : null),
+            fetch(`${NEXUS_API}/api/uw/market-tide`).then(r => r.ok ? r.json() : null),
+            fetch(`${NEXUS_API}/api/uw/iv/${ticker}`).then(r => r.ok ? r.json() : null),
+            fetch(`${NEXUS_API}/api/uw/darkpool/${ticker}`).then(r => r.ok ? r.json() : null),
+        ]);
+
+        // Flow alerts — top 10 with call/put-aware sentiment
+        const flowData = flowRes.status === 'fulfilled' && flowRes.value?.data;
+        if (flowData && Array.isArray(flowData) && flowData.length > 0) {
+            ctx.uwFlowAlerts = flowData.slice(0, 10).map(f => {
+                const isCall = (f.type || '').toUpperCase() === 'CALL';
+                const askP = parseFloat(f.total_ask_side_prem || 0);
+                const bidP = parseFloat(f.total_bid_side_prem || 0);
+                const thresh = Math.max(askP, bidP) * 0.1;
+                let sentiment;
+                if (isCall) { sentiment = askP > bidP + thresh ? 'BULLISH' : bidP > askP + thresh ? 'BEARISH' : 'NEUTRAL'; }
+                else { sentiment = askP > bidP + thresh ? 'BEARISH' : bidP > askP + thresh ? 'BULLISH' : 'NEUTRAL'; }
+                return {
+                    type: isCall ? 'CALL' : 'PUT',
+                    strike: f.strike,
+                    expiry: f.expiry,
+                    premium: f.total_premium,
+                    sentiment,
+                    has_sweep: !!f.has_sweep,
+                };
+            });
+        }
+
+        // Market tide — net call vs put premium
+        const tideData = tideRes.status === 'fulfilled' && tideRes.value?.data;
+        if (tideData && Array.isArray(tideData) && tideData.length > 0) {
+            const latest = tideData[tideData.length - 1] || tideData[0];
+            const netCall = parseFloat(latest.net_call_premium || latest.call_premium || 0);
+            const netPut = parseFloat(latest.net_put_premium || latest.put_premium || 0);
+            ctx.uwMarketTide = {
+                netCallPremium: netCall,
+                netPutPremium: netPut,
+                dominant: netCall > netPut ? 'CALL' : 'PUT',
+            };
+        }
+
+        // IV context — 30-day record
+        const ivData = ivRes.status === 'fulfilled' && ivRes.value?.data;
+        if (ivData) {
+            const arr = Array.isArray(ivData) ? ivData : (ivData.data ? ivData.data : [ivData]);
+            const rec30 = arr.find(r => parseInt(r.days) === 30) || arr[arr.length - 1];
+            if (rec30) {
+                const pctile = parseFloat(rec30.percentile || 0) * 100;
+                const vol = parseFloat(rec30.volatility || 0) * 100;
+                const move = parseFloat(rec30.implied_move_perc || 0) * 100;
+                ctx.uwIV = {
+                    ivPercentile: +pctile.toFixed(1),
+                    currentIV: +vol.toFixed(1),
+                    impliedMove: +move.toFixed(1),
+                    premiumLabel: pctile > 70 ? 'RICH' : pctile < 30 ? 'CHEAP' : 'FAIR',
+                };
+            }
+        }
+
+        // Dark pool — 5 largest prints by notional
+        const dpData = dpRes.status === 'fulfilled' && dpRes.value?.data;
+        if (dpData && Array.isArray(dpData) && dpData.length > 0) {
+            ctx.uwDarkPool = dpData
+                .map(t => ({ ticker: t.ticker, price: parseFloat(t.price || 0), size: t.size || 0, notional: parseFloat(t.price || 0) * (t.size || 0) }))
+                .sort((a, b) => b.notional - a.notional)
+                .slice(0, 5)
+                .map(t => ({ ticker: t.ticker, price: t.price, size: t.size, notional: Math.round(t.notional) }));
+        }
+
+        console.log('[AI Context] UW data gathered:', { flow: ctx.uwFlowAlerts?.length || 0, tide: !!ctx.uwMarketTide, iv: !!ctx.uwIV, dp: ctx.uwDarkPool?.length || 0 });
+    } catch (e) {
+        console.warn('[AI Context] UW fetch failed (non-blocking):', e.message);
     }
 
     return ctx;
@@ -3195,7 +3270,7 @@ async function runAIAnalysis() {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 120000);
 
-            const indexCtx = gatherIndexContext(ticker);
+            const indexCtx = await gatherIndexContext(ticker);
             resp = await fetch(`${NEXUS_API}/api/ai/commentary/${ticker}`, {
                 method: 'POST',
                 headers: {
