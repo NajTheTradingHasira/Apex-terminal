@@ -911,6 +911,12 @@
 <!-- ── OPTIONS / COT ─────────────────────────────────── -->
 <div class="tab-content" id="options">
 
+    <!-- Market Tide (UW) -->
+    <div id="uwMarketTideCard" style="display:none;margin-bottom:1.5rem;padding:0.75rem 1rem;background:var(--surface-1);border-radius:0.5rem;border-left:3px solid var(--text-faint);font-size:0.875rem">
+        <span style="color:var(--text-faint);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em">Market Tide — Net Options Premium</span><br>
+        <span id="uwMarketTideText" style="font-weight:700;font-family:var(--font-mono)">—</span>
+    </div>
+
     <!-- Options Chain Runner -->
     <div class="runner-panel" style="background-color:var(--surface-1);padding:1.5rem;border-radius:0.5rem;border:1px solid var(--border-strong);margin-bottom:1.5rem">
         <div class="section-title">Options Chain Scanner</div>
@@ -920,6 +926,7 @@
                 <option value="">Nearest Expiry</option>
             </select>
             <button class="api-btn" id="optionsFetchBtn" onclick="fetchOptionsData()" style="margin:0;padding:0.5rem 1.25rem">▶ Load Chain</button>
+            <button class="api-btn" id="uwFetchBtn" onclick="fetchUWData()" style="margin:0;padding:0.5rem 1.25rem;background-color:rgba(224,64,251,0.15);color:#E040FB;border:1px solid rgba(224,64,251,0.3)">🐋 Whale Flow</button>
             <span id="optionsStatus" style="font-size:0.7rem;color:var(--text-faint);margin-left:auto"></span>
         </div>
     </div>
@@ -971,6 +978,42 @@
                 <thead><tr><th>Strike</th><th>Last</th><th>Bid</th><th>Ask</th><th>Vol</th><th>OI</th><th>IV%</th></tr></thead>
                 <tbody id="optionsPutsBody">
                     <tr><td colspan="7" style="text-align:center;color:var(--text-faint);padding:1.5rem;font-size:0.8rem">—</td></tr>
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- UW IV Context -->
+    <div id="uwIVCard" style="display:none;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--surface-1);border-radius:var(--r-lg);border:1px solid var(--border);box-shadow:var(--shadow-card)">
+        <div class="section-title" style="color:#E040FB">IV Context — Unusual Whales</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0.75rem" id="uwIVGrid"></div>
+    </div>
+
+    <!-- UW Flow Alerts -->
+    <div id="uwFlowSection" style="display:none;margin-bottom:1.5rem">
+        <div class="movers-section">
+            <div class="section-title" style="color:#E040FB">🐋 Unusual Options Flow — <span id="uwFlowTicker" style="color:var(--text-muted)">—</span></div>
+            <div style="max-height:400px;overflow-y:auto">
+            <table class="movers-table" style="font-size:0.8rem">
+                <thead><tr><th>Time</th><th>Ticker</th><th>Type</th><th>Strike</th><th>Expiry</th><th>Premium</th><th>Vol/OI</th><th>Sentiment</th></tr></thead>
+                <tbody id="uwFlowBody">
+                    <tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:2rem">Click "🐋 Whale Flow" to load</td></tr>
+                </tbody>
+            </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- UW Dark Pool Prints -->
+    <div id="uwDPSection" style="display:none;margin-bottom:1.5rem">
+        <div class="movers-section">
+            <div class="section-title" style="color:#E040FB">Dark Pool Prints — <span id="uwDPTicker" style="color:var(--text-muted)">—</span></div>
+            <div style="max-height:350px;overflow-y:auto">
+            <table class="movers-table" style="font-size:0.8rem">
+                <thead><tr><th>Time</th><th>Price</th><th>Shares</th><th>Notional</th><th>Signal</th></tr></thead>
+                <tbody id="uwDPBody">
+                    <tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:2rem">Click "🐋 Whale Flow" to load</td></tr>
                 </tbody>
             </table>
             </div>
@@ -2848,6 +2891,146 @@ document.getElementById('optionsTickerInput').addEventListener('keydown', (e) =>
 document.getElementById('optionsExpirySelect').addEventListener('change', () => {
     fetchOptionsData();
 });
+
+// ── Unusual Whales Integration ───────────────────────────────
+
+async function fetchUWData() {
+    const ticker = (document.getElementById('optionsTickerInput').value.trim().toUpperCase()) || 'SPY';
+    const btn = document.getElementById('uwFetchBtn');
+    const statusEl = document.getElementById('optionsStatus');
+
+    btn.textContent = '⏳ Loading...';
+    btn.disabled = true;
+    statusEl.textContent = `Fetching Unusual Whales data for ${ticker}...`;
+    statusEl.style.color = '#E040FB';
+
+    // Fetch all UW data in parallel
+    const [flowRes, dpRes, ivRes, tideRes] = await Promise.allSettled([
+        fetch(`${NEXUS_API}/api/uw/flow-alerts?ticker=${ticker}&limit=20`).then(r => r.ok ? r.json() : null),
+        fetch(`${NEXUS_API}/api/uw/darkpool/${ticker}`).then(r => r.ok ? r.json() : null),
+        fetch(`${NEXUS_API}/api/uw/iv/${ticker}`).then(r => r.ok ? r.json() : null),
+        fetch(`${NEXUS_API}/api/uw/market-tide`).then(r => r.ok ? r.json() : null),
+    ]);
+
+    // Market Tide
+    try {
+        const tide = tideRes.status === 'fulfilled' ? tideRes.value : null;
+        const tideCard = document.getElementById('uwMarketTideCard');
+        const tideText = document.getElementById('uwMarketTideText');
+        if (tide?.data && Array.isArray(tide.data) && tide.data.length > 0) {
+            const latest = tide.data[tide.data.length - 1] || tide.data[0];
+            const netCall = latest.net_call_premium || latest.call_premium || 0;
+            const netPut = latest.net_put_premium || latest.put_premium || 0;
+            const callDom = netCall > netPut;
+            tideCard.style.display = 'block';
+            tideCard.style.borderLeftColor = callDom ? 'var(--bull)' : 'var(--bear)';
+            const fmtPrem = (v) => { const a = Math.abs(v); return a >= 1e9 ? `$${(a/1e9).toFixed(1)}B` : a >= 1e6 ? `$${(a/1e6).toFixed(0)}M` : `$${(a/1e3).toFixed(0)}K`; };
+            tideText.innerHTML = `<span style="color:${callDom ? 'var(--bull)' : 'var(--bear)'}">${callDom ? '▲ CALL DOMINANT' : '▼ PUT DOMINANT'}</span> · Net Calls: ${fmtPrem(netCall)} · Net Puts: ${fmtPrem(netPut)}`;
+        } else { tideCard.style.display = 'none'; }
+    } catch { document.getElementById('uwMarketTideCard').style.display = 'none'; }
+
+    // IV Context
+    try {
+        const iv = ivRes.status === 'fulfilled' ? ivRes.value : null;
+        const ivCard = document.getElementById('uwIVCard');
+        const ivGrid = document.getElementById('uwIVGrid');
+        if (iv?.data) {
+            const d = Array.isArray(iv.data) ? iv.data[0] : iv.data;
+            const ivVal = parseFloat(d.implied_volatility || d.iv || d.iv30 || 0);
+            const hvVal = parseFloat(d.historical_volatility || d.hv || d.hv20 || d.hv30 || 0);
+            const ivPctile = parseFloat(d.iv_percentile || d.ivRank || d.iv_rank || 0);
+            const ratio = hvVal > 0 ? (ivVal / hvVal).toFixed(2) : '—';
+            const badge = ivVal > hvVal * 1.15 ? 'RICH' : ivVal < hvVal * 0.85 ? 'CHEAP' : 'FAIR';
+            const badgeColor = badge === 'RICH' ? 'var(--bear)' : badge === 'CHEAP' ? 'var(--bull)' : 'var(--warn)';
+            ivCard.style.display = 'block';
+            ivGrid.innerHTML = `
+                <div class="metric-card"><div class="metric-label">IV Percentile</div><div class="metric-value" style="font-size:1.25rem;color:${ivPctile > 70 ? 'var(--bear)' : ivPctile < 30 ? 'var(--bull)' : 'var(--text)'}">${ivPctile.toFixed(0)}%</div></div>
+                <div class="metric-card"><div class="metric-label">Current IV</div><div class="metric-value" style="font-size:1.25rem">${ivVal.toFixed(1)}%</div></div>
+                <div class="metric-card"><div class="metric-label">HV (20-Day)</div><div class="metric-value" style="font-size:1.25rem">${hvVal.toFixed(1)}%</div></div>
+                <div class="metric-card"><div class="metric-label">IV/HV Ratio</div><div class="metric-value" style="font-size:1.25rem">${ratio}×</div></div>
+                <div class="metric-card"><div class="metric-label">Premium</div><div class="metric-value" style="font-size:1.25rem;color:${badgeColor}">${badge}</div><div class="metric-subtitle">${badge === 'RICH' ? 'Sell structures' : badge === 'CHEAP' ? 'Buy structures' : 'Neutral'}</div></div>`;
+        } else { ivCard.style.display = 'none'; }
+    } catch { document.getElementById('uwIVCard').style.display = 'none'; }
+
+    // Flow Alerts
+    try {
+        const flow = flowRes.status === 'fulfilled' ? flowRes.value : null;
+        const flowSection = document.getElementById('uwFlowSection');
+        const flowBody = document.getElementById('uwFlowBody');
+        document.getElementById('uwFlowTicker').textContent = ticker;
+        if (flow?.data && Array.isArray(flow.data) && flow.data.length > 0) {
+            flowSection.style.display = 'block';
+            flowBody.innerHTML = flow.data.slice(0, 20).map(f => {
+                const sent = (f.sentiment || '').toUpperCase();
+                const sentColor = sent.includes('BULL') ? 'var(--bull)' : sent.includes('BEAR') ? 'var(--bear)' : 'var(--text-muted)';
+                const prem = parseFloat(f.total_premium || f.premium || 0);
+                const fmtPrem = prem >= 1e6 ? `$${(prem/1e6).toFixed(1)}M` : prem >= 1e3 ? `$${(prem/1e3).toFixed(0)}K` : `$${prem.toFixed(0)}`;
+                const vol = f.volume || '—';
+                const oi = f.open_interest || '—';
+                const volOI = oi !== '—' && vol !== '—' ? `${vol}/${oi}` : `${vol}`;
+                const ts = f.created_at || f.executed_at || f.date || '';
+                const time = ts ? new Date(ts).toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit'}) : '—';
+                return `<tr>
+                    <td style="color:var(--text-faint)">${time}</td>
+                    <td style="font-weight:700">${f.ticker_symbol || f.ticker || ticker}</td>
+                    <td style="color:${(f.option_type||'').toLowerCase()==='call' ? 'var(--bull)' : 'var(--bear)'}; font-weight:600">${(f.option_type||'—').toUpperCase()}</td>
+                    <td>$${parseFloat(f.strike_price || f.strike || 0).toFixed(2)}</td>
+                    <td style="color:var(--text-faint)">${f.expiration_date || f.expiry || '—'}</td>
+                    <td style="font-weight:600">${fmtPrem}</td>
+                    <td>${volOI}</td>
+                    <td><span style="font-size:0.75rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:0.2rem;background:${sentColor}18;color:${sentColor}">${sent || '—'}</span></td>
+                </tr>`;
+            }).join('');
+        } else {
+            flowSection.style.display = 'block';
+            flowBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:1.5rem">Unusual Whales flow data unavailable</td></tr>';
+        }
+    } catch {
+        document.getElementById('uwFlowSection').style.display = 'block';
+        document.getElementById('uwFlowBody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:1.5rem">Unusual Whales data unavailable</td></tr>';
+    }
+
+    // Dark Pool Prints
+    try {
+        const dp = dpRes.status === 'fulfilled' ? dpRes.value : null;
+        const dpSection = document.getElementById('uwDPSection');
+        const dpBody = document.getElementById('uwDPBody');
+        document.getElementById('uwDPTicker').textContent = ticker;
+        if (dp?.data && Array.isArray(dp.data) && dp.data.length > 0) {
+            dpSection.style.display = 'block';
+            dpBody.innerHTML = dp.data.slice(0, 20).map(t => {
+                const price = parseFloat(t.price || 0);
+                const shares = t.size || t.volume || 0;
+                const notional = price * shares;
+                const bid = parseFloat(t.nbbo_bid || price);
+                const ask = parseFloat(t.nbbo_ask || price);
+                const mid = (bid + ask) / 2;
+                const isBuy = price >= mid;
+                const ts = t.executed_at ? new Date(t.executed_at).toLocaleTimeString('en-US', {hour12:false}) : '—';
+                const fmtN = notional >= 1e6 ? `$${(notional/1e6).toFixed(1)}M` : notional >= 1e3 ? `$${(notional/1e3).toFixed(0)}K` : `$${notional.toFixed(0)}`;
+                const fmtS = shares >= 1e6 ? `${(shares/1e6).toFixed(1)}M` : shares >= 1e3 ? `${(shares/1e3).toFixed(0)}K` : shares;
+                return `<tr>
+                    <td style="color:var(--text-faint)">${ts}</td>
+                    <td style="font-weight:600;color:${isBuy ? 'var(--bull)' : 'var(--bear)'}">$${price.toFixed(2)}</td>
+                    <td style="font-weight:600">${fmtS}</td>
+                    <td>${fmtN}</td>
+                    <td><span style="font-size:0.75rem;font-weight:700;color:${isBuy ? 'var(--bull)' : 'var(--bear)'}">${isBuy ? '▲ BUY' : '▼ SELL'}</span></td>
+                </tr>`;
+            }).join('');
+        } else {
+            dpSection.style.display = 'block';
+            dpBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:1.5rem">Dark pool data unavailable for this ticker</td></tr>';
+        }
+    } catch {
+        document.getElementById('uwDPSection').style.display = 'block';
+        document.getElementById('uwDPBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:1.5rem">Unusual Whales data unavailable</td></tr>';
+    }
+
+    btn.textContent = '🐋 Whale Flow';
+    btn.disabled = false;
+    statusEl.textContent = `✓ Unusual Whales data loaded for ${ticker}`;
+    statusEl.style.color = '#E040FB';
+}
 
 // ══════════════════════════════════════════════════════════════
 // AI ANALYSIS ENGINE — Claude-powered market commentary
