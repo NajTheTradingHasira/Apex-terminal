@@ -2937,10 +2937,6 @@ async function fetchUWData() {
         if (iv?.data) {
             const raw = iv.data;
             const d = Array.isArray(raw) ? raw[raw.length - 1] || raw[0] : raw;
-            console.log('UW IV raw response:', iv);
-            console.log('UW IV data sample:', d);
-            console.log('UW IV all keys:', d ? Object.keys(d) : 'null');
-
             // Try many possible field names from UW API
             const findNum = (...keys) => { for (const k of keys) { const v = parseFloat(d?.[k]); if (!isNaN(v) && v > 0) return v; } return 0; };
             const ivVal = findNum('implied_volatility', 'iv', 'iv30', 'iv_30', 'current_iv', 'interpolated_iv', 'atm_iv') * (findNum('implied_volatility', 'iv', 'iv30') < 1 ? 100 : 1);
@@ -2974,42 +2970,46 @@ async function fetchUWData() {
         const flowData = flow?.data || [];
         const flowArr = Array.isArray(flowData) ? flowData : (flowData.data || []);
         if (flowArr.length > 0) {
-            console.log('UW flow alert sample:', flowArr[0]);
-            console.log('UW flow alert keys:', Object.keys(flowArr[0]));
             flowSection.style.display = 'block';
             flowBody.innerHTML = flowArr.slice(0, 20).map(f => {
-                // Type: try many field names — put_call, option_type, type, is_call
-                const typeRaw = f.put_call || f.option_type || f.type || f.option_activity_type || '';
-                const isCall = typeRaw.toLowerCase().includes('call') || typeRaw === 'C' || f.is_call === true;
-                const isPut = typeRaw.toLowerCase().includes('put') || typeRaw === 'P' || f.is_put === true;
-                const typeLabel = isCall ? 'CALL' : isPut ? 'PUT' : typeRaw.toUpperCase() || '—';
-                const typeColor = isCall ? 'var(--bull)' : isPut ? 'var(--bear)' : 'var(--text-muted)';
+                // Type: use "type" field directly
+                const typeRaw = (f.type || '').toUpperCase();
+                const isCall = typeRaw === 'CALL' || typeRaw === 'C';
+                const typeLabel = isCall ? 'CALL' : 'PUT';
+                const typeColor = isCall ? 'var(--bull)' : 'var(--bear)';
+                const sweep = f.has_sweep ? '<span style="font-size:0.6rem;margin-left:4px;padding:1px 4px;border-radius:2px;background:rgba(255,183,77,0.15);color:var(--warn);font-weight:700">SWEEP</span>' : '';
 
-                // Sentiment: try sentiment, bid_side/ask_side, side
-                const sentRaw = f.sentiment || f.trade_sentiment || '';
-                const side = f.side || f.bid_side_ask_side || '';
-                let sent = sentRaw.toUpperCase();
-                if (!sent && side) sent = side.toUpperCase().includes('ASK') || side.toUpperCase().includes('ABOVE') ? 'BULLISH' : side.toUpperCase().includes('BID') || side.toUpperCase().includes('BELOW') ? 'BEARISH' : 'NEUTRAL';
-                if (!sent && f.is_ask) sent = 'BULLISH';
-                if (!sent && f.is_bid) sent = 'BEARISH';
-                const sentColor = sent.includes('BULL') ? 'var(--bull)' : sent.includes('BEAR') ? 'var(--bear)' : 'var(--text-muted)';
+                // Sentiment: compare total_ask_side_prem vs total_bid_side_prem
+                const askPrem = parseFloat(f.total_ask_side_prem || 0);
+                const bidPrem = parseFloat(f.total_bid_side_prem || 0);
+                const sent = askPrem > bidPrem ? 'BULLISH' : bidPrem > askPrem ? 'BEARISH' : 'NEUTRAL';
+                const sentColor = sent === 'BULLISH' ? 'var(--bull)' : sent === 'BEARISH' ? 'var(--bear)' : 'var(--text-muted)';
 
-                const prem = parseFloat(f.total_premium || f.premium || f.cost_basis || 0);
+                // Premium: use total_premium
+                const prem = parseFloat(f.total_premium || 0);
                 const fmtPrem = prem >= 1e6 ? `$${(prem/1e6).toFixed(1)}M` : prem >= 1e3 ? `$${(prem/1e3).toFixed(0)}K` : `$${prem.toFixed(0)}`;
-                const vol = f.volume || f.size || '—';
-                const oi = f.open_interest || f.oi || '—';
-                const volOI = oi !== '—' && vol !== '—' ? `${vol}/${oi}` : `${vol}`;
-                const ts = f.created_at || f.executed_at || f.date || f.alert_time || '';
+
+                // Vol/OI
+                const vol = f.volume != null ? Number(f.volume).toLocaleString() : '—';
+                const oi = f.open_interest != null ? Number(f.open_interest).toLocaleString() : '—';
+
+                // Time: use start_time
+                const ts = f.start_time || '';
                 const time = ts ? new Date(ts).toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit'}) : '—';
+
+                // Strike + Expiry
+                const strike = parseFloat(f.strike || 0);
+                const expiry = f.expiry || '—';
+
                 return `<tr>
                     <td style="color:var(--text-faint)">${time}</td>
-                    <td style="font-weight:700">${f.ticker_symbol || f.ticker || f.underlying_symbol || ticker}</td>
-                    <td style="color:${typeColor}; font-weight:600">${typeLabel}</td>
-                    <td>$${parseFloat(f.strike_price || f.strike || 0).toFixed(2)}</td>
-                    <td style="color:var(--text-faint)">${f.expiration_date || f.expires_at || f.expiry || '—'}</td>
+                    <td style="font-weight:700">${f.ticker || ticker}</td>
+                    <td style="color:${typeColor}; font-weight:600">${typeLabel}${sweep}</td>
+                    <td>$${strike.toFixed(2)}</td>
+                    <td style="color:var(--text-faint)">${expiry}</td>
                     <td style="font-weight:600">${fmtPrem}</td>
-                    <td>${volOI}</td>
-                    <td><span style="font-size:0.75rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:0.2rem;background:${sentColor}18;color:${sentColor}">${sent || '—'}</span></td>
+                    <td>${vol}/${oi}</td>
+                    <td><span style="font-size:0.75rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:0.2rem;background:${sentColor}18;color:${sentColor}">${sent}</span></td>
                 </tr>`;
             }).join('');
         } else {
