@@ -2935,20 +2935,33 @@ async function fetchUWData() {
         const ivCard = document.getElementById('uwIVCard');
         const ivGrid = document.getElementById('uwIVGrid');
         if (iv?.data) {
-            const d = Array.isArray(iv.data) ? iv.data[0] : iv.data;
-            const ivVal = parseFloat(d.implied_volatility || d.iv || d.iv30 || 0);
-            const hvVal = parseFloat(d.historical_volatility || d.hv || d.hv20 || d.hv30 || 0);
-            const ivPctile = parseFloat(d.iv_percentile || d.ivRank || d.iv_rank || 0);
-            const ratio = hvVal > 0 ? (ivVal / hvVal).toFixed(2) : '—';
-            const badge = ivVal > hvVal * 1.15 ? 'RICH' : ivVal < hvVal * 0.85 ? 'CHEAP' : 'FAIR';
-            const badgeColor = badge === 'RICH' ? 'var(--bear)' : badge === 'CHEAP' ? 'var(--bull)' : 'var(--warn)';
-            ivCard.style.display = 'block';
-            ivGrid.innerHTML = `
-                <div class="metric-card"><div class="metric-label">IV Percentile</div><div class="metric-value" style="font-size:1.25rem;color:${ivPctile > 70 ? 'var(--bear)' : ivPctile < 30 ? 'var(--bull)' : 'var(--text)'}">${ivPctile.toFixed(0)}%</div></div>
-                <div class="metric-card"><div class="metric-label">Current IV</div><div class="metric-value" style="font-size:1.25rem">${ivVal.toFixed(1)}%</div></div>
-                <div class="metric-card"><div class="metric-label">HV (20-Day)</div><div class="metric-value" style="font-size:1.25rem">${hvVal.toFixed(1)}%</div></div>
-                <div class="metric-card"><div class="metric-label">IV/HV Ratio</div><div class="metric-value" style="font-size:1.25rem">${ratio}×</div></div>
-                <div class="metric-card"><div class="metric-label">Premium</div><div class="metric-value" style="font-size:1.25rem;color:${badgeColor}">${badge}</div><div class="metric-subtitle">${badge === 'RICH' ? 'Sell structures' : badge === 'CHEAP' ? 'Buy structures' : 'Neutral'}</div></div>`;
+            const raw = iv.data;
+            const d = Array.isArray(raw) ? raw[raw.length - 1] || raw[0] : raw;
+            console.log('UW IV raw response:', iv);
+            console.log('UW IV data sample:', d);
+            console.log('UW IV all keys:', d ? Object.keys(d) : 'null');
+
+            // Try many possible field names from UW API
+            const findNum = (...keys) => { for (const k of keys) { const v = parseFloat(d?.[k]); if (!isNaN(v) && v > 0) return v; } return 0; };
+            const ivVal = findNum('implied_volatility', 'iv', 'iv30', 'iv_30', 'current_iv', 'interpolated_iv', 'atm_iv') * (findNum('implied_volatility', 'iv', 'iv30') < 1 ? 100 : 1);
+            const hvVal = findNum('historical_volatility', 'hv', 'hv20', 'hv_20', 'hv30', 'hv_30', 'realized_volatility') * (findNum('historical_volatility', 'hv', 'hv20') < 1 ? 100 : 1);
+            const ivPctile = findNum('iv_percentile', 'iv_rank', 'ivRank', 'percentile', 'iv_pct');
+
+            if (ivVal === 0 && hvVal === 0 && ivPctile === 0) {
+                ivCard.style.display = 'block';
+                ivGrid.innerHTML = '<div class="metric-card" style="grid-column:1/-1"><div class="metric-label">IV Context</div><div class="metric-value" style="font-size:1rem;color:var(--text-faint)">N/A — data unavailable for this ticker</div></div>';
+            } else {
+                const ratio = hvVal > 0 ? (ivVal / hvVal).toFixed(2) : '—';
+                const badge = ivVal > 0 && hvVal > 0 ? (ivVal > hvVal * 1.15 ? 'RICH' : ivVal < hvVal * 0.85 ? 'CHEAP' : 'FAIR') : 'N/A';
+                const badgeColor = badge === 'RICH' ? 'var(--bear)' : badge === 'CHEAP' ? 'var(--bull)' : badge === 'FAIR' ? 'var(--warn)' : 'var(--text-faint)';
+                ivCard.style.display = 'block';
+                ivGrid.innerHTML = `
+                    <div class="metric-card"><div class="metric-label">IV Percentile</div><div class="metric-value" style="font-size:1.25rem;color:${ivPctile > 70 ? 'var(--bear)' : ivPctile < 30 ? 'var(--bull)' : 'var(--text)'}">${ivPctile > 0 ? ivPctile.toFixed(0) + '%' : 'N/A'}</div></div>
+                    <div class="metric-card"><div class="metric-label">Current IV</div><div class="metric-value" style="font-size:1.25rem">${ivVal > 0 ? ivVal.toFixed(1) + '%' : 'N/A'}</div></div>
+                    <div class="metric-card"><div class="metric-label">HV (20-Day)</div><div class="metric-value" style="font-size:1.25rem">${hvVal > 0 ? hvVal.toFixed(1) + '%' : 'N/A'}</div></div>
+                    <div class="metric-card"><div class="metric-label">IV/HV Ratio</div><div class="metric-value" style="font-size:1.25rem">${ratio}×</div></div>
+                    <div class="metric-card"><div class="metric-label">Premium</div><div class="metric-value" style="font-size:1.25rem;color:${badgeColor}">${badge}</div><div class="metric-subtitle">${badge === 'RICH' ? 'Sell structures' : badge === 'CHEAP' ? 'Buy structures' : badge === 'FAIR' ? 'Neutral' : ''}</div></div>`;
+            }
         } else { ivCard.style.display = 'none'; }
     } catch { document.getElementById('uwIVCard').style.display = 'none'; }
 
@@ -2958,24 +2971,42 @@ async function fetchUWData() {
         const flowSection = document.getElementById('uwFlowSection');
         const flowBody = document.getElementById('uwFlowBody');
         document.getElementById('uwFlowTicker').textContent = ticker;
-        if (flow?.data && Array.isArray(flow.data) && flow.data.length > 0) {
+        const flowData = flow?.data || [];
+        const flowArr = Array.isArray(flowData) ? flowData : (flowData.data || []);
+        if (flowArr.length > 0) {
+            console.log('UW flow alert sample:', flowArr[0]);
+            console.log('UW flow alert keys:', Object.keys(flowArr[0]));
             flowSection.style.display = 'block';
-            flowBody.innerHTML = flow.data.slice(0, 20).map(f => {
-                const sent = (f.sentiment || '').toUpperCase();
+            flowBody.innerHTML = flowArr.slice(0, 20).map(f => {
+                // Type: try many field names — put_call, option_type, type, is_call
+                const typeRaw = f.put_call || f.option_type || f.type || f.option_activity_type || '';
+                const isCall = typeRaw.toLowerCase().includes('call') || typeRaw === 'C' || f.is_call === true;
+                const isPut = typeRaw.toLowerCase().includes('put') || typeRaw === 'P' || f.is_put === true;
+                const typeLabel = isCall ? 'CALL' : isPut ? 'PUT' : typeRaw.toUpperCase() || '—';
+                const typeColor = isCall ? 'var(--bull)' : isPut ? 'var(--bear)' : 'var(--text-muted)';
+
+                // Sentiment: try sentiment, bid_side/ask_side, side
+                const sentRaw = f.sentiment || f.trade_sentiment || '';
+                const side = f.side || f.bid_side_ask_side || '';
+                let sent = sentRaw.toUpperCase();
+                if (!sent && side) sent = side.toUpperCase().includes('ASK') || side.toUpperCase().includes('ABOVE') ? 'BULLISH' : side.toUpperCase().includes('BID') || side.toUpperCase().includes('BELOW') ? 'BEARISH' : 'NEUTRAL';
+                if (!sent && f.is_ask) sent = 'BULLISH';
+                if (!sent && f.is_bid) sent = 'BEARISH';
                 const sentColor = sent.includes('BULL') ? 'var(--bull)' : sent.includes('BEAR') ? 'var(--bear)' : 'var(--text-muted)';
-                const prem = parseFloat(f.total_premium || f.premium || 0);
+
+                const prem = parseFloat(f.total_premium || f.premium || f.cost_basis || 0);
                 const fmtPrem = prem >= 1e6 ? `$${(prem/1e6).toFixed(1)}M` : prem >= 1e3 ? `$${(prem/1e3).toFixed(0)}K` : `$${prem.toFixed(0)}`;
-                const vol = f.volume || '—';
-                const oi = f.open_interest || '—';
+                const vol = f.volume || f.size || '—';
+                const oi = f.open_interest || f.oi || '—';
                 const volOI = oi !== '—' && vol !== '—' ? `${vol}/${oi}` : `${vol}`;
-                const ts = f.created_at || f.executed_at || f.date || '';
+                const ts = f.created_at || f.executed_at || f.date || f.alert_time || '';
                 const time = ts ? new Date(ts).toLocaleTimeString('en-US', {hour12:false, hour:'2-digit', minute:'2-digit'}) : '—';
                 return `<tr>
                     <td style="color:var(--text-faint)">${time}</td>
-                    <td style="font-weight:700">${f.ticker_symbol || f.ticker || ticker}</td>
-                    <td style="color:${(f.option_type||'').toLowerCase()==='call' ? 'var(--bull)' : 'var(--bear)'}; font-weight:600">${(f.option_type||'—').toUpperCase()}</td>
+                    <td style="font-weight:700">${f.ticker_symbol || f.ticker || f.underlying_symbol || ticker}</td>
+                    <td style="color:${typeColor}; font-weight:600">${typeLabel}</td>
                     <td>$${parseFloat(f.strike_price || f.strike || 0).toFixed(2)}</td>
-                    <td style="color:var(--text-faint)">${f.expiration_date || f.expiry || '—'}</td>
+                    <td style="color:var(--text-faint)">${f.expiration_date || f.expires_at || f.expiry || '—'}</td>
                     <td style="font-weight:600">${fmtPrem}</td>
                     <td>${volOI}</td>
                     <td><span style="font-size:0.75rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:0.2rem;background:${sentColor}18;color:${sentColor}">${sent || '—'}</span></td>
