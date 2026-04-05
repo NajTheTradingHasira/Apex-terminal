@@ -535,13 +535,13 @@
         </div>
         <div class="metric-card">
             <div class="metric-label">VIX</div>
-            <div class="metric-value positive" id="dashVixVal">29.42</div>
-            <div class="metric-subtitle" id="dashVixSub">+22.4% · Fear Elevated</div>
+            <div class="metric-value" id="dashVixVal">—</div>
+            <div class="metric-subtitle" id="dashVixSub">Loading...</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">Put/Call Ratio</div>
-            <div class="metric-value" id="dashPCRVal">1.14</div>
-            <div class="metric-subtitle" id="dashPCRSub">Bearish · 30d avg 0.84</div>
+            <div class="metric-value" id="dashPCRVal">—</div>
+            <div class="metric-subtitle" id="dashPCRSub">Load options data</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">Sector Leader</div>
@@ -2739,6 +2739,12 @@ function renderOptionsSummary(data) {
     document.getElementById('opt-pcr-vol').innerHTML = `<span style="color:${pcrColor}">${s.putCallRatioVolume.toFixed(2)}</span>`;
     document.getElementById('opt-pcr-sub').textContent = `${pcrLabel} · C:${s.callVolume.toLocaleString()} P:${s.putVolume.toLocaleString()}`;
 
+    // Update dashboard P/C ratio card
+    const dashPCR = document.getElementById('dashPCRVal');
+    if (dashPCR) { dashPCR.textContent = s.putCallRatioVolume.toFixed(2); dashPCR.className = `metric-value ${s.putCallRatioVolume > 1 ? 'negative' : s.putCallRatioVolume < 0.7 ? 'positive' : ''}`; }
+    const dashPCRSub = document.getElementById('dashPCRSub');
+    if (dashPCRSub) dashPCRSub.textContent = `${pcrLabel} · C:${s.callVolume.toLocaleString()} P:${s.putVolume.toLocaleString()}`;
+
     const oiColor = s.putCallRatioOI > 1.0 ? 'var(--bear)' : s.putCallRatioOI < 0.7 ? 'var(--bull)' : 'var(--warn)';
     document.getElementById('opt-pcr-oi').innerHTML = `<span style="color:${oiColor}">${s.putCallRatioOI.toFixed(2)}</span>`;
     document.getElementById('opt-pcr-oi-sub').textContent = `C:${s.callOI.toLocaleString()} P:${s.putOI.toLocaleString()}`;
@@ -2783,6 +2789,12 @@ function renderChainOnlySummary(calls, puts, ticker) {
     const pcrColor = pcr > 1.0 ? 'var(--bear)' : pcr < 0.7 ? 'var(--bull)' : 'var(--warn)';
     document.getElementById('opt-pcr-vol').innerHTML = `<span style="color:${pcrColor}">${pcr.toFixed(2)}</span>`;
     document.getElementById('opt-pcr-sub').textContent = `C:${callVol.toLocaleString()} P:${putVol.toLocaleString()}`;
+
+    // Update dashboard P/C ratio card (fallback path)
+    const dashPCR2 = document.getElementById('dashPCRVal');
+    if (dashPCR2) { dashPCR2.textContent = pcr.toFixed(2); dashPCR2.className = `metric-value ${pcr > 1 ? 'negative' : pcr < 0.7 ? 'positive' : ''}`; }
+    const dashPCRSub2 = document.getElementById('dashPCRSub');
+    if (dashPCRSub2) dashPCRSub2.textContent = `${pcr > 1.2 ? 'Bearish' : pcr < 0.7 ? 'Bullish' : 'Neutral'} · C:${callVol.toLocaleString()} P:${putVol.toLocaleString()}`;
 
     const oiColor = pcrOI > 1.0 ? 'var(--bear)' : pcrOI < 0.7 ? 'var(--bull)' : 'var(--warn)';
     document.getElementById('opt-pcr-oi').innerHTML = `<span style="color:${oiColor}">${pcrOI.toFixed(2)}</span>`;
