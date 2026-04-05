@@ -3588,6 +3588,7 @@ function updateTickerStrip() {
 
 // Dashboard metric cards (VIX card)
 function updateDashboardCards() {
+    // VIX
     const vix = PRICE_CACHE['^VIX'];
     if (vix) {
         const vixValEl = document.getElementById('dashVixVal');
@@ -3601,21 +3602,51 @@ function updateDashboardCards() {
         }
     }
 
-    // Sector leader — find the best performing heatmap sector
+    // Market Breadth
+    const breadthVal = document.getElementById('dashBreadthVal');
+    const breadthSub = document.getElementById('dashBreadthSub');
+    if (breadthVal && typeof BD !== 'undefined') {
+        const adv = BD.advancing || 0;
+        const dec = BD.declining || 0;
+        const ratio = dec > 0 ? (adv / dec) : 0;
+        breadthVal.textContent = `${adv.toLocaleString()} / ${dec.toLocaleString()}`;
+        breadthVal.className = `metric-value ${ratio >= 1 ? 'positive' : 'negative'}`;
+        if (breadthSub) breadthSub.textContent = `Adv/Dec · NYSE · Ratio ${ratio.toFixed(2)}`;
+    }
+
+    // Sector leader — best performing heatmap sector OR breadth leader
+    const sectorVal = document.getElementById('dashSectorVal');
+    const sectorSub = document.getElementById('dashSectorSub');
     let bestSector = null, bestAvg = -Infinity;
-    HEATMAP_DATA.forEach(sector => {
-        const vals = sector.stocks.map(s => {
-            const d = PRICE_CACHE[s.sym];
-            return d ? parseFloat(d.dayPct) : s.chg;
+    if (typeof HEATMAP_DATA !== 'undefined') {
+        HEATMAP_DATA.forEach(sector => {
+            const vals = sector.stocks.map(s => {
+                const d = PRICE_CACHE[s.sym];
+                return d ? parseFloat(d.dayPct) : s.chg;
+            });
+            const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
+            if (avg > bestAvg) { bestAvg = avg; bestSector = sector.sector; }
         });
-        const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-        if (avg > bestAvg) { bestAvg = avg; bestSector = sector.sector; }
-    });
-    if (bestSector) {
-        const sectorCard = document.querySelector('#dashboard .metric-card:nth-child(4)');
-        if (sectorCard) {
-            sectorCard.querySelector('.metric-value').textContent = bestSector;
-            sectorCard.querySelector('.metric-subtitle').textContent = `Avg ${fmtPct(bestAvg.toFixed(2))} today`;
+    }
+    if (bestSector && sectorVal) {
+        sectorVal.textContent = bestSector;
+        if (sectorSub) sectorSub.textContent = `Avg ${fmtPct(bestAvg.toFixed(2))} today`;
+    } else if (sectorVal && typeof BD !== 'undefined' && BD.sectorBreadth && BD.sectorBreadth.length > 0) {
+        const top = BD.sectorBreadth[0];
+        sectorVal.textContent = top.name || '—';
+        if (sectorSub) sectorSub.textContent = `${top.pct}% breadth · Leading sector`;
+    }
+
+    // Put/Call Ratio — from options data if loaded
+    const pcrVal = document.getElementById('dashPCRVal');
+    const pcrSub = document.getElementById('dashPCRSub');
+    const optPcr = document.getElementById('opt-pcr-vol');
+    if (pcrVal && optPcr && optPcr.textContent !== '—') {
+        const pcr = parseFloat(optPcr.textContent);
+        if (!isNaN(pcr)) {
+            pcrVal.textContent = pcr.toFixed(2);
+            pcrVal.className = `metric-value ${pcr > 1 ? 'negative' : pcr < 0.7 ? 'positive' : ''}`;
+            if (pcrSub) pcrSub.textContent = pcr > 1.2 ? 'Bearish · Heavy put buying' : pcr > 1 ? 'Bearish · Elevated' : pcr < 0.7 ? 'Bullish · Call heavy' : 'Neutral';
         }
     }
 }
@@ -4379,42 +4410,6 @@ document.getElementById('newsTickerInput').addEventListener('keydown', (e) => {
 });
 
 // ── 7c. MARKET BREADTH — live data from Nexus backend ──────
-function updateDashboardCards() {
-    // Market Breadth
-    const breadthVal = document.getElementById('dashBreadthVal');
-    const breadthSub = document.getElementById('dashBreadthSub');
-    if (breadthVal && typeof BD !== 'undefined') {
-        const adv = BD.advancing || 0;
-        const dec = BD.declining || 0;
-        const ratio = dec > 0 ? (adv / dec) : 0;
-        breadthVal.textContent = `${adv.toLocaleString()} / ${dec.toLocaleString()}`;
-        breadthVal.className = `metric-value ${ratio >= 1 ? 'positive' : 'negative'}`;
-        if (breadthSub) breadthSub.textContent = `Adv/Dec · NYSE · Ratio ${ratio.toFixed(2)}`;
-    }
-
-    // Sector Leader — top sector by breadth %
-    const sectorVal = document.getElementById('dashSectorVal');
-    const sectorSub = document.getElementById('dashSectorSub');
-    if (sectorVal && typeof BD !== 'undefined' && BD.sectorBreadth && BD.sectorBreadth.length > 0) {
-        const top = BD.sectorBreadth[0];
-        sectorVal.textContent = top.name || '—';
-        if (sectorSub) sectorSub.textContent = `${top.pct}% breadth · Leading sector`;
-    }
-
-    // Put/Call Ratio — from options data if available
-    const pcrVal = document.getElementById('dashPCRVal');
-    const pcrSub = document.getElementById('dashPCRSub');
-    const optPcr = document.getElementById('opt-pcr-vol');
-    if (pcrVal && optPcr && optPcr.textContent !== '—') {
-        const pcr = parseFloat(optPcr.textContent);
-        if (!isNaN(pcr)) {
-            pcrVal.textContent = pcr.toFixed(2);
-            pcrVal.className = `metric-value ${pcr > 1 ? 'negative' : pcr < 0.7 ? 'positive' : ''}`;
-            if (pcrSub) pcrSub.textContent = pcr > 1.2 ? 'Bearish · Heavy put buying' : pcr > 1 ? 'Bearish · Elevated' : pcr < 0.7 ? 'Bullish · Call heavy' : 'Neutral';
-        }
-    }
-}
-
 async function fetchBreadthData() {
     console.log('[APEX Breadth] Fetching live breadth data...');
     try {
