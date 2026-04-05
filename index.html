@@ -2987,11 +2987,19 @@ async function fetchUWData() {
                 const typeColor = isCall ? 'var(--bull)' : 'var(--bear)';
                 const sweep = f.has_sweep ? '<span style="font-size:0.6rem;margin-left:4px;padding:1px 4px;border-radius:2px;background:rgba(255,183,77,0.15);color:var(--warn);font-weight:700">SWEEP</span>' : '';
 
-                // Sentiment: compare total_ask_side_prem vs total_bid_side_prem
+                // Sentiment: ask vs bid, inverted for puts
                 const askPrem = parseFloat(f.total_ask_side_prem || 0);
                 const bidPrem = parseFloat(f.total_bid_side_prem || 0);
-                const sent = askPrem > bidPrem ? 'BULLISH' : bidPrem > askPrem ? 'BEARISH' : 'NEUTRAL';
-                const sentColor = sent === 'BULLISH' ? 'var(--bull)' : sent === 'BEARISH' ? 'var(--bear)' : 'var(--text-muted)';
+                const threshold = Math.max(askPrem, bidPrem) * 0.1;
+                const askDominant = askPrem > bidPrem + threshold;
+                const bidDominant = bidPrem > askPrem + threshold;
+                let sent;
+                if (isCall) {
+                    sent = askDominant ? 'BULLISH' : bidDominant ? 'BEARISH' : 'NEUTRAL';
+                } else {
+                    sent = askDominant ? 'BEARISH' : bidDominant ? 'BULLISH' : 'NEUTRAL';
+                }
+                const sentColor = sent === 'BULLISH' ? 'var(--bull)' : sent === 'BEARISH' ? 'var(--bear)' : 'var(--warn)';
 
                 // Premium: use total_premium
                 const prem = parseFloat(f.total_premium || 0);
