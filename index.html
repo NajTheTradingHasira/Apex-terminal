@@ -2919,9 +2919,12 @@ async function fetchUWData() {
         const tideText = document.getElementById('uwMarketTideText');
         if (tide?.data && Array.isArray(tide.data) && tide.data.length > 0) {
             const latest = tide.data[tide.data.length - 1] || tide.data[0];
-            const netCall = latest.net_call_premium || latest.call_premium || 0;
-            const netPut = latest.net_put_premium || latest.put_premium || 0;
-            const callDom = netCall > netPut;
+            const netCall = parseFloat(latest.net_call_premium || latest.call_premium || 0);
+            const netPut = parseFloat(latest.net_put_premium || latest.put_premium || 0);
+            // Compare absolute values — larger absolute premium = dominant side
+            const absCall = Math.abs(netCall);
+            const absPut = Math.abs(netPut);
+            const callDom = absCall > absPut;
             tideCard.style.display = 'block';
             tideCard.style.borderLeftColor = callDom ? 'var(--bull)' : 'var(--bear)';
             const fmtPrem = (v) => { const a = Math.abs(v); return a >= 1e9 ? `$${(a/1e9).toFixed(1)}B` : a >= 1e6 ? `$${(a/1e6).toFixed(0)}M` : `$${(a/1e3).toFixed(0)}K`; };
