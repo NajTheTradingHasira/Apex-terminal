@@ -530,23 +530,23 @@
     <div class="dashboard-grid">
         <div class="metric-card">
             <div class="metric-label">Market Breadth</div>
-            <div class="metric-value negative">1,847 / 3,112</div>
-            <div class="metric-subtitle">Adv/Dec · NYSE</div>
+            <div class="metric-value negative" id="dashBreadthVal">1,847 / 3,112</div>
+            <div class="metric-subtitle" id="dashBreadthSub">Adv/Dec · NYSE</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">VIX</div>
-            <div class="metric-value positive">29.42</div>
-            <div class="metric-subtitle">+22.4% · Fear Elevated</div>
+            <div class="metric-value positive" id="dashVixVal">29.42</div>
+            <div class="metric-subtitle" id="dashVixSub">+22.4% · Fear Elevated</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">Put/Call Ratio</div>
-            <div class="metric-value">1.14</div>
-            <div class="metric-subtitle">Bearish · 30d avg 0.84</div>
+            <div class="metric-value" id="dashPCRVal">1.14</div>
+            <div class="metric-subtitle" id="dashPCRSub">Bearish · 30d avg 0.84</div>
         </div>
         <div class="metric-card">
             <div class="metric-label">Sector Leader</div>
-            <div class="metric-value">Utilities</div>
-            <div class="metric-subtitle">XLU +0.31% (defensive bid)</div>
+            <div class="metric-value" id="dashSectorVal">Utilities</div>
+            <div class="metric-subtitle" id="dashSectorSub">XLU +0.31% (defensive bid)</div>
         </div>
     </div>
 
@@ -3578,13 +3578,14 @@ function updateTickerStrip() {
 function updateDashboardCards() {
     const vix = PRICE_CACHE['^VIX'];
     if (vix) {
-        const vixCard = document.querySelector('#dashboard .metric-card:nth-child(2)');
-        if (vixCard) {
-            vixCard.querySelector('.metric-value').textContent = vix.price;
+        const vixValEl = document.getElementById('dashVixVal');
+        const vixSubEl = document.getElementById('dashVixSub');
+        if (vixValEl) {
+            vixValEl.textContent = vix.price;
             const pct = parseFloat(vix.dayPct);
             const label = pct > 20 ? 'Fear Extreme' : pct > 10 ? 'Fear Elevated' : pct > 0 ? 'Fear Rising' : 'Fear Neutral';
-            vixCard.querySelector('.metric-subtitle').textContent = `${fmtPct(vix.dayPct)} · ${label}`;
-            vixCard.querySelector('.metric-value').className = `metric-value ${pct >= 0 ? 'positive' : 'negative'}`;
+            if (vixSubEl) vixSubEl.textContent = `${fmtPct(vix.dayPct)} · ${label}`;
+            vixValEl.className = `metric-value ${pct >= 0 ? 'positive' : 'negative'}`;
         }
     }
 
@@ -4366,6 +4367,42 @@ document.getElementById('newsTickerInput').addEventListener('keydown', (e) => {
 });
 
 // ── 7c. MARKET BREADTH — live data from Nexus backend ──────
+function updateDashboardCards() {
+    // Market Breadth
+    const breadthVal = document.getElementById('dashBreadthVal');
+    const breadthSub = document.getElementById('dashBreadthSub');
+    if (breadthVal && typeof BD !== 'undefined') {
+        const adv = BD.advancing || 0;
+        const dec = BD.declining || 0;
+        const ratio = dec > 0 ? (adv / dec) : 0;
+        breadthVal.textContent = `${adv.toLocaleString()} / ${dec.toLocaleString()}`;
+        breadthVal.className = `metric-value ${ratio >= 1 ? 'positive' : 'negative'}`;
+        if (breadthSub) breadthSub.textContent = `Adv/Dec · NYSE · Ratio ${ratio.toFixed(2)}`;
+    }
+
+    // Sector Leader — top sector by breadth %
+    const sectorVal = document.getElementById('dashSectorVal');
+    const sectorSub = document.getElementById('dashSectorSub');
+    if (sectorVal && typeof BD !== 'undefined' && BD.sectorBreadth && BD.sectorBreadth.length > 0) {
+        const top = BD.sectorBreadth[0];
+        sectorVal.textContent = top.name || '—';
+        if (sectorSub) sectorSub.textContent = `${top.pct}% breadth · Leading sector`;
+    }
+
+    // Put/Call Ratio — from options data if available
+    const pcrVal = document.getElementById('dashPCRVal');
+    const pcrSub = document.getElementById('dashPCRSub');
+    const optPcr = document.getElementById('opt-pcr-vol');
+    if (pcrVal && optPcr && optPcr.textContent !== '—') {
+        const pcr = parseFloat(optPcr.textContent);
+        if (!isNaN(pcr)) {
+            pcrVal.textContent = pcr.toFixed(2);
+            pcrVal.className = `metric-value ${pcr > 1 ? 'negative' : pcr < 0.7 ? 'positive' : ''}`;
+            if (pcrSub) pcrSub.textContent = pcr > 1.2 ? 'Bearish · Heavy put buying' : pcr > 1 ? 'Bearish · Elevated' : pcr < 0.7 ? 'Bullish · Call heavy' : 'Neutral';
+        }
+    }
+}
+
 async function fetchBreadthData() {
     console.log('[APEX Breadth] Fetching live breadth data...');
     try {
@@ -4425,6 +4462,7 @@ async function fetchBreadthData() {
         // Re-render
         buildBreadthMetrics();
         setTimeout(renderBreadthCharts, 100);
+        updateDashboardCards();
 
         console.log('[APEX Breadth] Live data loaded:', JSON.stringify(data).substring(0, 200));
     } catch (e) {
