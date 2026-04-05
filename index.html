@@ -2934,23 +2934,55 @@ async function fetchUWData() {
         const iv = ivRes.status === 'fulfilled' ? ivRes.value : null;
         const ivCard = document.getElementById('uwIVCard');
         const ivGrid = document.getElementById('uwIVGrid');
-        if (iv?.data) {
-            const raw = iv.data;
-            const d = Array.isArray(raw) ? raw[raw.length - 1] || raw[0] : raw;
-            // Try many possible field names from UW API
-            const findNum = (...keys) => { for (const k of keys) { const v = parseFloat(d?.[k]); if (!isNaN(v) && v > 0) return v; } return 0; };
-            const ivVal = findNum('implied_volatility', 'iv', 'iv30', 'iv_30', 'current_iv', 'interpolated_iv', 'atm_iv') * (findNum('implied_volatility', 'iv', 'iv30') < 1 ? 100 : 1);
-            const hvVal = findNum('historical_volatility', 'hv', 'hv20', 'hv_20', 'hv30', 'hv_30', 'realized_volatility') * (findNum('historical_volatility', 'hv', 'hv20') < 1 ? 100 : 1);
-            const ivPctile = findNum('iv_percentile', 'iv_rank', 'ivRank', 'percentile', 'iv_pct');
+        console.log('UW IV full response:', JSON.stringify(iv));
+        if (iv) {
+            // Traverse nested structures: iv.data, iv.data.data, or iv itself
+            let raw = iv.data !== undefined ? iv.data : iv;
+            if (raw && typeof raw === 'object' && raw.data !== undefined) raw = raw.data;
+            console.log('UW IV unwrapped:', JSON.stringify(raw));
 
-            if (ivVal === 0 && hvVal === 0 && ivPctile === 0) {
-                ivCard.style.display = 'block';
-                ivGrid.innerHTML = '<div class="metric-card" style="grid-column:1/-1"><div class="metric-label">IV Context</div><div class="metric-value" style="font-size:1rem;color:var(--text-faint)">N/A — data unavailable for this ticker</div></div>';
+            // If array, use last element (most recent)
+            const d = Array.isArray(raw) ? (raw.length > 0 ? raw[raw.length - 1] : null) : raw;
+            if (d) console.log('UW IV record keys:', Object.keys(d), 'values:', JSON.stringify(d));
+
+            // Search all possible field names, including nested
+            const findVal = (obj, ...keys) => {
+                if (!obj) return null;
+                for (const k of keys) {
+                    let v = obj[k];
+                    if (v !== undefined && v !== null && v !== '') {
+                        const n = parseFloat(v);
+                        if (!isNaN(n)) return n;
+                    }
+                }
+                // Also search one level deep
+                for (const key of Object.keys(obj)) {
+                    if (typeof obj[key] === 'object' && obj[key] !== null) {
+                        for (const k of keys) {
+                            const v = obj[key][k];
+                            if (v !== undefined && v !== null) { const n = parseFloat(v); if (!isNaN(n)) return n; }
+                        }
+                    }
+                }
+                return null;
+            };
+
+            const toPercent = (v) => v !== null && v > 0 && v < 1 ? v * 100 : v;
+
+            let ivVal = toPercent(findVal(d, 'implied_volatility', 'iv', 'implied_volatility_30d', 'iv30', 'iv_30', 'current_iv', 'interpolated_iv', 'atm_iv', 'call_iv', 'mean_iv'));
+            let hvVal = toPercent(findVal(d, 'historical_volatility', 'hv', 'hv20', 'hv_20d', 'hv30', 'hv_30', 'realized_volatility', 'realized_vol', 'hist_vol'));
+            let ivPctile = findVal(d, 'iv_percentile', 'iv_rank', 'percentile', 'iv_pct', 'ivRank', 'rank');
+
+            console.log('UW IV parsed:', { ivVal, hvVal, ivPctile });
+
+            ivCard.style.display = 'block';
+            if (ivVal === null && hvVal === null && ivPctile === null) {
+                ivGrid.innerHTML = '<div class="metric-card" style="grid-column:1/-1"><div class="metric-label">IV Context</div><div class="metric-value" style="font-size:1rem;color:var(--text-faint)">N/A — IV data unavailable for this ticker (check console for raw response)</div></div>';
             } else {
+                ivVal = ivVal || 0; hvVal = hvVal || 0; ivPctile = ivPctile || 0;
                 const ratio = hvVal > 0 ? (ivVal / hvVal).toFixed(2) : '—';
                 const badge = ivVal > 0 && hvVal > 0 ? (ivVal > hvVal * 1.15 ? 'RICH' : ivVal < hvVal * 0.85 ? 'CHEAP' : 'FAIR') : 'N/A';
                 const badgeColor = badge === 'RICH' ? 'var(--bear)' : badge === 'CHEAP' ? 'var(--bull)' : badge === 'FAIR' ? 'var(--warn)' : 'var(--text-faint)';
-                ivCard.style.display = 'block';
                 ivGrid.innerHTML = `
                     <div class="metric-card"><div class="metric-label">IV Percentile</div><div class="metric-value" style="font-size:1.25rem;color:${ivPctile > 70 ? 'var(--bear)' : ivPctile < 30 ? 'var(--bull)' : 'var(--text)'}">${ivPctile > 0 ? ivPctile.toFixed(0) + '%' : 'N/A'}</div></div>
                     <div class="metric-card"><div class="metric-label">Current IV</div><div class="metric-value" style="font-size:1.25rem">${ivVal > 0 ? ivVal.toFixed(1) + '%' : 'N/A'}</div></div>
