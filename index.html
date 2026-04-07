@@ -1146,6 +1146,9 @@
 <!-- NOTE: rendered outside .container for full-width but kept inside body flow -->
 <div class="tab-content" id="breadth" style="padding:1.5rem;max-width:1920px;margin:0 auto">
 
+    <!-- WEINSTEIN REGIME BANNER (Finviz scan) -->
+    <div id="regimeBanner" style="display:none;margin-bottom:1.5rem;padding:1rem 1.25rem;border-radius:var(--r-lg);border:1px solid var(--border);box-shadow:var(--shadow-card)"></div>
+
     <!-- TOP METRICS STRIP -->
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem;margin-bottom:1.5rem" id="breadthMetrics">
         <!-- populated by JS -->
@@ -2506,7 +2509,7 @@ function buildBreadthMetrics() {
         { label: 'Up/Down Vol Ratio',   val: volRatio,               color: parseFloat(volRatio) >= 1 ? 'var(--bull)' : 'var(--bear)', sub: `${BD.upVol}B up · ${BD.downVol}B dn` },
         { label: 'TRIN (Arms Index)',   val: BD.trin.toFixed(2),     color: BD.trin > 2 ? 'var(--purple)' : BD.trin > 1.25 ? 'var(--bear)' : BD.trin < 0.75 ? 'var(--bull)' : 'var(--warn)', sub: BD.trin > 2 ? 'Panic selling' : BD.trin > 1.25 ? 'Selling pressure' : 'Neutral' },
         { label: 'McClellan Osc.',      val: BD.mcclellan.toFixed(1),color: BD.mcclellan > 0 ? 'var(--bull)' : BD.mcclellan < -80 ? 'var(--purple)' : 'var(--bear)', sub: BD.mcclellan < -80 ? 'Oversold territory' : 'Bearish' },
-        { label: '% Above 200-Day MA', val: '44%',                  color: 'var(--bear)', sub: 'S&P 500 constituents' },
+        { label: '% Above 200-Day MA', val: (BD.aboveMA.find(m => m.label.includes('200')) || {pct:44}).pct + '%', color: (BD.aboveMA.find(m => m.label.includes('200')) || {pct:44}).pct > 50 ? 'var(--bull)' : 'var(--bear)', sub: 'Finviz universe scan' },
     ];
 
     document.getElementById('breadthMetrics').innerHTML = metrics.map(m => `
@@ -4477,6 +4480,67 @@ async function fetchBreadthData() {
     }
 }
 
+// ── 7d. FINVIZ REGIME SCAN ──────────────────────────────────
+async function fetchRegimeScan() {
+    try {
+        const resp = await fetch('https://raw.githubusercontent.com/NajTheTradingHasira/stock-watchlist/main/breadth_data.json?t=' + Date.now());
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const d = await resp.json();
+        if (!d || !d.regime_label) return;
+
+        // Merge Finviz data into BD object
+        if (d.new_highs != null) BD.newHighs = d.new_highs;
+        if (d.new_lows != null) BD.newLows = d.new_lows;
+
+        // Update aboveMA with Finviz data
+        if (d.pct_above_200 != null) {
+            const ma200 = BD.aboveMA.find(m => m.label.includes('200'));
+            if (ma200) ma200.pct = d.pct_above_200;
+        }
+        if (d.pct_above_50 != null) {
+            const ma50 = BD.aboveMA.find(m => m.label.includes('50'));
+            if (ma50) ma50.pct = d.pct_above_50;
+        }
+
+        // Render regime banner
+        const banner = document.getElementById('regimeBanner');
+        if (banner) {
+            const score = d.regime_score || 0;
+            const color = score >= 4 ? 'var(--bull)' : score >= 2 ? 'var(--bull)' : score >= 0 ? 'var(--warn)' : 'var(--bear)';
+            const hostile = d.hostile;
+            banner.style.display = 'block';
+            banner.style.borderLeftColor = color;
+            banner.style.borderLeft = `4px solid ${color}`;
+            banner.innerHTML = `
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+                    <div>
+                        <div style="font-size:0.7rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:4px">WEINSTEIN MARKET REGIME — FINVIZ SCAN</div>
+                        <div style="font-size:1.25rem;font-weight:800;font-family:var(--font-mono);color:${color}">${d.regime_label}${hostile ? ' [HOSTILE]' : ''}</div>
+                        <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px">${d.regime_action || ''}</div>
+                    </div>
+                    <div style="display:flex;gap:16px;flex-wrap:wrap;font-family:var(--font-mono);font-size:0.8rem">
+                        <div style="text-align:center"><div style="font-size:0.65rem;color:var(--text-faint)">ABOVE 200d</div><div style="font-weight:700;color:${d.pct_above_200 > 50 ? 'var(--bull)' : 'var(--bear)'}">${d.pct_above_200}%</div></div>
+                        <div style="text-align:center"><div style="font-size:0.65rem;color:var(--text-faint)">ABOVE 50d</div><div style="font-weight:700;color:${d.pct_above_50 > 50 ? 'var(--bull)' : 'var(--bear)'}">${d.pct_above_50}%</div></div>
+                        <div style="text-align:center"><div style="font-size:0.65rem;color:var(--text-faint)">NH/NL</div><div style="font-weight:700;color:${d.hl_ratio >= 1 ? 'var(--bull)' : 'var(--bear)'}">${d.hl_ratio}</div></div>
+                        <div style="text-align:center"><div style="font-size:0.65rem;color:var(--text-faint)">UNIVERSE</div><div style="font-weight:700">${(d.universe || 0).toLocaleString()}</div></div>
+                        <div style="text-align:center"><div style="font-size:0.65rem;color:var(--text-faint)">SCORE</div><div style="font-weight:700;color:${color}">${score}/6</div></div>
+                    </div>
+                </div>
+                ${d.signals && d.signals.length ? `<div style="margin-top:8px;font-size:0.72rem;color:var(--text-faint)">${d.signals.map(s => '• ' + s).join('  ')}</div>` : ''}
+                ${hostile ? '<div style="margin-top:6px;padding:4px 8px;background:var(--bear-dim);border-radius:4px;color:var(--bear);font-weight:700;font-size:0.75rem">HOSTILE ENVIRONMENT — No new longs</div>' : ''}
+                <div style="margin-top:6px;font-size:0.6rem;color:var(--text-faint)">Finviz scan: ${d.date || ''} ${d.time || ''} ET</div>
+            `;
+        }
+
+        // Re-render breadth metrics with updated data
+        buildBreadthMetrics();
+        updateDashboardCards();
+        console.log('[APEX] Regime scan loaded:', d.regime_label);
+    } catch (e) {
+        console.warn('[APEX] Regime scan fetch failed:', e.message);
+    }
+}
+
 // ── 8. BOOT SEQUENCE ─────────────────────────────────────────
 // Initial load — stagger fetches to avoid hammering
 setTimeout(() => {
@@ -4484,6 +4548,7 @@ setTimeout(() => {
     initCOT();
     fetchMacroData();
     fetchBreadthData();
+    setTimeout(fetchRegimeScan, 3000);
 }, 800);
 
 // Auto-refresh prices every 5 minutes
