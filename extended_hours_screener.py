@@ -292,29 +292,23 @@ def send_to_slack(
     router._post_message(channel_id, header)
     router._post_message(router.firehose_id, header)
 
-    # Winners (top 20)
+    # Winners (all results)
     if not winners.empty:
         router._post_message(channel_id, f"*— {label} WINNERS —*")
-        for _, row in winners.head(20).iterrows():
+        for _, row in winners.iterrows():
             msg = format_mover_alert(row.to_dict(), "winner", mode)
             router._post_message(channel_id, msg)
             router._post_message(router.firehose_id, msg)
 
-        if len(winners) > 20:
-            router._post_message(channel_id, f"> +{len(winners) - 20} more winners")
-
-    # Losers (top 20)
+    # Losers (all results)
     if not losers.empty:
         router._post_message(channel_id, f"*— {label} LOSERS —*")
-        for _, row in losers.head(20).iterrows():
+        for _, row in losers.iterrows():
             msg = format_mover_alert(row.to_dict(), "loser", mode)
             router._post_message(channel_id, msg)
             router._post_message(router.firehose_id, msg)
 
-        if len(losers) > 20:
-            router._post_message(channel_id, f"> +{len(losers) - 20} more losers")
-
-    total = min(len(winners), 20) + min(len(losers), 20)
+    total = len(winners) + len(losers)
     channel_name = "premarket-movers" if mode == "premarket" else "postmarket-movers"
     print(f"  ✓ Sent {total} alerts to #{channel_name}")
 

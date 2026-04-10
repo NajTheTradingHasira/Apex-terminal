@@ -374,17 +374,13 @@ def send_to_slack(
     router._post_message(channel_id, header)
     router._post_message(router.firehose_id, header)
 
-    # Individual alerts (top 30)
-    for _, row in df.head(30).iterrows():
+    # Individual alerts (all results)
+    for _, row in df.iterrows():
         msg = format_rs_alert(row.to_dict())
         router._post_message(channel_id, msg)
         router._post_message(router.firehose_id, msg)
 
-    if len(df) > 30:
-        overflow = f"> +{len(df) - 30} more RS leaders — see CSV for full list"
-        router._post_message(channel_id, overflow)
-
-    print(f"  ✓ Sent {min(len(df), 30)} RS alerts to #relative-strength")
+    print(f"  ✓ Sent {len(df)} RS alerts to #relative-strength")
 
 
 # ---------------------------------------------------------------------------

@@ -275,17 +275,13 @@ def send_to_slack(df: pd.DataFrame, config_path: str, bot_token: str | None = No
     router._post_message(channel_id, header)
     router._post_message(router.firehose_id, header)
 
-    # Individual alerts (top 30)
-    for _, row in df.head(30).iterrows():
+    # Individual alerts (all results)
+    for _, row in df.iterrows():
         msg = format_volume_alert(row.to_dict())
         router._post_message(channel_id, msg)
         router._post_message(router.firehose_id, msg)
 
-    if len(df) > 30:
-        overflow = f"> +{len(df) - 30} more surges — see CSV for full list"
-        router._post_message(channel_id, overflow)
-
-    print(f"  ✓ Sent {min(len(df), 30)} volume alerts to #volume-surges")
+    print(f"  ✓ Sent {len(df)} volume alerts to #volume-surges")
 
 
 # ---------------------------------------------------------------------------

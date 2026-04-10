@@ -387,17 +387,13 @@ def send_to_slack(df: pd.DataFrame, mode: str, config_path: str, bot_token: str 
     router._post_message(channel_id, header)
     router._post_message(router.firehose_id, header)
 
-    # Individual alerts (top 30)
-    for _, row in df.head(30).iterrows():
+    # Individual alerts (all results)
+    for _, row in df.iterrows():
         msg = format_growth_alert(row.to_dict(), mode)
         router._post_message(channel_id, msg)
         router._post_message(router.firehose_id, msg)
 
-    if len(df) > 30:
-        overflow = f"> +{len(df) - 30} more names passed — see CSV for full list"
-        router._post_message(channel_id, overflow)
-
-    print(f"  ✓ Sent {min(len(df), 30)} alerts to #{router._channel_id_by_name(route_key) or label}")
+    print(f"  ✓ Sent {len(df)} alerts to #{router._channel_id_by_name(route_key) or label}")
 
 
 # ---------------------------------------------------------------------------
