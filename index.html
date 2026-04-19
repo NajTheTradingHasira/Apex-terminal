@@ -484,6 +484,24 @@
         }
 
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+        /* ── ANTS (Advance with No Trouble Signs) — 15-day institutional accumulation screener ─── */
+        .cell-ants { font-family: var(--font-mono); font-weight: 800; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; cursor: help; }
+        .ants-score { padding: 2px 6px; border-radius: 3px; letter-spacing: 0.3px; }
+        .ants-s-hi { background: rgba(0,230,118,0.15); color: var(--bull); border: 1px solid rgba(0,230,118,0.25); }
+        .ants-s-md { background: rgba(251,191,36,0.12); color: #fbbf24; border: 1px solid rgba(251,191,36,0.22); }
+        .ants-s-lo { background: rgba(136,146,164,0.10); color: var(--text-muted); border: 1px solid rgba(136,146,164,0.20); }
+        .ants-flag { font-size: 13px; filter: drop-shadow(0 0 3px rgba(0,230,118,0.40)); }
+        .cell-ants-pending { color: var(--text-faint); font-family: var(--font-mono); font-size: 11px; }
+        .cell-ants-na { color: var(--text-faint); font-family: var(--font-mono); font-size: 12px; }
+        .wl-ants-cell { text-align: right; min-width: 68px; }
+        .ants-key-banner {
+            display: none; background: rgba(0,212,255,0.08); border: 1px solid rgba(0,212,255,0.20); border-radius: 0.35rem;
+            padding: 0.55rem 0.85rem; margin-bottom: 0.85rem; font-size: 0.8rem; color: var(--text-muted); cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+        .ants-key-banner:hover { background: rgba(0,212,255,0.14); color: var(--text); }
+        .ants-key-banner.show { display: block; }
     </style>
 </head>
 <body>
@@ -603,6 +621,9 @@
 
 <!-- ── WATCHLIST ──────────────────────────────────────── -->
 <div class="tab-content" id="watchlist">
+<div id="antsKeyBanner" class="ants-key-banner" onclick="promptPolygonKey()" title="Saved only in your browser's localStorage — Polygon.io key is used for ANTS daily bars (Stocks tier or free)">
+    🐜 <strong>ANTS column disabled</strong> — click to add your Polygon.io API key (stored locally in your browser, never sent anywhere else).
+</div>
 <div class="wl-panels">
 
     <!-- DAILY WATCHLIST -->
@@ -647,6 +668,7 @@
                     <th class="right">Month %</th>
                     <th>Stage</th>
                     <th class="right">RS</th>
+                    <th class="right ants-sort-btn" onclick="toggleAntsSort()" title="Click to sort by ANTS score (descending)">ANTS</th>
                     <th>Setup / Notes</th>
                     <th></th>
                 </tr>
@@ -697,6 +719,7 @@
                     <th class="right">Month %</th>
                     <th>Stage</th>
                     <th class="right">RS</th>
+                    <th class="right ants-sort-btn" onclick="toggleAntsSort()" title="Click to sort by ANTS score (descending)">ANTS</th>
                     <th>Setup / Notes</th>
                     <th></th>
                 </tr>
@@ -747,6 +770,7 @@
                     <th class="right">Month %</th>
                     <th>Stage</th>
                     <th class="right">RS</th>
+                    <th class="right ants-sort-btn" onclick="toggleAntsSort()" title="Click to sort by ANTS score (descending)">ANTS</th>
                     <th>Setup / Notes</th>
                     <th></th>
                 </tr>
@@ -797,6 +821,7 @@
                     <th class="right">Month %</th>
                     <th>Stage</th>
                     <th class="right">RS</th>
+                    <th class="right ants-sort-btn" onclick="toggleAntsSort()" title="Click to sort by ANTS score (descending)">ANTS</th>
                     <th>Setup / Notes</th>
                     <th></th>
                 </tr>
@@ -847,6 +872,7 @@
                     <th class="right">Month %</th>
                     <th>Stage</th>
                     <th class="right">RS</th>
+                    <th class="right ants-sort-btn" onclick="toggleAntsSort()" title="Click to sort by ANTS score (descending)">ANTS</th>
                     <th>Setup / Notes</th>
                     <th></th>
                 </tr>
@@ -897,6 +923,7 @@
                     <th class="right">Month %</th>
                     <th>Stage</th>
                     <th class="right">RS</th>
+                    <th class="right ants-sort-btn" onclick="toggleAntsSort()" title="Click to sort by ANTS score (descending)">ANTS</th>
                     <th>Setup / Notes</th>
                     <th></th>
                 </tr>
@@ -1444,6 +1471,238 @@ updateClock();
 const NEXUS_API = 'https://nexus-terminal-production-9d34.up.railway.app';
 
 // ══════════════════════════════════════════════════════════════
+// ANTS (Advance w/ No Trouble Signs) — 15-day institutional accumulation filter
+// ──────────────────────────────────────────────────────────────
+// Two-layer architecture:
+//   Layer 1 — Strict flag (O'Neil classic): ≥12/15 up days, ≥20% trailing gain,
+//             up-vol ratio ≥0.55 (accumulation dominance), CIR mean on up days ≥0.60
+//   Layer 2 — Score 0-100 (weighted): up-days 30, gain 20, volRatio 20, CIR 15, R² 15
+// Purpose: filter leaders under sustained institutional accumulation over ~3 weeks.
+// NOT an entry signal — surfaces candidates; wait for consolidation/pullback to execute.
+// Data source: Polygon aggregates (daily, adjusted). Client-side, cached in memory.
+// Contract identical to the companion Python module (ants_backend.py) — if/when
+// compute moves server-side via nexus-backend, swap the fetch URL only.
+// ══════════════════════════════════════════════════════════════
+let POLYGON_KEY = localStorage.getItem('polygon_key') || '';
+const antsCache = {};     // ticker -> { ts, flag, score, components, sufficient, stale }
+const antsInflight = {};  // ticker -> Promise (dedupes concurrent fetches)
+const ANTS_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+const ANTS_WINDOW = 15;   // trailing return days — thresholds are calibrated to this
+const ANTS_CONCURRENCY = 5;
+
+// Linear regression R² of y vs index — measures trend linearity 0-1
+function _antsR2(y) {
+    const n = y.length;
+    if (n < 3) return 0;
+    let sx=0, sy=0, sxx=0, syy=0, sxy=0;
+    for (let i = 0; i < n; i++) { const xi=i, yi=y[i]; sx+=xi; sy+=yi; sxx+=xi*xi; syy+=yi*yi; sxy+=xi*yi; }
+    const num = n*sxy - sx*sy;
+    const denX = n*sxx - sx*sx;
+    const denY = n*syy - sy*sy;
+    if (denX <= 0 || denY <= 0) return 0;
+    const r = num / Math.sqrt(denX*denY);
+    return r*r;
+}
+
+// Pure compute: given array of {o,h,l,c,v} bars (oldest→newest), returns
+// { flag, score, components, sufficient }. Requires ≥ANTS_WINDOW+1 bars.
+function computeANTS(bars) {
+    if (!bars || bars.length < ANTS_WINDOW + 1) {
+        return { flag: false, score: null, components: null, sufficient: false };
+    }
+    const w = bars.slice(-(ANTS_WINDOW + 1)); // last 16 bars → 15 return periods
+    let upDays = 0, upVol = 0, downVol = 0, cirSum = 0, cirCount = 0;
+    const closes = [];
+    for (let i = 1; i < w.length; i++) {
+        const b = w[i], p = w[i-1];
+        const isUp = b.c > p.c;
+        if (isUp) { upDays++; upVol += b.v || 0; } else { downVol += b.v || 0; }
+        const rng = b.h - b.l;
+        const cir = rng > 0 ? (b.c - b.l) / rng : 0.5;
+        if (isUp) { cirSum += cir; cirCount++; }
+    }
+    for (let j = 0; j < w.length; j++) closes.push(Math.log(Math.max(w[j].c, 1e-9)));
+    // Compute gain as (last-first)/first to avoid the fp artifact of (last/first-1)
+    const gainPct = (w[w.length-1].c - w[0].c) / w[0].c * 100;
+    const totalVol = upVol + downVol;
+    const volRatio = totalVol > 0 ? upVol / totalVol : 0;
+    const cirUp = cirCount > 0 ? cirSum / cirCount : 0;
+    const r2 = _antsR2(closes);
+    // Layer 1 — strict flag (small epsilon for inclusive fp boundaries)
+    const EPS = 1e-9;
+    const flag = (upDays >= 12) && (gainPct >= 20 - EPS) && (volRatio >= 0.55 - EPS) && (cirUp >= 0.60 - EPS);
+    // Layer 2 — weighted score. R² and CIR only credit when gainPct>0 (a smooth
+    // downtrend isn't accumulation); CIR requires ≥8 up days for full credit.
+    const sUp   = Math.min(upDays/15, 1) * 30;
+    const sGain = Math.min(Math.max(gainPct, 0)/30, 1) * 20;
+    const sVol  = Math.max(0, Math.min(1, (volRatio - 0.40)/0.30)) * 20;
+    const cirSampleWeight = Math.min(upDays/8, 1);
+    const sCIR  = Math.max(0, Math.min(1, (cirUp - 0.30)/0.40)) * 15 * cirSampleWeight;
+    const sR2   = Math.max(0, Math.min(1, r2)) * 15 * (gainPct > 0 ? 1 : 0);
+    const score = Math.round(sUp + sGain + sVol + sCIR + sR2);
+    return {
+        flag, score, sufficient: true,
+        components: {
+            upDays,
+            gainPct:  Math.round(gainPct*10)/10,
+            volRatio: Math.round(volRatio*100)/100,
+            cirUp:    Math.round(cirUp*100)/100,
+            r2:       Math.round(r2*100)/100
+        }
+    };
+}
+
+// Fetch ~35 calendar days of daily aggregates from Polygon for one ticker.
+async function _antsFetchBars(ticker) {
+    if (!POLYGON_KEY) return null;
+    const today = new Date();
+    const from = new Date(today.getTime() - 35 * 24 * 60 * 60 * 1000);
+    const fmt = d => d.toISOString().split('T')[0];
+    const url = `https://api.polygon.io/v2/aggs/ticker/${encodeURIComponent(ticker)}/range/1/day/${fmt(from)}/${fmt(today)}?adjusted=true&sort=asc&limit=50&apiKey=${POLYGON_KEY}`;
+    try {
+        const r = await fetch(url);
+        if (!r.ok) return null;
+        const d = await r.json();
+        if (!d || !d.results || !d.results.length) return null;
+        return d.results.map(x => ({ o: x.o, h: x.h, l: x.l, c: x.c, v: x.v }));
+    } catch (e) {
+        console.warn(`[APEX] ANTS fetch failed for ${ticker}:`, e.message);
+        return null;
+    }
+}
+
+// Fetch + compute for one ticker, with TTL cache + inflight dedupe.
+async function antsForTicker(ticker, force) {
+    const now = Date.now();
+    const cached = antsCache[ticker];
+    if (!force && cached && (now - cached.ts) < ANTS_TTL_MS) return cached;
+    if (antsInflight[ticker]) return antsInflight[ticker];
+    antsInflight[ticker] = (async () => {
+        const bars = await _antsFetchBars(ticker);
+        let result;
+        if (!bars) {
+            result = { ts: now, flag: false, score: null, components: null, sufficient: false, stale: true };
+        } else {
+            const c = computeANTS(bars);
+            result = { ts: now, flag: c.flag, score: c.score, components: c.components, sufficient: c.sufficient, stale: false };
+        }
+        antsCache[ticker] = result;
+        delete antsInflight[ticker];
+        return result;
+    })();
+    return antsInflight[ticker];
+}
+
+// Batch fetch for every ticker currently in the watchlist DOM. Throttled to
+// ANTS_CONCURRENCY so we don't hammer Polygon. Progressive re-render every 5.
+async function fetchAllANTS(opts = {}) {
+    const tickers = [...new Set(
+        Array.from(document.querySelectorAll('#watchlist tbody tr[data-sym]'))
+            .map(tr => tr.dataset.sym)
+            .filter(Boolean)
+    )];
+    if (!tickers.length) return;
+    if (!POLYGON_KEY) { console.warn('[APEX] ANTS skipped — no Polygon key'); updateAntsBanner(); return; }
+    const queue = tickers.slice();
+    const workers = [];
+    let completed = 0;
+    const total = queue.length;
+    for (let w = 0; w < Math.min(ANTS_CONCURRENCY, queue.length); w++) {
+        workers.push((async () => {
+            while (queue.length) {
+                const t = queue.shift();
+                if (!t) break;
+                await antsForTicker(t, !!opts.force);
+                completed++;
+                if (completed % 5 === 0 || completed === total) updateAntsCells();
+            }
+        })());
+    }
+    await Promise.all(workers);
+    updateAntsCells();
+    if (antsSortMode === 'desc') applyAntsSort();
+    console.log(`[APEX] ANTS refreshed for ${total} tickers`);
+}
+
+// Cell renderer. Score badge + ant icon when strict flag fires.
+// Hover tooltip exposes all 5 components so the power-user can inspect drivers.
+function antsCell(ticker) {
+    if (!POLYGON_KEY) return '<span class="cell-ants-na" title="ANTS requires Polygon.io key — click the banner above to set">—</span>';
+    const a = antsCache[ticker];
+    if (!a) return '<span class="cell-ants-pending">…</span>';
+    if (!a.sufficient || a.score == null) return '<span class="cell-ants-na" title="Insufficient history or data unavailable">—</span>';
+    const c = a.components || {};
+    const cls = a.score >= 70 ? 'ants-s-hi' : a.score >= 50 ? 'ants-s-md' : 'ants-s-lo';
+    const tip = `ANTS — 15-day institutional accumulation filter
+Score: ${a.score}/100${a.flag ? ' · STRICT FLAG ✓' : ''}
+• Up days: ${c.upDays}/15 (need ≥12)
+• Gain: ${c.gainPct >= 0 ? '+' : ''}${c.gainPct}% (need ≥20%)
+• Vol ratio (up/total): ${c.volRatio} (need ≥0.55)
+• CIR on up days: ${c.cirUp} (need ≥0.60)
+• Trend R²: ${c.r2}`;
+    const flagHtml = a.flag ? '<span class="ants-flag">🐜</span>' : '';
+    return `<span class="cell-ants" title="${tip.replace(/"/g, '&quot;')}"><span class="ants-score ${cls}">${a.score}</span>${flagHtml}</span>`;
+}
+
+// Update every ANTS cell in the watchlist DOM (no full re-render required).
+function updateAntsCells() {
+    document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
+        const cell = tr.querySelector('.wl-ants-cell');
+        if (cell) cell.innerHTML = antsCell(tr.dataset.sym);
+    });
+    updateAntsBanner();
+}
+
+// Sort rows in each watchlist body by ANTS score (descending). Rows without a
+// score are pushed to the bottom. Persists via localStorage so the toggle
+// survives a reload.
+let antsSortMode = localStorage.getItem('apex_ants_sort') || 'off'; // 'off' | 'desc'
+function applyAntsSort() {
+    ['daily','ondeck','shorts','focus','rs','topdawg'].forEach(key => {
+        const body = document.getElementById(`wl${cap(key)}Body`);
+        if (!body) return;
+        const rows = Array.from(body.querySelectorAll('tr[data-sym]'));
+        if (!rows.length) return;
+        rows.sort((a, b) => {
+            const sa = (antsCache[a.dataset.sym] && antsCache[a.dataset.sym].score);
+            const sb = (antsCache[b.dataset.sym] && antsCache[b.dataset.sym].score);
+            const va = (sa == null) ? -1 : sa;
+            const vb = (sb == null) ? -1 : sb;
+            return vb - va;
+        });
+        rows.forEach(r => body.appendChild(r));
+    });
+}
+window.toggleAntsSort = function() {
+    antsSortMode = (antsSortMode === 'off') ? 'desc' : 'off';
+    localStorage.setItem('apex_ants_sort', antsSortMode);
+    document.querySelectorAll('.ants-sort-btn').forEach(th => th.classList.toggle('active', antsSortMode === 'desc'));
+    if (antsSortMode === 'desc') applyAntsSort();
+    else { /* on "off" we leave current order; reload restores saved order */ }
+};
+
+function updateAntsBanner() {
+    const banner = document.getElementById('antsKeyBanner');
+    if (!banner) return;
+    banner.classList.toggle('show', !POLYGON_KEY);
+}
+
+window.promptPolygonKey = function() {
+    const k = prompt(
+        'Paste your Polygon.io API key\n\nStored only in this browser (localStorage) — never sent to any server except Polygon itself for daily aggregate bars used by the ANTS screener.',
+        POLYGON_KEY || ''
+    );
+    if (k === null) return;
+    POLYGON_KEY = k.trim();
+    localStorage.setItem('polygon_key', POLYGON_KEY);
+    updateAntsBanner();
+    if (POLYGON_KEY) {
+        console.log('[APEX] Polygon key saved — refreshing ANTS');
+        fetchAllANTS({ force: true });
+    }
+};
+
+// ══════════════════════════════════════════════════════════════
 // WATCHLIST — six panels: daily / ondeck / shorts / focus / rs / topdawg
 // ══════════════════════════════════════════════════════════════
 
@@ -1520,6 +1779,7 @@ function buildRow(item, listKey) {
         <td class="right wl-editable" data-field="rs" title="Click to edit RS">
             <span class="wl-rs" style="color:${rsColor(item.rs)}">${item.rs}</span>
         </td>
+        <td class="wl-ants-cell">${antsCell(item.sym)}</td>
         <td class="wl-notes wl-editable" data-field="notes" title="Click to edit notes">${item.notes}</td>
         <td style="white-space:nowrap;">
             <button class="wl-edit-btn" onclick="openEditModal(this.closest('tr'))">&#9998; Edit</button>
@@ -1622,7 +1882,7 @@ function updateCount(listKey) {
     if (!n) {
         const empty = document.createElement('tr');
         empty.className = 'wl-empty-row';
-        empty.innerHTML = `<td colspan="9" class="wl-empty">No tickers added yet.</td>`;
+        empty.innerHTML = `<td colspan="10" class="wl-empty">No tickers added yet.</td>`;
         body.appendChild(empty);
     } else {
         body.querySelectorAll('.wl-empty-row').forEach(r => r.remove());
@@ -1714,6 +1974,10 @@ async function syncWatchlistFromBackend() {
             updateCount(key);
         });
         console.log('[Watchlist] Synced from Postgres — backend is source of truth');
+
+        // Kick off ANTS for the post-sync ticker set (runs in background, TTL-cached)
+        if (POLYGON_KEY) fetchAllANTS();
+        else updateAntsBanner();
     } catch (e) {
         console.warn('[Watchlist] Backend fetch failed, using local data:', e.message);
     }
@@ -1739,6 +2003,10 @@ function initWatchlists() {
         console.log('[Watchlist] Initialized from seed data — will sync from backend');
         // Do NOT save seed to backend — backend sync will overwrite with real data
     }
+
+    // ANTS: reflect sort-mode persistence on the header, show key banner if missing
+    document.querySelectorAll('.ants-sort-btn').forEach(th => th.classList.toggle('active', antsSortMode === 'desc'));
+    updateAntsBanner();
 
     // Sync from backend (always overwrites local — Postgres is source of truth)
     setTimeout(syncWatchlistFromBackend, 1500);
@@ -1774,6 +2042,14 @@ function addToWatchlist(listKey) {
         updateWatchlistPrices();
         console.log(`[APEX Watchlist] Fetched price for ${ticker}`);
     }).catch(e => console.warn(`[APEX Watchlist] Price fetch failed for ${ticker}:`, e.message));
+
+    // ANTS — compute for the new ticker only (cheap, single request)
+    if (POLYGON_KEY) {
+        antsForTicker(ticker, false).then(updateAntsCells)
+            .catch(e => console.warn(`[APEX] ANTS fetch failed for ${ticker}:`, e.message));
+    } else {
+        updateAntsBanner();
+    }
 
     // Reset add-row inputs
     inputEl.value = '';
@@ -3842,6 +4118,10 @@ async function refreshAllLiveData() {
     updateHeatmap();
     updateMovers();
     updateWatchlistPrices();
+
+    // ANTS — 15-day institutional accumulation screener; non-blocking, TTL-cached
+    if (POLYGON_KEY) fetchAllANTS();
+    else updateAntsBanner();
 
     // Run alert engine after prices are fresh
     checkAlerts();
