@@ -1,0 +1,7 @@
+# Runtime artifacts — never commit these
+output/
+universe_cache.json
+*.bak
+__pycache__/
+*.pyc
+.env

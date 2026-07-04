@@ -1668,7 +1668,50 @@ function rsColor(rs) {
     return 'var(--bear)';
 }
 
+// ── SCHEMA NORMALIZER ─────────────────────────────────────
+// Watchlist rows exist in two dialects:
+//   Legacy APEX:             { sym, day, week, month, stage:'s2',        weeklySetup }
+//   Nexus / Trading-Hashira: { ticker, dayPct, weekPct, monthPct, stage:'Stage 2A', setup, addedAt }
+// The Postgres backend (shared with trading-hashira.vercel.app) stores the
+// second dialect. Normalize everything on the way in; save a superset on the
+// way out so neither app loses fields.
+function stageInfo(stage) {
+    const s = (stage === undefined || stage === null) ? '' : String(stage).trim();
+    const codeMatch = s.match(/^s([1-4])$/i);
+    if (codeMatch) return { code: 's' + codeMatch[1], label: 'Stage ' + codeMatch[1] };
+    const numMatch = s.match(/([1-4])/);
+    if (numMatch) return { code: 's' + numMatch[1], label: s };
+    return { code: 's1', label: s || 'Stage 1' };
+}
+
+function normalizeWlItem(raw) {
+    const it = raw || {};
+    const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+    const st = stageInfo(it.stage);
+    return {
+        sym:         (it.sym || it.ticker || '').toString().toUpperCase(),
+        company:     it.company || '',
+        sector:      it.sector || '',
+        price:       (it.price === undefined || it.price === null || it.price === '') ? '\u2014' : it.price,
+        day:         (it.day   !== undefined && it.day   !== null) ? it.day   : num(it.dayPct),
+        week:        (it.week  !== undefined && it.week  !== null) ? it.week  : num(it.weekPct),
+        month:       (it.month !== undefined && it.month !== null) ? it.month : num(it.monthPct),
+        stage:       st.code,
+        stageLabel:  st.label,
+        rs:          parseInt(it.rs) || 0,
+        ema:         it.ema || '',
+        above50:     it.above50 || '',
+        alertAbove:  it.alertAbove || 0,
+        alertBelow:  it.alertBelow || 0,
+        weeklySetup: it.weeklySetup || it.setup || '',
+        rsNewHigh:   it.rsNewHigh || 'no',
+        notes:       it.notes || '',
+        addedAt:     parseInt(it.addedAt) || Date.now(),
+    };
+}
+
 function buildRow(item, listKey) {
+    item = normalizeWlItem(item);
     const tr = document.createElement('tr');
     tr.dataset.sym        = item.sym;
     tr.dataset.list       = listKey;
@@ -1683,6 +1726,8 @@ function buildRow(item, listKey) {
     tr.dataset.weeklySetup= item.weeklySetup|| '';
     tr.dataset.rsNewHigh  = item.rsNewHigh  || 'no';
     tr.dataset.notes      = item.notes      || '';
+    tr.dataset.stageLabel = item.stageLabel || '';
+    tr.dataset.addedAt    = item.addedAt    || Date.now();
     tr.innerHTML = `
         <td class="wl-sym wl-editable" data-field="sym" title="Click to edit ticker">${item.sym}</td>
         <td class="wl-price">$${item.price}</td>
@@ -1690,13 +1735,13 @@ function buildRow(item, listKey) {
         <td class="right"><span class="wl-chg ${chgClass(item.week)}">${chgLabel(item.week)}</span></td>
         <td class="right"><span class="wl-chg ${chgClass(item.month)}">${chgLabel(item.month)}</span></td>
         <td class="wl-editable" data-field="stage" title="Click to change stage">
-            <span class="wl-stage ${item.stage}">${stageLabel(item.stage)}</span>
+            <span class="wl-stage ${item.stage}">${item.stageLabel || stageLabel(item.stage)}</span>
         </td>
         <td class="right wl-editable" data-field="rs" title="Click to edit RS">
             <span class="wl-rs" style="color:${rsColor(item.rs)}">${item.rs}</span>
         </td>
         <td class="wl-ants-cell">${antsCell(item.sym)}</td>
-        <td class="wl-notes wl-editable" data-field="notes" title="Click to edit notes">${item.notes}</td>
+        <td class="wl-notes wl-editable" data-field="notes" title="Click to edit notes">${item.notes || item.weeklySetup}</td>
         <td style="white-space:nowrap;">
             <button class="wl-edit-btn" onclick="openEditModal(this.closest('tr'))">&#9998; Edit</button>
             <button class="wl-remove" onclick="removeWatchlistRow(this)">&#x2715;</button>
@@ -1725,6 +1770,7 @@ function startInlineEdit(e, td, tr) {
         sel.focus();
         const commit = () => {
             tr.dataset.stage = sel.value;
+            tr.dataset.stageLabel = stageLabel(sel.value);
             td.innerHTML = `<span class="wl-stage ${sel.value}">${stageLabel(sel.value)}</span>`;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
             saveWatchlistToStorage();
@@ -1813,29 +1859,42 @@ function saveWatchlistToStorage() {
         const rows = [];
         document.querySelectorAll(`#wl${cap(key)}Body tr[data-sym]`).forEach(tr => {
             const d = tr.dataset;
+            // Never persist corrupted rows back to the shared backend
+            if (!d.sym || d.sym === 'undefined' || d.sym === 'null') return;
             const priceCell = tr.querySelector('.wl-price');
-            const price = priceCell ? priceCell.textContent.replace('$','') : '—';
+            const price = priceCell ? priceCell.textContent.replace('$','') : '\u2014';
             const cells = tr.querySelectorAll('td');
             const dayCell = cells[2]?.textContent?.match(/([\-\+]?[\d\.]+)/);
             const weekCell = cells[3]?.textContent?.match(/([\-\+]?[\d\.]+)/);
             const monthCell = cells[4]?.textContent?.match(/([\-\+]?[\d\.]+)/);
+            const dayV = dayCell ? dayCell[1] : '0';
+            const weekV = weekCell ? weekCell[1] : '0';
+            const monthV = monthCell ? monthCell[1] : '0';
             rows.push({
+                // Canonical (Nexus / Trading-Hashira) schema
+                ticker: d.sym,
+                price: parseFloat(price) || 0,
+                dayPct: parseFloat(dayV) || 0,
+                weekPct: parseFloat(weekV) || 0,
+                monthPct: parseFloat(monthV) || 0,
+                stage: d.stageLabel || stageLabel(d.stage || 's1'),
+                rs: parseInt(d.rs) || 0,
+                setup: d.weeklySetup || '',
+                notes: d.notes || '',
+                addedAt: parseInt(d.addedAt) || Date.now(),
+                // Legacy APEX fields (back-compat, harmless extras)
                 sym: d.sym,
                 company: d.company || '',
                 sector: d.sector || '',
-                price: price,
-                day: dayCell ? dayCell[1] : '0',
-                week: weekCell ? weekCell[1] : '0',
-                month: monthCell ? monthCell[1] : '0',
-                stage: d.stage || 's1',
-                rs: parseInt(d.rs) || 0,
+                day: dayV,
+                week: weekV,
+                month: monthV,
                 ema: d.ema || '',
                 above50: d.above50 || '',
                 alertAbove: d.alertAbove || 0,
                 alertBelow: d.alertBelow || 0,
                 weeklySetup: d.weeklySetup || '',
                 rsNewHigh: d.rsNewHigh || 'no',
-                notes: d.notes || '',
             });
         });
         data[key] = rows;
@@ -1886,7 +1945,7 @@ async function syncWatchlistFromBackend() {
         ['daily','ondeck','shorts','focus','rs','topdawg'].forEach(key => {
             const tbody = document.getElementById(`wl${cap(key)}Body`);
             tbody.innerHTML = '';
-            (wl[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
+            (wl[key] || []).filter(it => it && (it.sym || it.ticker)).forEach(item => tbody.appendChild(buildRow(item, key)));
             updateCount(key);
         });
         console.log('[Watchlist] Synced from Postgres — backend is source of truth');
@@ -1904,7 +1963,7 @@ function initWatchlists() {
 
     ['daily','ondeck','shorts','focus','rs','topdawg'].forEach(key => {
         const tbody = document.getElementById(`wl${cap(key)}Body`);
-        (source[key] || []).forEach(item => tbody.appendChild(buildRow(item, key)));
+        (source[key] || []).filter(it => it && (it.sym || it.ticker)).forEach(item => tbody.appendChild(buildRow(item, key)));
         updateCount(key);
 
         document.getElementById(`wl${cap(key)}Input`).addEventListener('keydown', e => {
@@ -2028,6 +2087,7 @@ function saveEditModal() {
     tr.dataset.company    = company;
     tr.dataset.sector     = sector;
     tr.dataset.stage      = stage;
+    tr.dataset.stageLabel = stageLabel(stage);
     tr.dataset.rs         = rs;
     tr.dataset.ema        = ema;
     tr.dataset.above50    = above50;
@@ -2044,7 +2104,7 @@ function saveEditModal() {
     tr.querySelector('.wl-rs').style.color = rsColor(rs);
     tr.querySelector('.wl-rs').textContent = rs;
     const notesCell = tr.querySelector('.wl-notes');
-    notesCell.textContent = notes;
+    notesCell.textContent = notes || weeklySetup;
     notesCell.title = notes;
 
     // Move to different list if changed
