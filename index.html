@@ -1310,6 +1310,58 @@
 <!-- ── AI ANALYSIS ──────────────────────────────────── -->
 <div class="tab-content" id="ai">
 
+    <!-- ══ SPY LOGIC · 0DTE BIAS ENGINE (ported from NEXUS v3.1) ══ -->
+    <div id="spyLogicSection" style="background-color:var(--surface-1);border:1px solid var(--border-strong);border-radius:0.5rem;margin-bottom:1.5rem;overflow:hidden">
+
+        <!-- Header — always visible, click toggles body -->
+        <div id="slHeader" onclick="slToggle()" style="display:flex;align-items:center;gap:0.75rem;padding:1rem 1.25rem;cursor:pointer;user-select:none">
+            <span style="padding:2px 8px;border-radius:999px;font-size:0.6rem;font-weight:700;letter-spacing:0.12em;background:rgba(6,182,212,0.12);color:#06b6d4;border:1px solid rgba(6,182,212,0.35)">0DTE</span>
+            <span style="font-size:0.8rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--text)">SPY Logic — Bias Engine</span>
+            <span id="slHeadCtx" style="font-size:0.7rem;color:var(--text-faint);margin-left:auto;text-align:right">click to expand</span>
+            <span id="slChevron" style="color:var(--text-faint);font-size:0.8rem">▸</span>
+        </div>
+
+        <!-- Body — collapsed by default -->
+        <div id="slBody" style="display:none;padding:0 1.25rem 1.25rem;border-top:1px solid var(--border)">
+
+            <div style="margin:1rem 0 0.25rem;font-size:1.05rem;font-weight:700;color:var(--text)">Decide whether today favors buying pullbacks or fading rallies.</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.9rem">Feed it opening context, VWAP state, internals, ribbon, IV/HV and time window. Returns gate, directional read, structure, and invalidation.</div>
+
+            <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;margin-bottom:0.6rem">
+                <button class="api-btn" id="slRunBtn" onclick="slRunAI()" style="margin:0;padding:0.5rem 1.25rem">▶ RUN TRADE LOGIC</button>
+                <button class="api-btn" id="slLiveBtn" onclick="slFetchLive(true)" style="margin:0;padding:0.5rem 0.9rem;background-color:var(--surface-2);color:var(--text-muted);border:1px solid var(--border-strong)">↻ Live Data</button>
+                <span style="font-size:0.65rem;color:var(--text-faint)">AI runs hit the live backend · ~$0.02–0.20/run</span>
+                <span id="slStatus" style="font-size:0.7rem;color:var(--text-faint);margin-left:auto"></span>
+            </div>
+            <div id="slCtx" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:1rem">Live SPY data: not loaded yet.</div>
+
+            <!-- Framework cards -->
+            <div id="slCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin-bottom:1.25rem"></div>
+
+            <!-- Inputs → local rules engine -->
+            <div class="section-title">Tape Inputs → Local Read (free · instant)</div>
+            <div id="slInputs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:0.6rem;margin-bottom:1rem"></div>
+            <div id="slGateOut" style="margin-bottom:1.25rem"></div>
+
+            <!-- Key zones -->
+            <div class="section-title">Key Zones (auto-derived from 5-day range)</div>
+            <div id="slZones" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0.75rem;margin-bottom:1.25rem"></div>
+
+            <!-- AI tape read -->
+            <div class="section-title">AI Tape Reading</div>
+            <div id="slAiRunBtns" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-bottom:0.6rem"></div>
+            <div id="slAiTabs" style="display:flex;gap:0.5rem;margin-bottom:0.6rem;flex-wrap:wrap"></div>
+            <div id="slAiOut" style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:1rem;min-height:70px;font-size:0.85rem;color:var(--text)"></div>
+
+            <!-- Framework reference -->
+            <details style="margin-top:1.25rem">
+                <summary style="cursor:pointer;font-size:0.7rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted)">Framework Reference — decision matrix · execution checklist · scenarios</summary>
+                <div id="slFramework" style="margin-top:0.9rem"></div>
+            </details>
+
+        </div>
+    </div>
+
     <!-- Runner Panel -->
     <div style="background-color:var(--surface-1);padding:1.5rem;border-radius:0.5rem;border:1px solid var(--border-strong);margin-bottom:1.5rem">
         <div class="section-title">Claude AI Market Analysis</div>
@@ -3717,6 +3769,463 @@ function setDataSourceLabel(elId, label) {
 document.getElementById('aiTickerInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') runAIAnalysis();
 });
+
+// ══════════════════════════════════════════════════════════════
+// SPY LOGIC — 0DTE BIAS ENGINE (ported from NEXUS v3.1 SPY Logic)
+//   Live data:  GET  {NEXUS_API}/api/spy-logic
+//   AI reads:   POST {NEXUS_API}/api/spy-logic/analysis {provider}
+//   All identifiers prefixed sl/SL_ — no collisions with APEX code.
+// ══════════════════════════════════════════════════════════════
+
+const SL_STATE = {
+    inputs: { opening: 'below', vwap: 'lost', internals: 'weak', retest: 'lowerhigh', ribbon: 'fannedup', ivp: 50, hviv: 'inline', window: 'auto' },
+    live: null,
+    liveFetched: false,
+    liveLoading: false,
+    ai: {},                    // { perplexity: {loading|error|data,model,ts}, claude: {...} }
+    activeProvider: 'perplexity'
+};
+
+const SL_INPUTS_DEF = [
+    ['opening',   'Opening Context',      [['below','Below supply'],['inside','Inside supply'],['above','Above supply'],['gapdown','Gap down to demand']]],
+    ['vwap',      'VWAP State',           [['lost','Lost VWAP'],['holding','Holding above VWAP'],['chop','Whipping around VWAP']]],
+    ['internals', 'Internals',            [['weak','Weak / diverging'],['strong','Strong / confirming'],['mixed','Mixed']]],
+    ['retest',    'Retest Pattern',       [['lowerhigh','Lower high'],['higherlow','Higher low'],['none','No retest yet']]],
+    ['ribbon',    'EMA Ribbon (5/10/20)', [['fannedup','Fanned up (5>10>20)'],['fanneddown','Fanned down (5<10<20)'],['pinched','Pinched / flat (~1pt)']]],
+    ['hviv',      'HV vs IV',             [['inline','In line'],['hvgtiv','HV > IV (realized hot)'],['ivgthv','IV > HV (implied hot)']]],
+    ['window',    'Time Window',          [['auto','Auto (clock)'],['open','9:30-9:45 Open'],['amprime','9:45-11:00 AM Prime'],['lunch','11:00-13:30 Lunch'],['pmprime','13:30-15:00 PM Prime'],['power','15:00-15:45 Power Hr'],['close','15:45-16:00 Close']]]
+];
+
+const SL_CARDS = [
+    ['PRIMARY QUESTION', 'Long pullback or short rally?', 'Depends on opening auction, VWAP acceptance, and reaction at supply.'],
+    ['BIAS TRIGGER', 'VWAP + Internals', 'Location without confirmation is not enough.'],
+    ['PRIMARY SETUP', 'Lower-high fade', 'Best when opening impulse stalls into supply and loses VWAP.'],
+    ['INVALIDATION', 'Accept above supply', 'Do not stay short if price reclaims and holds above the zone.']
+];
+
+const SL_MATRIX = [
+    ['Open below supply, rally stalls, VWAP lost', 'SHORT RALLIES', 'red', 'Wait for lower high into resistance, buy puts on failure.'],
+    ['Open above supply, hold above, VWAP defended', 'BUY PULLBACKS', 'green', 'Use first orderly retest of breakout zone.'],
+    ['Inside range, internals mixed, price whipping VWAP', 'REDUCE SIZE', 'amber', 'Wait for ORB break or confirmed reclaim/reject.'],
+    ['Gap down into demand, immediate VWAP reclaim', 'CTR-TREND LONG', 'green', 'Target move back toward prior value / OR mid.']
+];
+
+const SL_ZONES_META = [
+    { label: 'Zone 1', tag: 'SUPPLY', c: 'red',   note: 'Use for failed first-hour rallies, especially if price loses VWAP and cannot regain on bounce.' },
+    { label: 'Zone 2', tag: 'PIVOT',  c: 'amber', note: 'Reversion target after exhausted opening drive. Decision node for trend continuation vs balance.' },
+    { label: 'Zone 3', tag: 'DEMAND', c: 'green', note: 'Only buy when tape stabilizes, VWAP reclaimed, and flush shows responsive buying — not trend-day liquidation.' }
+];
+
+const SL_CHECKLIST = [
+    ['Locate price vs supply/demand', 'Do not take a momentum signal in isolation; anchor to structure first.'],
+    ['Assess VWAP state', 'Holding above favors pullback longs; loss and rejection favors short rallies.'],
+    ['Demand internal confirmation', 'A/D, TICK, sector confirmation, breadth should agree with direction.'],
+    ['Wait for the retest', 'First breakdown or breakout is information; the retest is often the trade.']
+];
+
+const SL_SCENARIOS = [
+    ['SCENARIO A', 'red',   'Opening rip into supply',   'Let first push exhaust. If internals fade and VWAP breaks, short the lower-high rally.'],
+    ['SCENARIO B', 'green', 'Gap and go above supply',   'If price accepts above zone and back-tests, treat supply as support. Buy pullbacks.'],
+    ['SCENARIO C', 'amber', 'Range chop around VWAP',    'Expect theta burn and false starts. Reduce size or wait for expansion from ORB.']
+];
+
+const SL_PROVIDERS = {
+    perplexity: { label: '⚡ PERPLEXITY', color: 'var(--accent)', note: 'sonar-pro · web search · 5-min cache' },
+    claude:     { label: '⚡ CLAUDE',     color: 'var(--purple)', note: 'reasoning · 5-min cache' },
+    fable:      { label: '⚡ FABLE',      color: 'var(--warn)',   note: 'claude-fable-5 · deepest reasoning · Opus 4.8 fallback' }
+};
+
+const SL_COLORS = {
+    red:   { fg: 'var(--bear)', bg: 'var(--bear-dim)' },
+    green: { fg: 'var(--bull)', bg: 'var(--bull-dim)' },
+    amber: { fg: 'var(--warn)', bg: 'var(--warn-dim)' }
+};
+
+function slEsc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// ── Time window from ET clock (port of NEXUS ZX) ─────────────
+function slTimeWindow(d) {
+    const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short' });
+    const parts = Object.fromEntries(fmt.formatToParts(d || new Date()).map(p => [p.type, p.value]));
+    if (parts.weekday === 'Sat' || parts.weekday === 'Sun') return 'closed';
+    const mins = parts.hour * 60 + +parts.minute;
+    return mins < 570 ? 'pre' : mins < 585 ? 'open' : mins < 660 ? 'amprime' : mins < 810 ? 'lunch'
+         : mins < 900 ? 'pmprime' : mins < 945 ? 'power' : mins < 960 ? 'close' : 'after';
+}
+
+// ── Directional read matrix (port of NEXUS QX) ───────────────
+function slDirectionalRead(inp) {
+    const o = inp.opening, v = inp.vwap, i = inp.internals, r = inp.retest;
+    if ((o === 'below' || o === 'inside') && v === 'lost' && i === 'weak' && r === 'lowerhigh')
+        return { dir: 'SHORT', label: 'SHORT RALLIES', note: 'Opening impulse failing under supply. Puts on a lower-high retest into resistance.' };
+    if ((o === 'above' || o === 'gapdown') && v === 'holding' && i === 'strong' && r === 'higherlow')
+        return { dir: 'LONG', label: 'BUY PULLBACKS', note: 'Holding above value with confirming internals. Buy first orderly pullback into reclaimed level/VWAP.' };
+    if (o === 'gapdown' && v === 'lost' && i === 'weak')
+        return { dir: 'SHORT', label: 'TREND-DOWN WATCH', note: 'Gap-down demand failing with VWAP overhead. Rallies are liquidity events to fade.' };
+    if (o === 'above' && v === 'holding' && i === 'strong')
+        return { dir: 'LONG', label: 'BULLISH LEAN', note: 'Accepted above supply with confirming breadth. Pullback entries; avoid chasing.' };
+    if (o === 'below' && v === 'holding' && i === 'strong')
+        return { dir: 'NEUTRAL', label: 'POTENTIAL REVERSAL', note: 'Below supply but holding VWAP with strong internals. Need acceptance above supply to flip long.' };
+    if ((o === 'above' || o === 'inside') && v === 'lost' && i === 'weak')
+        return { dir: 'SHORT', label: 'FAILED BREAKOUT', note: 'Lost VWAP with weak internals after being above/inside supply. Short the lower-high retest.' };
+    if (v === 'chop' || i === 'mixed' || r === 'none')
+        return { dir: 'NEUTRAL', label: 'REDUCE SIZE / WAIT', note: 'Conditions unaligned. Noise, poor follow-through, rapid premium decay.' };
+    return { dir: 'NEUTRAL', label: 'STAND ASIDE', note: 'Auction not yet clear.' };
+}
+
+// ── Gate engine (port of NEXUS $X) ───────────────────────────
+function slRunGate(inp) {
+    const windowLabels = { pre: 'Pre-market', open: '9:30-9:45 OPEN', amprime: '9:45-11:00 AM PRIME', lunch: '11:00-13:30 LUNCH', pmprime: '13:30-15:00 PM PRIME', power: '15:00-15:45 POWER HOUR', close: '15:45-16:00 CLOSE', after: 'After hours', closed: 'Market closed' };
+    const reasons = [];
+    let gate = 'GO';
+    const rank = { 'GO': 0, 'CAUTION': 1, 'NO-GO': 2 };
+    const worsen = g => { if (rank[g] > rank[gate]) gate = g; };
+
+    const win = (!inp.window || inp.window === 'auto') ? slTimeWindow(new Date()) : inp.window;
+    if (win === 'open')        { worsen('NO-GO');   reasons.push('NO-TRADE window 9:30-9:45 — opening auction + gap IV pop. Wait for 9:45.'); }
+    else if (win === 'close')  { worsen('NO-GO');   reasons.push('NO-TRADE window 15:45-16:00 — do not open new 0DTE risk (theta + pin).'); }
+    else if (win === 'pre' || win === 'after' || win === 'closed') { worsen('NO-GO'); reasons.push('Outside regular session — no 0DTE scalp.'); }
+    else if (win === 'lunch')  { worsen('CAUTION'); reasons.push('Lunch chop 11:00-13:30 — low realized vol, theta trap. Only sharp fast moves.'); }
+
+    if (inp.ribbon === 'pinched') { worsen('NO-GO'); reasons.push('EMA ribbon pinched/flat (5-10-20 within ~1 pt) — realized vol dead. No long premium until it fans out.'); }
+
+    let structure = 'Single-leg 0DTE (long call/put)';
+    const ivp = (inp.ivp === '' || inp.ivp == null) ? NaN : Number(inp.ivp);
+    if (!isNaN(ivp) && ivp >= 70) { structure = 'Debit spread'; worsen('CAUTION'); reasons.push('IV percentile ' + ivp + ' elevated — avoid naked long premium; use a debit spread or wait for IV to deflate.'); }
+    if (inp.hviv === 'ivgthv')      { structure = 'Debit spread'; worsen('CAUTION'); reasons.push('IV running hot vs HV — market overpaying for movement; long premium decays. Lean spreads.'); }
+    else if (inp.hviv === 'hvgtiv' && (isNaN(ivp) || ivp < 70)) { reasons.push('HV > IV — movement underpriced; favorable for naked long scalps.'); }
+
+    const bias = slDirectionalRead(inp);
+    if (gate !== 'NO-GO') {
+        if (bias.dir === 'LONG' && inp.ribbon === 'fanneddown')  { worsen('NO-GO'); reasons.push('Read is LONG but ribbon fanned DOWN — conflict. Stand aside.'); }
+        if (bias.dir === 'SHORT' && inp.ribbon === 'fannedup')   { worsen('NO-GO'); reasons.push('Read is SHORT but ribbon fanned UP — conflict. Stand aside.'); }
+        if (bias.dir === 'NEUTRAL') worsen('CAUTION');
+    }
+
+    const stops = {
+        time: win === 'lunch' ? '10 min' : win === 'amprime' ? '15-20 min' : (win === 'power' || win === 'pmprime') ? '10-15 min' : '10 min',
+        price: '-25% of premium (pre-set)',
+        target: '+30-50%, scale half, BE stop on runner'
+    };
+    if (reasons.length === 0) reasons.push('Time, ribbon and vol all clear; directional read intact.');
+    return { gate, windowKey: win, windowLabel: windowLabels[win] || win, structure, bias, reasons, stops };
+}
+
+// ── Zone derivation from live 5-day range (port of NEXUS cZ) ──
+function slDeriveZones(d) {
+    const price = Number(d.price), hi = Number(d.recent_5d_high), lo = Number(d.recent_5d_low);
+    if (!isFinite(price) || !isFinite(hi) || !isFinite(lo) || hi <= lo) return null;
+    const band = Math.max(2, Math.round(price * 0.004));
+    const mid = (hi + lo) / 2;
+    const fmt = (a, b) => Math.round(a) + '–' + Math.round(b);
+    return [fmt(hi - band, hi), fmt(mid - band / 2, mid + band / 2), fmt(lo, lo + band)];
+}
+
+// ── Minimal markdown → HTML for AI tape reads (port of NEXUS dZ) ──
+function slMdToHtml(md) {
+    let t = slEsc(md);
+    // tables
+    t = t.replace(/\|(.+)\|\n\|[-| :]+\|\n((?:\|.+\|\n?)*)/g, (m, hdr, body) => {
+        const ths = hdr.split('|').map(s => s.trim()).filter(Boolean)
+            .map(h => '<th style="text-align:left;padding:6px 9px;border-bottom:2px solid var(--accent);color:var(--accent);font-size:0.65rem;text-transform:uppercase">' + h + '</th>').join('');
+        const rows = body.trim().split('\n').map(r =>
+            '<tr>' + r.split('|').map(s => s.trim()).filter(Boolean)
+                .map(c => '<td style="padding:6px 9px;border-bottom:1px solid var(--border);font-size:0.78rem">' + c + '</td>').join('') + '</tr>'
+        ).join('');
+        return '<div style="overflow-x:auto;margin:10px 0"><table style="width:100%;border-collapse:collapse"><thead><tr>' + ths + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+    });
+    t = t.replace(/^#{1,4}\s*(.+)$/gm, '<div style="font-weight:700;color:var(--accent);margin:0.8rem 0 0.3rem;font-size:0.72rem;text-transform:uppercase;letter-spacing:0.05em">$1</div>');
+    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/^\s*[-•*]\s+(.+)$/gm, '<div style="padding-left:1rem;text-indent:-0.65rem;margin:0.15rem 0">• $1</div>');
+    t = t.replace(/(<\/(?:div|table)>)\n+/g, '$1');
+    t = t.replace(/\n{2,}/g, '<br>').replace(/\n/g, '<br>');
+    return t;
+}
+
+// ── Renderers ─────────────────────────────────────────────────
+function slRenderCards() {
+    const el = document.getElementById('slCards');
+    if (!el) return;
+    el.innerHTML = SL_CARDS.map(c =>
+        '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.85rem">' +
+            '<div style="font-size:0.62rem;color:var(--text-faint);font-weight:700;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.35rem">' + c[0] + '</div>' +
+            '<div style="font-size:0.9rem;font-weight:700;color:var(--text);margin-bottom:0.3rem">' + c[1] + '</div>' +
+            '<div style="font-size:0.72rem;color:var(--text-muted);line-height:1.45">' + c[2] + '</div>' +
+        '</div>').join('');
+}
+
+function slRenderInputs() {
+    const el = document.getElementById('slInputs');
+    if (!el) return;
+    let html = SL_INPUTS_DEF.map(def => {
+        const key = def[0], label = def[1], opts = def[2];
+        const options = opts.map(o =>
+            '<option value="' + o[0] + '"' + (SL_STATE.inputs[key] === o[0] ? ' selected' : '') + '>' + slEsc(o[1]) + '</option>').join('');
+        return '<div>' +
+            '<div style="font-size:0.62rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem">' + label + '</div>' +
+            '<select onchange="slSetInput(\'' + key + '\', this.value)" style="width:100%;padding:0.45rem 0.5rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.25rem;font-size:0.78rem;font-family:inherit">' + options + '</select>' +
+        '</div>';
+    }).join('');
+    html += '<div>' +
+        '<div style="font-size:0.62rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem">IV Percentile (0-100)</div>' +
+        '<input type="number" min="0" max="100" value="' + slEsc(SL_STATE.inputs.ivp) + '" onchange="slSetInput(\'ivp\', this.value)" oninput="slSetInput(\'ivp\', this.value)" style="width:100%;padding:0.45rem 0.5rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.25rem;font-size:0.78rem;font-family:inherit;box-sizing:border-box">' +
+    '</div>';
+    el.innerHTML = html;
+}
+
+function slSetInput(key, value) {
+    SL_STATE.inputs[key] = value;
+    slRenderLocalRead();
+}
+
+function slRenderLocalRead() {
+    const el = document.getElementById('slGateOut');
+    if (!el) return;
+    const r = slRunGate(SL_STATE.inputs);
+    const gateC = r.gate === 'GO' ? SL_COLORS.green : r.gate === 'CAUTION' ? SL_COLORS.amber : SL_COLORS.red;
+    const dirC = r.bias.dir === 'LONG' ? SL_COLORS.green : r.bias.dir === 'SHORT' ? SL_COLORS.red : SL_COLORS.amber;
+    const badge = (label, val, c) =>
+        '<div style="background:' + (c ? c.bg : 'var(--surface-2)') + ';border:1px solid ' + (c ? c.fg : 'var(--border-strong)') + ';border-radius:0.375rem;padding:0.5rem 0.85rem">' +
+            '<span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.07em;display:block">' + label + '</span>' +
+            '<span style="font-size:0.85rem;font-weight:700;color:' + (c ? c.fg : 'var(--text)') + '">' + val + '</span>' +
+        '</div>';
+    el.innerHTML =
+        '<div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.7rem">' +
+            badge('Gate', r.gate, gateC) +
+            badge('Window', r.windowLabel, null) +
+            badge('Directional Read', r.bias.dir + ' — ' + r.bias.label, dirC) +
+            badge('Structure', r.structure, null) +
+        '</div>' +
+        '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem">' + r.bias.note + '</div>' +
+        '<div style="background:var(--surface-2);border-left:3px solid ' + gateC.fg + ';border-radius:0.25rem;padding:0.6rem 0.8rem;margin-bottom:0.7rem">' +
+            r.reasons.map(x => '<div style="font-size:0.74rem;color:var(--text);margin:0.2rem 0">· ' + x + '</div>').join('') +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem">' +
+            '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.6rem 0.8rem"><span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;display:block;margin-bottom:0.2rem">Time Stop</span><span style="font-size:0.78rem;font-weight:700;color:var(--text)">' + r.stops.time + '</span></div>' +
+            '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.6rem 0.8rem"><span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;display:block;margin-bottom:0.2rem">Price Stop</span><span style="font-size:0.78rem;font-weight:700;color:var(--text)">' + r.stops.price + '</span></div>' +
+            '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.6rem 0.8rem"><span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;display:block;margin-bottom:0.2rem">Target</span><span style="font-size:0.78rem;font-weight:700;color:var(--text)">' + r.stops.target + '</span></div>' +
+        '</div>' +
+        '<div style="margin-top:0.7rem;font-size:0.65rem;color:var(--text-faint)">Logic is a framework, not a signal service. Final entry quality depends on tape, spread, option liquidity, and whether price is trading into a real inflection.</div>';
+}
+
+function slRenderZones(values) {
+    const el = document.getElementById('slZones');
+    if (!el) return;
+    el.innerHTML = SL_ZONES_META.map((z, i) => {
+        const c = SL_COLORS[z.c];
+        return '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.85rem">' +
+            '<div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem">' +
+                '<span style="font-size:0.62rem;color:var(--text-faint);font-weight:700;text-transform:uppercase">' + z.label + '</span>' +
+                '<span style="font-size:0.58rem;font-weight:700;padding:1px 7px;border-radius:999px;background:' + c.bg + ';color:' + c.fg + '">' + z.tag + '</span>' +
+                '<span style="margin-left:auto;font-size:0.95rem;font-weight:700;color:' + c.fg + '">' + (values ? values[i] : '—') + '</span>' +
+            '</div>' +
+            '<div style="font-size:0.7rem;color:var(--text-muted);line-height:1.45">' + z.note + '</div>' +
+        '</div>';
+    }).join('');
+}
+
+function slRenderAiTabs() {
+    const el = document.getElementById('slAiTabs');
+    if (!el) return;
+    el.innerHTML = Object.keys(SL_PROVIDERS).map(p => {
+        const cfg = SL_PROVIDERS[p];
+        const st = SL_STATE.ai[p];
+        const dot = !st ? '' : st.loading ? ' ⏳' : st.error ? ' ✗' : ' ✓';
+        const active = SL_STATE.activeProvider === p;
+        return '<button onclick="slSetProvider(\'' + p + '\')" style="padding:0.4rem 0.9rem;border-radius:0.25rem;cursor:pointer;font-family:inherit;font-size:0.7rem;font-weight:700;letter-spacing:0.05em;' +
+            (active
+                ? 'background:var(--surface-2);color:' + cfg.color + ';border:1px solid ' + cfg.color
+                : 'background:transparent;color:var(--text-faint);border:1px solid var(--border-strong)') +
+            '">' + cfg.label + dot + '</button>';
+    }).join('');
+}
+
+function slRenderAiRunBtns() {
+    const el = document.getElementById('slAiRunBtns');
+    if (!el) return;
+    el.innerHTML = Object.keys(SL_PROVIDERS).map(p => {
+        const cfg = SL_PROVIDERS[p];
+        return '<button onclick="slRunProvider(\'' + p + '\')" title="' + slEsc(cfg.note) + '" style="font-size:0.68rem;font-weight:700;letter-spacing:0.04em;background:color-mix(in srgb, ' + cfg.color + ' 10%, transparent);border:1px solid ' + cfg.color + ';color:' + cfg.color + ';border-radius:0.25rem;padding:0.35rem 0.75rem;cursor:pointer;font-family:inherit">' + cfg.label + '</button>';
+    }).join('');
+}
+
+function slSetProvider(p) {
+    SL_STATE.activeProvider = p;
+    slRenderAiTabs();
+    slRenderAiOut();
+}
+
+function slRenderAiOut() {
+    const el = document.getElementById('slAiOut');
+    if (!el) return;
+    const p = SL_STATE.activeProvider;
+    const cfg = SL_PROVIDERS[p];
+    const st = SL_STATE.ai[p];
+    if (!st) {
+        el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-faint);font-size:0.8rem">Click ' + cfg.label + ' — ' + slEsc(cfg.note) + '<div style="font-size:0.68rem;margin-top:0.35rem">or press ▶ RUN TRADE LOGIC to fire Perplexity + Claude in parallel (~$0.02–0.20/run)</div></div>';
+        return;
+    }
+    if (st.loading) {
+        el.innerHTML = '<div style="text-align:center;padding:1.5rem"><div style="font-size:1.2rem;animation:pulse 1.5s infinite">⚡</div><div style="color:var(--text-muted);font-size:0.78rem;margin-top:0.4rem">⏳ Generating ' + slEsc(p) + ' tape reading…</div><div style="color:var(--text-faint);font-size:0.68rem;margin-top:0.25rem">live data → AI analysis' + (p === 'fable' ? ' (Fable can run longer)' : '') + '</div></div>';
+        return;
+    }
+    if (st.error) {
+        el.innerHTML = '<div style="border-left:3px solid var(--bear);padding:0.6rem 0.9rem;background:var(--bear-dim);border-radius:0.25rem"><span style="color:var(--bear);font-weight:700;font-size:0.78rem">⚠ ' + slEsc(p) + ' failed:</span> <span style="color:var(--text-muted);font-size:0.78rem">' + slEsc(st.error) + '</span></div>';
+        return;
+    }
+    el.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.75rem;padding-bottom:0.5rem;border-bottom:1px solid var(--border)">' +
+            '<span style="display:flex;gap:0.5rem;align-items:center">' +
+                '<span style="padding:2px 8px;border-radius:999px;font-size:0.6rem;font-weight:700;background:color-mix(in srgb, ' + cfg.color + ' 12%, transparent);color:' + cfg.color + '">' + slEsc((st.model || p).toUpperCase()) + '</span>' +
+                (st.market ? '<span style="font-size:0.72rem;color:var(--text-muted)">SPY $' + slEsc(st.market.price) + ' · VWAP $' + slEsc(st.market.vwap) + '</span>' : '') +
+            '</span>' +
+            (st.ts ? '<span style="font-size:0.65rem;color:var(--text-faint)">' + slEsc(new Date(st.ts).toLocaleTimeString()) + '</span>' : '') +
+        '</div>' +
+        '<div style="line-height:1.55">' + slMdToHtml(st.data) + '</div>';
+}
+
+function slRenderFramework() {
+    const el = document.getElementById('slFramework');
+    if (!el) return;
+    const matrixRows = SL_MATRIX.map(r => {
+        const c = SL_COLORS[r[2]];
+        return '<tr>' +
+            '<td style="padding:7px 9px;border-bottom:1px solid var(--border);font-size:0.74rem;color:var(--text)">' + r[0] + '</td>' +
+            '<td style="padding:7px 9px;border-bottom:1px solid var(--border)"><span style="font-size:0.66rem;font-weight:700;padding:2px 8px;border-radius:999px;background:' + c.bg + ';color:' + c.fg + ';white-space:nowrap">' + r[1] + '</span></td>' +
+            '<td style="padding:7px 9px;border-bottom:1px solid var(--border);font-size:0.74rem;color:var(--text-muted)">' + r[3] + '</td>' +
+        '</tr>';
+    }).join('');
+    const checklist = SL_CHECKLIST.map(c =>
+        '<div style="margin-bottom:0.6rem"><span style="color:var(--bull);font-weight:700">✓</span> <span style="font-size:0.78rem;font-weight:700;color:var(--text)">' + c[0] + '</span><div style="font-size:0.7rem;color:var(--text-muted);margin-left:1.1rem;line-height:1.45">' + c[1] + '</div></div>').join('');
+    const scenarios = SL_SCENARIOS.map(s => {
+        const c = SL_COLORS[s[1]];
+        return '<div style="border-left:3px solid ' + c.fg + ';padding:0.5rem 0.8rem;margin-bottom:0.6rem;background:var(--surface-2);border-radius:0.25rem">' +
+            '<span style="font-size:0.62rem;font-weight:700;color:' + c.fg + ';letter-spacing:0.07em">' + s[0] + '</span>' +
+            '<div style="font-size:0.78rem;font-weight:700;color:var(--text);margin:0.15rem 0">' + s[2] + '</div>' +
+            '<div style="font-size:0.7rem;color:var(--text-muted);line-height:1.45">' + s[3] + '</div>' +
+        '</div>';
+    }).join('');
+    el.innerHTML =
+        '<div class="section-title" style="margin-top:0">Decision Matrix</div>' +
+        '<div style="overflow-x:auto;margin-bottom:1rem"><table style="width:100%;border-collapse:collapse">' +
+            '<thead><tr>' +
+                '<th style="text-align:left;padding:6px 9px;border-bottom:2px solid var(--border-strong);color:var(--text-faint);font-size:0.62rem;text-transform:uppercase;letter-spacing:0.06em">Condition</th>' +
+                '<th style="text-align:left;padding:6px 9px;border-bottom:2px solid var(--border-strong);color:var(--text-faint);font-size:0.62rem;text-transform:uppercase;letter-spacing:0.06em">Bias</th>' +
+                '<th style="text-align:left;padding:6px 9px;border-bottom:2px solid var(--border-strong);color:var(--text-faint);font-size:0.62rem;text-transform:uppercase;letter-spacing:0.06em">Execution</th>' +
+            '</tr></thead><tbody>' + matrixRows + '</tbody></table></div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1.25rem">' +
+            '<div><div class="section-title" style="margin-top:0">Execution Checklist <span style="font-size:0.58rem;color:var(--text-faint);font-weight:400">BEFORE ENTRY</span></div>' + checklist + '</div>' +
+            '<div><div class="section-title" style="margin-top:0">Scenarios</div>' + scenarios + '</div>' +
+        '</div>';
+}
+
+// ── Live data fetch (GET /api/spy-logic) ──────────────────────
+async function slFetchLive(force) {
+    if (SL_STATE.liveLoading || (SL_STATE.liveFetched && !force)) return;
+    const ctxEl = document.getElementById('slCtx');
+    const headEl = document.getElementById('slHeadCtx');
+    if (!ctxEl) return;
+    SL_STATE.liveLoading = true;
+    ctxEl.textContent = 'Live SPY data: loading…';
+    try {
+        const resp = await fetch(NEXUS_API + '/api/spy-logic', { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) throw new Error('API ' + resp.status);
+        const d = await resp.json();
+        if (!d || d.error) throw new Error((d && d.error) || 'empty payload');
+        SL_STATE.live = d;
+        SL_STATE.liveFetched = true;
+        // Auto-derive opening context + VWAP state (same rules as NEXUS)
+        SL_STATE.inputs.opening = d.price > d.recent_5d_high ? 'above' : d.price < d.recent_5d_low ? 'gapdown' : 'below';
+        SL_STATE.inputs.vwap = (d.above_vwap && d.vwap_distance > 1) ? 'holding' : (!d.above_vwap && d.vwap_distance > 1) ? 'lost' : 'chop';
+        slRenderInputs();
+        slRenderZones(slDeriveZones(d));
+        slRenderLocalRead();
+        const chg = (d.day_change_pct >= 0 ? '+' : '') + d.day_change_pct + '%';
+        ctxEl.textContent = 'Live: SPY $' + d.price + ' (' + chg + ') · VWAP $' + d.vwap + ' (' + (d.above_vwap ? 'holding above' : 'below') + ') · ' + (d.sector_breadth || '') + (d.timestamp ? ' · as of ' + new Date(d.timestamp).toLocaleTimeString() : '');
+        if (headEl) headEl.textContent = 'SPY $' + d.price + ' ' + chg + ' · VWAP ' + (d.above_vwap ? 'above' : 'below');
+    } catch (e) {
+        const local = (typeof location !== 'undefined' && location.protocol === 'file:') ? ' Local file preview: backend CORS only allows the deployed site — push to GitHub Pages and use najthetradinghasira.github.io.' : '';
+        ctxEl.innerHTML = '<span style="color:var(--warn)">Live SPY data unavailable (' + slEsc(e.message) + ') — inputs stay manual; zones need live data.' + slEsc(local) + '</span>';
+    } finally {
+        SL_STATE.liveLoading = false;
+    }
+}
+
+// ── AI tape reads (POST /api/spy-logic/analysis) ──────────────
+async function slRunProvider(provider) {
+    SL_STATE.ai[provider] = { loading: true };
+    SL_STATE.activeProvider = provider;   // running a provider switches to its tab (NEXUS parity)
+    slRenderAiTabs();
+    slRenderAiOut();
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), provider === 'fable' ? 180000 : 120000);
+        const resp = await fetch(NEXUS_API + '/api/spy-logic/analysis', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ provider: provider }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+        const d = await resp.json().catch(() => ({}));
+        if (!resp.ok || d.error || !d.analysis) throw new Error(d.error || d.detail || 'API ' + resp.status);
+        SL_STATE.ai[provider] = { data: d.analysis, model: d.model_used, market: d.market_data, ts: d.timestamp };
+    } catch (e) {
+        const local = (typeof location !== 'undefined' && location.protocol === 'file:') ? ' — local file preview: backend CORS requires the deployed site (najthetradinghasira.github.io)' : '';
+        SL_STATE.ai[provider] = { error: (e.name === 'AbortError' ? 'timed out' : e.message) + local };
+    }
+    slRenderAiTabs();
+    slRenderAiOut();
+}
+
+function slRunAI() {
+    if (!SL_STATE.liveFetched) slFetchLive(false);   // opportunistic, non-blocking
+    const btn = document.getElementById('slRunBtn');
+    const statusEl = document.getElementById('slStatus');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Reading tape…'; }
+    if (statusEl) { statusEl.textContent = 'Running Perplexity + Claude…'; statusEl.style.color = 'var(--warn)'; }
+    Promise.allSettled([slRunProvider('perplexity'), slRunProvider('claude')]).then(() => {
+        if (btn) { btn.disabled = false; btn.textContent = '▶ RUN TRADE LOGIC'; }
+        if (statusEl) {
+            const anyErr = Object.keys(SL_STATE.ai).some(k => SL_STATE.ai[k] && SL_STATE.ai[k].error);
+            statusEl.textContent = (anyErr ? '⚠ tape read finished with errors · ' : '✓ tape read complete · ') + new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            statusEl.style.color = anyErr ? 'var(--warn)' : 'var(--bull)';
+        }
+    });
+}
+
+// ── Collapse / expand ─────────────────────────────────────────
+function slToggle() {
+    const body = document.getElementById('slBody');
+    const chev = document.getElementById('slChevron');
+    if (!body) return;
+    const open = body.style.display === 'none';
+    body.style.display = open ? 'block' : 'none';
+    if (chev) chev.textContent = open ? '▾' : '▸';
+    try { localStorage.setItem('apex_spylogic_open', open ? '1' : '0'); } catch (e) {}
+    if (open) slFetchLive(false);
+}
+
+// ── Init (guarded — must never break the rest of the terminal) ──
+try {
+    slRenderCards();
+    slRenderInputs();
+    slRenderZones(null);
+    slRenderLocalRead();
+    slRenderAiRunBtns();
+    slRenderAiTabs();
+    slRenderAiOut();
+    slRenderFramework();
+    let slSavedOpen = false;
+    try { slSavedOpen = localStorage.getItem('apex_spylogic_open') === '1'; } catch (e) {}
+    if (slSavedOpen) slToggle();
+} catch (e) {
+    console.warn('[SPY Logic] init failed (non-blocking):', e);
+}
 
 // ══════════════════════════════════════════════════════════════
 // LIVE DATA ENGINE  v1.0
