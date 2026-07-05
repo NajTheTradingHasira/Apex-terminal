@@ -1904,7 +1904,7 @@ function saveWatchlistToStorage() {
     localStorage.setItem('apex_watchlist', JSON.stringify(data));
 
     // Sync to Postgres (background, non-blocking)
-    fetch(`${NEXUS_API}/api/watchlist`, {
+    fetch(`${NEXUS_API}/api/watchlist?scope=apex`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ watchlist: data })
@@ -1927,7 +1927,7 @@ function loadWatchlistFromStorage() {
 
 async function syncWatchlistFromBackend() {
     try {
-        const resp = await fetch(`${NEXUS_API}/api/watchlist`);
+        const resp = await fetch(`${NEXUS_API}/api/watchlist?scope=apex`);
         if (!resp.ok) return;
         const data = await resp.json();
         const wl = data.watchlist;
