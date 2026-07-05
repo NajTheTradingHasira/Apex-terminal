@@ -4279,6 +4279,7 @@ let liveDataActive = false;
 // ── 2. PRICE FETCH VIA NEXUS BACKEND ────────────────────────
 // Routes through Nexus /api/prices endpoint — no CORS proxy needed
 async function fetchYahooPrices(symbols) {
+    let fetched = 0; // symbols successfully cached this call
     // Chunk into batches of 20 to keep URLs reasonable
     const chunks = [];
     for (let i = 0; i < symbols.length; i += 20) {
@@ -4307,11 +4308,13 @@ async function fetchYahooPrices(symbols) {
                     monthPct: d.monthPct?.toFixed(2) ?? null,
                     volume: d.volume
                 };
+                fetched++;
             });
         } catch (e) {
             console.warn('[APEX Live] Nexus price fetch failed for chunk:', syms, e.message);
         }
     }
+    return fetched;
 }
 
 // ── 3. RENDER FUNCTIONS ──────────────────────────────────────
@@ -4328,6 +4331,20 @@ function pctClass(val) {
     const n = parseFloat(val);
     if (isNaN(n)) return '';
     return n > 0 ? 'positive' : n < 0 ? 'negative' : '';
+}
+
+// Blank the hardcoded placeholder tape values until real data arrives —
+// never show stale baked-in prices as if they were live
+function blankTickerStrip() {
+    document.querySelectorAll('.ticker-item').forEach(item => {
+        const dispSym = item.querySelector('.ticker-symbol')?.textContent?.trim();
+        const cacheSym = dispSym === 'VIX' ? '^VIX' : dispSym;
+        if (PRICE_CACHE[cacheSym]) return; // real data already present
+        const priceEl = item.querySelector('.ticker-price');
+        const changeEl = item.querySelector('.ticker-change');
+        if (priceEl) priceEl.textContent = '—';
+        if (changeEl) { changeEl.textContent = '—'; changeEl.className = 'ticker-change'; }
+    });
 }
 
 // Ticker strip
@@ -4593,7 +4610,7 @@ async function refreshAllLiveData() {
     console.log('[APEX Live] Fetching prices...');
     setLiveStatus(false, null);
 
-    await fetchYahooPrices(LIVE_TICKERS);
+    const fetched = await fetchYahooPrices(LIVE_TICKERS);
 
     // Also fetch prices for any watchlist tickers not in LIVE_TICKERS
     const wlSyms = [];
@@ -4616,10 +4633,24 @@ async function refreshAllLiveData() {
     // Run alert engine after prices are fresh
     checkAlerts();
 
-    liveDataActive = true;
-    const now = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false });
-    setLiveStatus(true, `${now} ET`);
-    console.log('[APEX Live] All prices updated at', now);
+    if (fetched > 0) {
+        liveDataActive = true;
+        const now = new Date().toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false });
+        setLiveStatus(true, `${now} ET`);
+        console.log('[APEX Live] All prices updated at', now);
+    } else {
+        // Total fetch failure: badge stays STALE, placeholders get blanked,
+        // and we retry in 20s instead of waiting the full 5-minute cycle.
+        blankTickerStrip();
+        setLiveStatus(false, null);
+        console.warn('[APEX Live] No prices received — badge STALE, retrying in 20s');
+        if (!window.__apexPriceRetry) {
+            window.__apexPriceRetry = setTimeout(() => {
+                window.__apexPriceRetry = null;
+                refreshAllLiveData();
+            }, 20000);
+        }
+    }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -5313,6 +5344,7 @@ async function fetchRegimeScan() {
 
 // ── 8. BOOT SEQUENCE ─────────────────────────────────────────
 // Initial load — stagger fetches to avoid hammering
+blankTickerStrip(); // wipe baked-in placeholder prices immediately
 setTimeout(() => {
     refreshAllLiveData();
     initCOT();
