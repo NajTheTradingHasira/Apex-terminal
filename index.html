@@ -2974,20 +2974,25 @@ async function fetchOptionsData() {
     statusEl.style.color = 'var(--warn)';
 
     try {
-        let url;
-        if (selectedExpiry) {
-            url = `${NEXUS_API}/api/options/${ticker}/chain?expiry=${selectedExpiry}`;
-        } else {
-            url = `${NEXUS_API}/api/options/${ticker}`;
-        }
+        const qs = selectedExpiry ? `?expiry=${selectedExpiry}` : '';
+        const legacyUrl = selectedExpiry
+            ? `${NEXUS_API}/api/options/${ticker}/chain?expiry=${selectedExpiry}`
+            : `${NEXUS_API}/api/options/${ticker}`;
 
-        const resp = await fetch(url, {
+        // Unified chain: UW primary → CBOE fallback (decided server-side).
+        // Legacy Yahoo route only if /api/chain is unavailable entirely.
+        let resp = await fetch(`${NEXUS_API}/api/chain/${ticker}${qs}`, {
             method: 'GET',
             headers: { 'Accept': 'application/json' }
         });
+        if (!resp.ok) {
+            console.warn(`[APEX Options] /api/chain ${resp.status} — using legacy route`);
+            resp = await fetch(legacyUrl, { method: 'GET', headers: { 'Accept': 'application/json' } });
+        }
 
         if (!resp.ok) throw new Error(`API ${resp.status}: ${resp.statusText}`);
         const data = await resp.json();
+        const srcTag = data.source === 'unusual_whales' ? ' · 🐋 UW' : data.source === 'cboe' ? ' · CBOE 15m' : '';
 
         if (data.summary) {
             optionsDataCache = data;
@@ -2995,14 +3000,14 @@ async function fetchOptionsData() {
             renderOptionsChain(data.chain.calls, data.chain.puts);
             renderUnusualActivity(data.unusualActivity, ticker);
             populateExpiryDropdown(data.expirations, data.nearestExpiry);
-            statusEl.textContent = `✓ ${ticker} — ${data.nearestExpiry} · ${new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}`;
+            statusEl.textContent = `✓ ${ticker} — ${data.nearestExpiry}${srcTag} · ${new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}`;
             statusEl.style.color = 'var(--bull)';
         } else {
             renderOptionsChain(data.calls, data.puts);
             renderChainOnlySummary(data.calls, data.puts, ticker);
             const unusual = [...data.calls, ...data.puts].filter(r => r.unusual).sort((a,b) => b.volume - a.volume).slice(0, 15);
             renderUnusualActivity(unusual, ticker);
-            statusEl.textContent = `✓ ${ticker} — ${data.expiry} · ${new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}`;
+            statusEl.textContent = `✓ ${ticker} — ${data.expiry || data.nearestExpiry || ''}${srcTag} · ${new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}`;
             statusEl.style.color = 'var(--bull)';
         }
 
@@ -3135,6 +3140,13 @@ function renderUnusualActivity(unusual, ticker) {
         const signal = isCall ? 'BULLISH' : 'BEARISH';
         const signalClass = isCall ? 'tag-buy' : 'tag-sell';
         const expiry = r.contractSymbol ? r.contractSymbol.match(/\d{6}/)?.[0] || '—' : '—';
+        // UW-only flow context: which side of the market the volume hit
+        const flowNote = (typeof r.askSidePct === 'number')
+            ? (r.askSidePct >= 60 ? ` · ${r.askSidePct.toFixed(0)}% ask`
+               : r.askSidePct <= 40 ? ` · ${(100 - r.askSidePct).toFixed(0)}% bid`
+               : ' · mixed')
+            : '';
+        const sweepTag = (r.sweepVolume > 0) ? ' ⚡' : '';
 
         return `<tr>
             <td style="color:${typeColor};font-weight:700">${typeLabel}</td>
@@ -3145,7 +3157,7 @@ function renderUnusualActivity(unusual, ticker) {
             <td style="color:var(--warn);font-weight:700">${r.volume.toLocaleString()}</td>
             <td>${r.openInterest.toLocaleString()}</td>
             <td>${r.impliedVolatility.toFixed(1)}%</td>
-            <td><span class="tag ${signalClass}">${signal} ${volOIRatio}×</span></td>
+            <td><span class="tag ${signalClass}">${signal} ${volOIRatio}×${flowNote}${sweepTag}</span></td>
         </tr>`;
     }).join('');
 }
