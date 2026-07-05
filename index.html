@@ -431,6 +431,53 @@
         .journal-table tr:hover td { background: rgba(0,212,255,0.03); }
         .journal-export { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
 
+        /* ── Trade Tracker (scalp edition) ─────────────────── */
+        .tt-preview { display: inline-flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.9rem; border-radius: 0.3rem; border: 1px solid var(--border-strong); background: var(--surface-2); font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; margin-left: 0.75rem; vertical-align: middle; }
+        .tt-preview .sub { font-size: 0.7rem; font-weight: 500; color: var(--text-faint); }
+        .tt-wl { display: flex; gap: 1rem; align-items: center; padding-top: 1.1rem; }
+        .tt-wl label { display: inline-flex; align-items: center; gap: 0.4rem; cursor: pointer; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-faint); user-select: none; }
+        .tt-wl input[type="checkbox"] { appearance: none; width: 16px; height: 16px; border: 1px solid var(--border-strong); border-radius: 3px; background: var(--surface-2); cursor: pointer; position: relative; margin: 0; }
+        .tt-wl input[type="checkbox"]:checked::after { content: '✓'; position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 900; }
+        .tt-wl #ttWin:checked { border-color: var(--bull); background: rgba(34,197,94,0.15); }
+        .tt-wl #ttWin:checked::after { color: var(--bull); }
+        .tt-wl #ttLoss:checked { border-color: var(--bear); background: rgba(239,68,68,0.15); }
+        .tt-wl #ttLoss:checked::after { color: var(--bear); }
+        .tt-wl label:has(#ttWin:checked) { color: var(--bull); }
+        .tt-wl label:has(#ttLoss:checked) { color: var(--bear); }
+        .tt-table-wrap { overflow-x: auto; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-card); }
+        .tt-table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        .tt-table th { text-align: left; padding: 0.6rem 0.75rem; color: var(--text-faint); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); font-weight: 600; white-space: nowrap; }
+        .tt-table td { padding: 0.55rem 0.75rem; border-bottom: 1px solid var(--border); font-size: 0.8rem; font-family: var(--font-mono); white-space: nowrap; }
+        .tt-table tbody tr.tt-row { cursor: pointer; }
+        .tt-table tbody tr.tt-row:hover td { background: rgba(0,212,255,0.03); }
+        .tt-table tr:last-child td { border-bottom: none; }
+        .tt-badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 0.2rem; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.05em; }
+        .tt-badge.win { background: rgba(34,197,94,0.15); color: var(--bull); }
+        .tt-badge.loss { background: rgba(239,68,68,0.15); color: var(--bear); }
+        .tt-notes-row td { background: var(--surface-2); font-family: var(--font-ui, inherit); white-space: normal; font-size: 0.78rem; color: var(--text-muted); padding: 0.75rem 1rem; }
+        .tt-notes-row .lbl { color: var(--text-faint); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-right: 0.4rem; }
+        /* Stats — hashira-style KPI cards */
+        .tt-kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+        .tt-kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-card); padding: 1rem 1.25rem; }
+        .tt-kpi .lbl { font-size: 0.68rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; margin-bottom: 0.45rem; }
+        .tt-kpi .val { font-size: 1.55rem; font-weight: 700; font-family: var(--font-mono); color: var(--text); line-height: 1.1; }
+        .tt-kpi .val .dim { color: var(--text-faint); font-size: 1.1rem; font-weight: 500; }
+        .tt-chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
+        @media (max-width: 900px) { .tt-chart-grid { grid-template-columns: 1fr; } .tt-bw-grid { grid-template-columns: 1fr !important; } }
+        .tt-chart-card { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-card); padding: 1.1rem 1.25rem; }
+        .tt-chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+        .tt-chart-title { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; }
+        .tt-period-toggle { display: flex; gap: 0.25rem; }
+        .tt-period-toggle button { padding: 0.2rem 0.6rem; background: transparent; color: var(--text-faint); border: 1px solid var(--border); border-radius: 0.2rem; cursor: pointer; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.05em; font-family: var(--font-ui); }
+        .tt-period-toggle button.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+        .tt-bw-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem; }
+        .tt-bw { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-lg); box-shadow: var(--shadow-card); padding: 1rem 1.25rem; }
+        .tt-bw.best { border-left: 3px solid var(--bull); }
+        .tt-bw.worst { border-left: 3px solid var(--bear); }
+        .tt-bw .contract { font-family: var(--font-mono); font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem; }
+        .tt-bw .pnl { font-family: var(--font-mono); font-weight: 800; font-size: 1.3rem; }
+        .tt-bw .pct { color: var(--text-faint); font-size: 0.8rem; font-family: var(--font-mono); margin-left: 0.4rem; }
+
         .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border-strong); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: middle; margin-right: 6px; }
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
@@ -1091,6 +1138,7 @@
                 </div>
                 <div class="journal-field"><span class="journal-label"># Trades</span><input class="journal-input" id="djTradeCount" type="number" min="0" placeholder="0"></div>
                 <div class="journal-field"><span class="journal-label">Daily P&L ($)</span><input class="journal-input" id="djPnl" type="number" step="0.01" placeholder="+/- amount"></div>
+                <div class="journal-field"><span class="journal-label">Max DD from HOD ($)</span><input class="journal-input" id="djHodDD" type="number" step="0.01" min="0" placeholder="given back from high" title="Most P&L given back from your intraday high-water mark — the tilt meter"></div>
             </div>
             <div class="journal-field" style="margin-bottom:0.75rem"><span class="journal-label">Notes / Key Lessons</span><textarea class="journal-textarea" id="djNotes" placeholder="What worked, what didn't, key observations..."></textarea></div>
             <div class="journal-row">
@@ -1098,53 +1146,108 @@
                 <div class="journal-field"><span class="journal-label">Rules Broken</span><textarea class="journal-textarea" id="djRulesBroken" placeholder="Which rules did you violate? Why?" style="min-height:60px"></textarea></div>
             </div>
             <button class="journal-submit" onclick="addDailyEntry()">Save Journal Entry</button>
+            <button class="journal-btn-secondary" onclick="autofillDailyFromTrades()" style="margin-left:0.6rem;vertical-align:bottom" title="Pull # trades, P&L and win rate from the Trade Tracker for this date">⟳ Auto-fill from Trade Log</button>
         </div>
         <div class="section-title">Journal Entries</div>
         <div id="dailyEntries"></div>
     </div>
 
-    <!-- ═══ TRADE TRACKER SUB-TAB ═══ -->
+    <!-- ═══ TRADE TRACKER SUB-TAB (options scalping) ═══ -->
     <div class="journal-subpanel" id="journalTrades">
         <div class="journal-form">
-            <div class="section-title">Log Trade</div>
+            <div class="section-title">Log Scalp</div>
             <div class="journal-row">
-                <div class="journal-field"><span class="journal-label">Ticker</span><input class="journal-input" id="jtTicker" placeholder="AAPL" maxlength="6"></div>
-                <div class="journal-field"><span class="journal-label">Direction</span>
-                    <select class="journal-select" id="jtDir"><option value="long">Long</option><option value="short">Short</option></select>
-                </div>
+                <div class="journal-field"><span class="journal-label">Date</span><input class="journal-input" id="ttDate" type="date"></div>
+                <div class="journal-field"><span class="journal-label">Ticker</span><input class="journal-input" id="ttTicker" placeholder="SPY" maxlength="6" value="SPY"></div>
                 <div class="journal-field"><span class="journal-label">Type</span>
-                    <select class="journal-select" id="jtType"><option value="equity">Equity</option><option value="call">Call</option><option value="put">Put</option><option value="spread">Spread</option></select>
+                    <select class="journal-select" id="ttType"><option value="call">Call</option><option value="put">Put</option><option value="call_spread">Call Spread</option><option value="put_spread">Put Spread</option><option value="shares">Shares</option></select>
                 </div>
-                <div class="journal-field"><span class="journal-label">Stage</span>
-                    <select class="journal-select" id="jtStage"><option>Stage 2</option><option>Stage 3</option><option>Stage 4</option><option>Stage 1</option><option>N/A</option></select>
+                <div class="journal-field"><span class="journal-label">Direction</span>
+                    <select class="journal-select" id="ttDir"><option value="long">Long (debit)</option><option value="short">Short (credit)</option></select>
                 </div>
-                <div class="journal-field"><span class="journal-label">Entry Price</span><input class="journal-input" id="jtEntry" type="number" step="0.01" placeholder="0.00"></div>
-                <div class="journal-field"><span class="journal-label">Exit Price</span><input class="journal-input" id="jtExit" type="number" step="0.01" placeholder="0.00"></div>
-                <div class="journal-field"><span class="journal-label">Contracts / Shares</span><input class="journal-input" id="jtQty" type="number" min="1" placeholder="100"></div>
-                <div class="journal-field"><span class="journal-label">Days in Trade</span><input class="journal-input" id="jtDays" type="number" min="0" placeholder="0"></div>
+                <div class="journal-field"><span class="journal-label">Strike</span><input class="journal-input" id="ttStrike" type="number" step="0.5" placeholder="648"></div>
+                <div class="journal-field"><span class="journal-label">Expiry</span><input class="journal-input" id="ttExpiry" type="date"></div>
+                <div class="journal-field"><span class="journal-label">Contracts</span><input class="journal-input" id="ttQty" type="number" min="1" placeholder="1" value="1"></div>
             </div>
             <div class="journal-row">
-                <div class="journal-field"><span class="journal-label">Setup Notes</span><textarea class="journal-textarea" id="jtSetup" placeholder="Setup rationale, Weinstein stage, Kell criteria..." style="min-height:60px"></textarea></div>
-                <div class="journal-field"><span class="journal-label">Exit Reason</span><textarea class="journal-textarea" id="jtExitReason" placeholder="Why did you exit? Stop hit, target reached, thesis changed..." style="min-height:60px"></textarea></div>
+                <div class="journal-field"><span class="journal-label">Time Entered</span><input class="journal-input" id="ttTimeIn" type="time" step="60"></div>
+                <div class="journal-field"><span class="journal-label">Time Exited</span><input class="journal-input" id="ttTimeOut" type="time" step="60"></div>
+                <div class="journal-field"><span class="journal-label">Starting Value ($)</span><input class="journal-input" id="ttStartVal" type="number" step="0.01" min="0" placeholder="total in"></div>
+                <div class="journal-field"><span class="journal-label">Ending Value ($)</span><input class="journal-input" id="ttEndVal" type="number" step="0.01" min="0" placeholder="total out"></div>
+                <div class="journal-field"><span class="journal-label">Setup</span>
+                    <select class="journal-select" id="ttSetup">
+                        <option>Wedge Pop</option><option>Wedge Drop</option><option>ORB</option>
+                        <option>VWAP Reclaim</option><option>VWAP Reject</option><option>EP / News</option>
+                        <option>Base n Break</option><option>Exhaustion Reversal</option><option>Trend Continuation</option><option>Other</option>
+                    </select>
+                </div>
+                <div class="journal-field"><span class="journal-label">Result</span>
+                    <div class="tt-wl" style="padding-top:0.35rem">
+                        <label><input type="checkbox" id="ttWin"> Winner</label>
+                        <label><input type="checkbox" id="ttLoss"> Loser</label>
+                    </div>
+                </div>
+            </div>
+            <div class="journal-row">
+                <div class="journal-field"><span class="journal-label">Setup Notes</span><textarea class="journal-textarea" id="ttSetupNotes" placeholder="Entry trigger, Kell phase, level, confluence..." style="min-height:60px"></textarea></div>
+                <div class="journal-field"><span class="journal-label">Exit Reason</span><textarea class="journal-textarea" id="ttExitReason" placeholder="Target hit, stop hit, theta, momentum died..." style="min-height:60px"></textarea></div>
             </div>
             <button class="journal-submit" onclick="addTradeEntry()">+ Log Trade</button>
+            <span class="tt-preview" id="ttPreview" style="display:none"></span>
         </div>
         <div class="section-title">Trade Log</div>
         <div id="tradeEntries"></div>
     </div>
 
-    <!-- ═══ STATS SUB-TAB ═══ -->
+    <!-- ═══ STATS SUB-TAB (hashira-style P&L summary) ═══ -->
     <div class="journal-subpanel" id="journalStats">
-        <div class="stat-grid" id="statsGrid"></div>
+        <div class="tt-kpi-grid" id="ttKpiMain"></div>
+        <div class="tt-kpi-grid" id="ttKpiScalp"></div>
+
+        <div class="tt-chart-grid">
+            <div class="tt-chart-card">
+                <div class="tt-chart-head"><span class="tt-chart-title">Cumulative P&L</span></div>
+                <canvas id="ttCumCanvas" height="220" style="width:100%;display:block"></canvas>
+            </div>
+            <div class="tt-chart-card">
+                <div class="tt-chart-head">
+                    <span class="tt-chart-title" id="ttBarTitle">Daily P&L</span>
+                    <div class="tt-period-toggle" id="ttPeriodToggle">
+                        <button class="active" data-period="daily" onclick="setTTPeriod('daily')">D</button>
+                        <button data-period="weekly" onclick="setTTPeriod('weekly')">W</button>
+                        <button data-period="monthly" onclick="setTTPeriod('monthly')">M</button>
+                    </div>
+                </div>
+                <canvas id="ttBarCanvas" height="220" style="width:100%;display:block"></canvas>
+            </div>
+        </div>
+
+        <div class="tt-bw-grid">
+            <div class="tt-bw best">
+                <div class="tt-chart-title" style="margin-bottom:0.6rem">Best Trade</div>
+                <div id="ttBestTrade"><span style="color:var(--text-faint)">—</span></div>
+            </div>
+            <div class="tt-bw worst">
+                <div class="tt-chart-title" style="margin-bottom:0.6rem">Worst Trade</div>
+                <div id="ttWorstTrade"><span style="color:var(--text-faint)">—</span></div>
+            </div>
+        </div>
+
+        <div class="tt-chart-card" style="margin-bottom:1.25rem">
+            <div class="tt-chart-head"><span class="tt-chart-title">Performance by Setup</span></div>
+            <div style="overflow-x:auto">
+                <table class="journal-table" style="margin-top:0"><thead><tr><th>Setup</th><th>Trades</th><th>Win %</th><th>Total P&L</th><th>Avg P&L</th></tr></thead><tbody id="ttSetupBreakdown"></tbody></table>
+            </div>
+        </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem">
             <div>
                 <div class="section-title">Top 5 Winners</div>
-                <table class="journal-table"><thead><tr><th>Ticker</th><th>P&L</th><th>P&L %</th><th>Stage</th></tr></thead><tbody id="topWinners"></tbody></table>
+                <table class="journal-table"><thead><tr><th>Contract</th><th>P&L</th><th>P&L %</th><th>Setup</th></tr></thead><tbody id="topWinners"></tbody></table>
             </div>
             <div>
                 <div class="section-title">Top 5 Losers</div>
-                <table class="journal-table"><thead><tr><th>Ticker</th><th>P&L</th><th>P&L %</th><th>Stage</th></tr></thead><tbody id="topLosers"></tbody></table>
+                <table class="journal-table"><thead><tr><th>Contract</th><th>P&L</th><th>P&L %</th><th>Setup</th></tr></thead><tbody id="topLosers"></tbody></table>
             </div>
         </div>
 
@@ -2359,6 +2462,7 @@ function addDailyEntry() {
         psychology: document.getElementById('djPsych').value,
         tradeCount: parseInt(document.getElementById('djTradeCount').value) || 0,
         pnl: parseFloat(document.getElementById('djPnl').value) || 0,
+        hodDrawdown: Math.abs(parseFloat(document.getElementById('djHodDD').value)) || 0,
         notes: document.getElementById('djNotes').value,
         rulesFollowed: document.getElementById('djRulesFollowed').value,
         rulesBroken: document.getElementById('djRulesBroken').value,
@@ -2367,7 +2471,7 @@ function addDailyEntry() {
     entries.unshift(entry);
     saveDailyEntries(entries);
     saveJournalDailyToBackend(entry);
-    ['djTradeCount','djPnl','djNotes','djRulesFollowed','djRulesBroken'].forEach(id => document.getElementById(id).value = '');
+    ['djTradeCount','djPnl','djHodDD','djNotes','djRulesFollowed','djRulesBroken'].forEach(id => document.getElementById(id).value = '');
     renderDailyEntries();
 }
 
@@ -2394,6 +2498,7 @@ function renderDailyEntries() {
                 <div class="journal-stat-item"><span class="journal-stat-lbl">Market</span><span class="journal-stat-val">${e.market}</span></div>
                 <div class="journal-stat-item"><span class="journal-stat-lbl">Psychology</span><span class="journal-stat-val">${e.psychology}</span></div>
                 <div class="journal-stat-item"><span class="journal-stat-lbl">Trades</span><span class="journal-stat-val">${e.tradeCount}</span></div>
+                ${e.hodDrawdown > 0 ? `<div class="journal-stat-item"><span class="journal-stat-lbl">DD from HOD</span><span class="journal-stat-val" style="color:var(--bear)">-$${Number(e.hodDrawdown).toFixed(2)}</span></div>` : ''}
             </div>
             ${e.notes ? `<div class="journal-notes">${e.notes}</div>` : ''}
             ${e.rulesFollowed ? `<div class="journal-notes" style="color:var(--bull)">Rules followed: ${e.rulesFollowed}</div>` : ''}
@@ -2401,15 +2506,119 @@ function renderDailyEntries() {
         </div>`).join('');
 }
 
-// ── Trade Tracker ────────────────────────────────────────────
+// ── Trade Tracker (options scalping) ─────────────────────────
 
 function getTradeEntries() {
-    try { return JSON.parse(localStorage.getItem('apex_journal_trades')) || []; }
+    try { return (JSON.parse(localStorage.getItem('apex_journal_trades')) || []).map(normalizeTrade); }
     catch { return []; }
 }
 
 function saveTradeEntries(entries) {
     localStorage.setItem('apex_journal_trades', JSON.stringify(entries));
+}
+
+// ── [TT-CALC] pure helpers (unit-tested) ─────────────────────
+
+function ttEsc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function ttMult(type) { return (type === 'shares' || type === 'equity') ? 1 : 100; }
+
+// Direction-aware P&L from total values. Long: end - start. Short (credit): start - end.
+function ttComputePnl(dir, startVal, endVal) {
+    const pnl = dir === 'short' ? (startVal - endVal) : (endVal - startVal);
+    const pct = startVal > 0 ? pnl / startVal * 100 : 0;
+    return { pnl: Math.round(pnl * 100) / 100, pct: Math.round(pct * 100) / 100 };
+}
+
+function ttHoldMin(timeIn, timeOut) {
+    if (!timeIn || !timeOut) return null;
+    const [h1, m1] = timeIn.split(':').map(Number);
+    const [h2, m2] = timeOut.split(':').map(Number);
+    if ([h1, m1, h2, m2].some(isNaN)) return null;
+    let diff = (h2 * 60 + m2) - (h1 * 60 + m1);
+    if (diff < 0) diff += 1440; // crossed midnight
+    return diff;
+}
+
+function ttFmtHold(t) {
+    if (t.holdMin != null) return t.holdMin < 60 ? `${t.holdMin}m` : `${Math.floor(t.holdMin / 60)}h ${String(t.holdMin % 60).padStart(2, '0')}m`;
+    if (t.days != null && t.days !== '' && !isNaN(t.days)) return `${t.days}d`;
+    return '—';
+}
+
+function ttFmtMoney(v, sign) {
+    const a = Math.abs(v);
+    const s = a >= 1000 ? '$' + a.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '$' + a.toFixed(2);
+    return (sign ? (v >= 0 ? '+' : '-') : (v < 0 ? '-' : '')) + s;
+}
+
+function ttFmtK(v) {
+    const a = Math.abs(v);
+    const s = a >= 1000 ? '$' + (a / 1000).toFixed(1) + 'K' : '$' + a.toFixed(0);
+    return (v < 0 ? '-' : '') + s;
+}
+
+function ttContractLabel(t) {
+    const map = { call: 'CALL', put: 'PUT', call_spread: 'CALL SPR', put_spread: 'PUT SPR', shares: 'SHARES', equity: 'SHARES', spread: 'SPREAD' };
+    const typeLbl = map[t.type] || String(t.type || '').toUpperCase();
+    return `${t.ticker}${t.strike ? ' $' + t.strike : ''} ${typeLbl}`;
+}
+
+// Per-contract (share-equivalent) prices. Chronological: start = open, end = close.
+// Buy/sell sides depend on direction (short = sold to open).
+function ttAvgPx(t) {
+    if (t.legacy) return { buy: t.entry ?? null, sell: t.exit ?? null };
+    const denom = (t.qty || 1) * ttMult(t.type);
+    if (!denom || t.startVal == null) return { buy: null, sell: null };
+    const openPx = t.startVal / denom, closePx = t.endVal / denom;
+    return t.dir === 'short' ? { buy: closePx, sell: openPx } : { buy: openPx, sell: closePx };
+}
+
+// Accepts new scalp rows, legacy Apex rows ({entry, exit, days, stage, setup=notes}),
+// and rows round-tripped through the backend. Never rewrites stored P&L.
+function normalizeTrade(t) {
+    const out = { ...t };
+    out.qty = Number(out.qty) || 1;
+    const isLegacy = out.startVal == null || out.endVal == null;
+    if (isLegacy) {
+        out.legacy = true;
+        const entry = Number(out.entry) || 0, exit = Number(out.exit) || 0;
+        // mult=1 keeps derived values consistent with historically stored pnl
+        out.startVal = Math.round(entry * out.qty * 100) / 100;
+        if (typeof out.pnl === 'number') {
+            out.endVal = Math.round((out.startVal + (out.dir === 'short' ? -out.pnl : out.pnl)) * 100) / 100;
+        } else {
+            out.endVal = Math.round(exit * out.qty * 100) / 100;
+            const r = ttComputePnl(out.dir, out.startVal, out.endVal);
+            out.pnl = r.pnl; out.pnlPct = r.pct;
+        }
+        // legacy field collision: old `setup` was free-text notes, old `stage` was the classifier
+        if (out.setupNotes == null) { out.setupNotes = out.setup || ''; out.setup = out.stage || 'Legacy'; }
+    }
+    if (typeof out.pnl !== 'number' || isNaN(out.pnl)) { const r = ttComputePnl(out.dir, out.startVal, out.endVal); out.pnl = r.pnl; out.pnlPct = r.pct; }
+    if (typeof out.pnlPct !== 'number' || isNaN(out.pnlPct)) out.pnlPct = out.startVal > 0 ? Math.round(out.pnl / out.startVal * 10000) / 100 : 0;
+    if (typeof out.win !== 'boolean') out.win = out.pnl >= 0;
+    if (out.holdMin == null && out.timeIn && out.timeOut) out.holdMin = ttHoldMin(out.timeIn, out.timeOut);
+    if (out.setup == null) out.setup = out.stage || '';
+    if (out.setupNotes == null) out.setupNotes = '';
+    return out;
+}
+
+// Content fingerprint — dedupes local rows against backend rows that carry different ids
+function ttFingerprint(t) {
+    return [t.date, t.ticker, Math.round((t.pnl || 0) * 100), t.qty, t.type].join('|');
+}
+
+// Max drawdown from the running-P&L high-water mark across a day's trades,
+// in chronological order. HOD starts at 0 (flat), so a red-only day counts too.
+function ttMaxDrawdownHOD(pnls) {
+    let cum = 0, peak = 0, maxDD = 0;
+    for (const p of pnls) {
+        cum += p;
+        if (cum > peak) peak = cum;
+        else if (peak - cum > maxDD) maxDD = peak - cum;
+    }
+    return Math.round(maxDD * 100) / 100;
 }
 
 // ── Journal Backend Sync ─────────────────────────────────────
@@ -2428,6 +2637,8 @@ function saveJournalDailyToBackend(entry) {
                 notes: entry.notes,
                 rules_followed: entry.rulesFollowed,
                 rules_broken: entry.rulesBroken,
+                // extended scalp field — persists once nexus-backend schema is upgraded
+                hod_drawdown: entry.hodDrawdown ?? null,
             })
         }).then(() => console.log('[Journal] Daily entry synced to Postgres'))
           .catch(e => console.warn('[Journal] Daily sync failed:', e.message));
@@ -2436,26 +2647,41 @@ function saveJournalDailyToBackend(entry) {
 
 function saveTradeToBackend(trade) {
     try {
+        const t = normalizeTrade(trade);
+        const denom = t.qty * ttMult(t.type);
+        // chronological per-share prices — lets a fresh device reconstruct values exactly
+        const openPx = t.legacy ? (t.entry ?? 0) : (denom ? Math.round(t.startVal / denom * 10000) / 10000 : 0);
+        const closePx = t.legacy ? (t.exit ?? 0) : (denom ? Math.round(t.endVal / denom * 10000) / 10000 : 0);
         fetch(`${NEXUS_API}/api/journal/trades`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                date: trade.date,
-                ticker: trade.ticker,
-                direction: trade.dir,
-                type: trade.type,
-                stage: trade.stage,
-                entry_price: trade.entry,
-                exit_price: trade.exit,
-                contracts: trade.qty,
-                days_in_trade: trade.days,
-                pnl: trade.pnl,
-                pnl_percent: trade.pnlPct,
-                is_winner: trade.pnl >= 0,
-                setup_notes: trade.setup,
-                exit_reason: trade.exitReason,
+                date: t.date,
+                ticker: t.ticker,
+                direction: t.dir,
+                type: t.type,
+                stage: t.setup || t.stage || '',
+                entry_price: openPx,
+                exit_price: closePx,
+                contracts: t.qty,
+                days_in_trade: t.days || 0,
+                pnl: t.pnl,
+                pnl_percent: t.pnlPct,
+                is_winner: t.win,
+                setup_notes: t.setupNotes || '',
+                exit_reason: t.exitReason || '',
+                // ── extended scalp fields — persist once nexus-backend journal schema
+                //    is upgraded (see NEXUS-JOURNAL-UPGRADE.md); ignored until then
+                entry_time: t.timeIn || null,
+                exit_time: t.timeOut || null,
+                start_value: t.startVal ?? null,
+                end_value: t.endVal ?? null,
+                hold_minutes: t.holdMin ?? null,
+                strike: t.strike ?? null,
+                expiry: t.expiry || null,
+                setup_type: t.setup || null,
             })
-        }).then(() => console.log(`[Journal] Trade synced to Postgres: ${trade.ticker}`))
+        }).then(() => console.log(`[Journal] Trade synced to Postgres: ${t.ticker}`))
           .catch(e => console.warn('[Journal] Trade sync failed:', e.message));
     } catch (e) { console.warn('[Journal] Trade sync error:', e.message); }
 }
@@ -2483,21 +2709,27 @@ async function syncJournalFromBackend() {
             fetch(`${NEXUS_API}/api/journal/trades`).then(r => r.ok ? r.json() : null),
         ]);
 
-        // Daily entries
+        // Daily entries — backend is source of truth for core fields, but local-only
+        // extended fields (hodDrawdown) are preserved by date until the backend stores them
         const backendDaily = dailyResp?.entries || [];
         if (backendDaily.length > 0) {
-            // Backend has data — use it as source of truth
-            const mapped = backendDaily.map(e => ({
-                id: e.id,
-                date: e.date,
-                market: e.market_condition || '',
-                psychology: e.psychology || '',
-                tradeCount: e.trades_count || 0,
-                pnl: e.daily_pnl || 0,
-                notes: e.notes || '',
-                rulesFollowed: e.rules_followed || '',
-                rulesBroken: e.rules_broken || '',
-            }));
+            const localDaily = getDailyEntries();
+            const localByDate = new Map(localDaily.map(e => [e.date, e]));
+            const mapped = backendDaily.map(e => {
+                const loc = localByDate.get(e.date);
+                return {
+                    id: e.id,
+                    date: e.date,
+                    market: e.market_condition || '',
+                    psychology: e.psychology || '',
+                    tradeCount: e.trades_count || 0,
+                    pnl: e.daily_pnl || 0,
+                    hodDrawdown: e.hod_drawdown ?? loc?.hodDrawdown ?? 0,
+                    notes: e.notes || '',
+                    rulesFollowed: e.rules_followed || '',
+                    rulesBroken: e.rules_broken || '',
+                };
+            });
             saveDailyEntries(mapped);
             console.log(`[Journal] Synced ${mapped.length} daily entries from Postgres`);
         } else {
@@ -2509,27 +2741,80 @@ async function syncJournalFromBackend() {
             }
         }
 
-        // Trades
+        // Trades — MERGE by id/fingerprint instead of overwriting, so scalp-only
+        // fields (times, start/end values) stored locally are never wiped by a
+        // backend that doesn't have those columns yet.
         const backendTrades = tradesResp?.trades || [];
         if (backendTrades.length > 0) {
-            const mapped = backendTrades.map(t => ({
-                id: t.id,
-                date: t.date,
-                ticker: t.ticker,
-                dir: t.direction,
-                type: t.type,
-                stage: t.stage || '',
-                entry: t.entry_price || 0,
-                exit: t.exit_price || 0,
-                qty: t.contracts || 1,
-                days: t.days_in_trade || 0,
-                pnl: t.pnl || 0,
-                pnlPct: t.pnl_percent || 0,
-                setup: t.setup_notes || '',
-                exitReason: t.exit_reason || '',
-            }));
-            saveTradeEntries(mapped);
-            console.log(`[Journal] Synced ${mapped.length} trades from Postgres`);
+            const local = getTradeEntries();
+            const usedLocal = new Set();
+            const byId = new Map(), byFp = new Map();
+            local.forEach((t, i) => {
+                byId.set(String(t.id), i);
+                const fp = ttFingerprint(t);
+                if (!byFp.has(fp)) byFp.set(fp, []);
+                byFp.get(fp).push(i);
+            });
+            const coreFromBackend = (b) => normalizeTrade({
+                id: b.id,
+                date: b.date,
+                ticker: b.ticker,
+                dir: b.direction,
+                type: b.type,
+                stage: b.stage || '',
+                qty: b.contracts || 1,
+                days: b.days_in_trade || 0,
+                pnl: b.pnl || 0,
+                pnlPct: b.pnl_percent || 0,
+                win: typeof b.is_winner === 'boolean' ? b.is_winner : undefined,
+                setup: b.setup_type || b.stage || '',
+                setupNotes: b.setup_notes || '',
+                exitReason: b.exit_reason || '',
+                // extended columns present only after backend upgrade
+                timeIn: b.entry_time || null,
+                timeOut: b.exit_time || null,
+                startVal: b.start_value ?? null,
+                endVal: b.end_value ?? null,
+                holdMin: b.hold_minutes ?? null,
+                strike: b.strike ?? null,
+                expiry: b.expiry || null,
+                // fallback for reconstructing values on a fresh device
+                entry: b.entry_price || 0,
+                exit: b.exit_price || 0,
+            });
+            const merged = backendTrades.map(b => {
+                const core = coreFromBackend(b);
+                let li = byId.has(String(b.id)) ? byId.get(String(b.id)) : undefined;
+                if (li === undefined || usedLocal.has(li)) {
+                    const cands = (byFp.get(ttFingerprint(core)) || []).filter(i => !usedLocal.has(i));
+                    li = cands.length ? cands[0] : undefined;
+                }
+                if (li === undefined) return core;
+                usedLocal.add(li);
+                const loc = local[li];
+                // backend id becomes canonical (makes deletes work)
+                const extras = {};
+                const has = v => v !== undefined && v !== null && v !== '';
+                // scalp columns: backend wins once it actually stores them, else keep local
+                ['timeIn','timeOut','startVal','endVal','holdMin','strike','expiry'].forEach(k => {
+                    if (!has(core[k]) && has(loc[k])) extras[k] = loc[k];
+                });
+                // text/result fields: local copy is at least as fresh on this device
+                ['setup','setupNotes','exitReason','win','legacy'].forEach(k => {
+                    if (has(loc[k]) || typeof loc[k] === 'boolean') extras[k] = loc[k];
+                });
+                // a real scalp row logged locally is not legacy, even if the backend
+                // couldn't store its extended columns yet
+                if (loc.startVal != null && !loc.legacy) extras.legacy = false;
+                return normalizeTrade({ ...core, ...extras, id: b.id });
+            });
+            const localOnly = local.filter((t, i) => !usedLocal.has(i));
+            if (localOnly.length) {
+                console.log(`[Journal] Pushing ${localOnly.length} local-only trades to Postgres`);
+                localOnly.forEach(t => saveTradeToBackend(t));
+            }
+            saveTradeEntries([...localOnly, ...merged]);
+            console.log(`[Journal] Merged ${merged.length} backend + ${localOnly.length} local-only trades`);
         } else {
             const local = getTradeEntries();
             if (local.length > 0) {
@@ -2545,108 +2830,378 @@ async function syncJournalFromBackend() {
     }
 }
 
+// W/L checkboxes auto-track the value fields until the user clicks one manually
+let ttWLManual = false;
+
+function ttReadForm() {
+    const dir = document.getElementById('ttDir').value;
+    const startVal = parseFloat(document.getElementById('ttStartVal').value);
+    const endVal = parseFloat(document.getElementById('ttEndVal').value);
+    const timeIn = document.getElementById('ttTimeIn').value;
+    const timeOut = document.getElementById('ttTimeOut').value;
+    return { dir, startVal, endVal, timeIn, timeOut };
+}
+
+function updateTTPreview() {
+    const { dir, startVal, endVal, timeIn, timeOut } = ttReadForm();
+    const chip = document.getElementById('ttPreview');
+    if (isNaN(startVal) || isNaN(endVal)) { chip.style.display = 'none'; if (!ttWLManual) { document.getElementById('ttWin').checked = false; document.getElementById('ttLoss').checked = false; } return; }
+    const { pnl, pct } = ttComputePnl(dir, startVal, endVal);
+    const hold = ttHoldMin(timeIn, timeOut);
+    const win = pnl >= 0;
+    chip.style.display = 'inline-flex';
+    chip.style.color = win ? 'var(--bull)' : 'var(--bear)';
+    chip.innerHTML = `${ttFmtMoney(pnl, true)} <span class="sub">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%${hold != null ? ' · ' + ttFmtHold({ holdMin: hold }) : ''}</span>`;
+    if (!ttWLManual) {
+        document.getElementById('ttWin').checked = win;
+        document.getElementById('ttLoss').checked = !win;
+    }
+}
+
+function ttWLClick(which) {
+    ttWLManual = true;
+    const winBox = document.getElementById('ttWin'), lossBox = document.getElementById('ttLoss');
+    if (which === 'win' && winBox.checked) lossBox.checked = false;
+    if (which === 'loss' && lossBox.checked) winBox.checked = false;
+}
+
 function addTradeEntry() {
-    const ticker = document.getElementById('jtTicker').value.trim().toUpperCase();
-    const dir = document.getElementById('jtDir').value;
-    const type = document.getElementById('jtType').value;
-    const stage = document.getElementById('jtStage').value;
-    const entry = parseFloat(document.getElementById('jtEntry').value);
-    const exit = parseFloat(document.getElementById('jtExit').value);
-    const qty = parseInt(document.getElementById('jtQty').value) || 1;
-    const days = parseInt(document.getElementById('jtDays').value) || 0;
-    const setup = document.getElementById('jtSetup').value;
-    const exitReason = document.getElementById('jtExitReason').value;
+    const ticker = document.getElementById('ttTicker').value.trim().toUpperCase();
+    const type = document.getElementById('ttType').value;
+    const dir = document.getElementById('ttDir').value;
+    const date = document.getElementById('ttDate').value || new Date().toISOString().slice(0, 10);
+    const strike = parseFloat(document.getElementById('ttStrike').value) || null;
+    const expiry = document.getElementById('ttExpiry').value || '';
+    const qty = parseInt(document.getElementById('ttQty').value) || 1;
+    const timeIn = document.getElementById('ttTimeIn').value;
+    const timeOut = document.getElementById('ttTimeOut').value;
+    const startVal = parseFloat(document.getElementById('ttStartVal').value);
+    const endVal = parseFloat(document.getElementById('ttEndVal').value);
+    const setup = document.getElementById('ttSetup').value;
+    const setupNotes = document.getElementById('ttSetupNotes').value;
+    const exitReason = document.getElementById('ttExitReason').value;
 
-    if (!ticker || isNaN(entry) || isNaN(exit)) return;
+    if (!ticker || isNaN(startVal) || isNaN(endVal)) { alert('Ticker, Starting Value and Ending Value are required.'); return; }
 
-    const pctMove = dir === 'long' ? (exit - entry) / entry : (entry - exit) / entry;
-    const pnl = Math.round(pctMove * entry * qty * 100) / 100;
+    const { pnl, pct } = ttComputePnl(dir, startVal, endVal);
+    const winChecked = document.getElementById('ttWin').checked;
+    const lossChecked = document.getElementById('ttLoss').checked;
+    const win = winChecked ? true : lossChecked ? false : pnl >= 0;
 
     const trade = {
         id: Date.now(),
-        date: new Date().toISOString().slice(0,10),
-        ticker, dir, type, stage, entry, exit, qty, days,
-        pnl, pnlPct: Math.round(pctMove * 10000) / 100,
-        setup, exitReason,
+        date, ticker, type, dir, strike, expiry, qty,
+        timeIn, timeOut, holdMin: ttHoldMin(timeIn, timeOut),
+        startVal: Math.round(startVal * 100) / 100,
+        endVal: Math.round(endVal * 100) / 100,
+        pnl, pnlPct: pct, win,
+        setup, setupNotes, exitReason,
     };
 
     const trades = getTradeEntries();
     trades.unshift(trade);
     saveTradeEntries(trades);
     saveTradeToBackend(trade);
-    ['jtTicker','jtEntry','jtExit','jtQty','jtDays','jtSetup','jtExitReason'].forEach(id => document.getElementById(id).value = '');
+    ['ttStrike','ttTimeIn','ttTimeOut','ttStartVal','ttEndVal','ttSetupNotes','ttExitReason'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('ttWin').checked = false;
+    document.getElementById('ttLoss').checked = false;
+    ttWLManual = false;
+    document.getElementById('ttPreview').style.display = 'none';
     renderTradeEntries();
 }
 
 function deleteTradeEntry(id) {
     if (!confirm('Delete this trade?')) return;
-    const trades = getTradeEntries().filter(t => t.id !== id);
+    const trades = getTradeEntries().filter(t => String(t.id) !== String(id));
     saveTradeEntries(trades);
     deleteTradeFromBackend(id);
     renderTradeEntries();
+}
+
+function ttToggleNotes(id) {
+    const row = document.querySelector(`.tt-notes-row[data-id="${id}"]`);
+    if (row) row.style.display = row.style.display === 'none' ? '' : 'none';
 }
 
 function renderTradeEntries() {
     const el = document.getElementById('tradeEntries');
     const trades = getTradeEntries();
     if (!trades.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-faint);padding:2rem">No trades logged yet.</div>'; return; }
-    el.innerHTML = trades.map(t => {
-        const win = t.pnl >= 0;
+    const sorted = [...trades].sort((a, b) => (b.date + (b.timeOut || '')).localeCompare(a.date + (a.timeOut || '')));
+    const rows = sorted.map(t => {
+        const px = ttAvgPx(t);
+        const win = t.win;
+        const hasNotes = t.setupNotes || t.exitReason || !t.legacy;
+        const dateStr = new Date(t.date + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const times = t.timeIn || t.timeOut ? `${t.timeIn || '—'} → ${t.timeOut || '—'}` : '—';
+        const expiryStr = t.expiry ? (t.expiry === t.date ? '0DTE' : new Date(t.expiry + 'T12:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' })) : '';
         return `
-        <div class="journal-entry ${win ? 'trade-win' : 'trade-loss'}">
-            <button class="journal-delete" onclick="deleteTradeEntry(${t.id})">&times;</button>
-            <div class="journal-entry-header">
-                <div><span class="journal-entry-title">${t.ticker} — ${t.dir.charAt(0).toUpperCase()+t.dir.slice(1)} ${t.type.charAt(0).toUpperCase()+t.type.slice(1)}</span>
-                <span class="wl-badge ${win ? 'positive' : 'negative'}">${t.pnl >= 0 ? '+' : ''}$${Math.abs(t.pnl).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}</span></div>
-                <div class="journal-entry-meta">${new Date(t.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})} · ${t.stage} · ${t.days}d</div>
-            </div>
-            <div class="journal-stats">
-                <div class="journal-stat-item"><span class="journal-stat-lbl">Entry</span><span class="journal-stat-val">$${t.entry.toFixed(2)}</span></div>
-                <div class="journal-stat-item"><span class="journal-stat-lbl">Exit</span><span class="journal-stat-val">$${t.exit.toFixed(2)}</span></div>
-                <div class="journal-stat-item"><span class="journal-stat-lbl">Qty</span><span class="journal-stat-val">${t.qty}</span></div>
-                <div class="journal-stat-item"><span class="journal-stat-lbl">P&L %</span><span class="journal-stat-val" style="color:${win ? 'var(--bull)' : 'var(--bear)'}">${t.pnlPct >= 0 ? '+' : ''}${t.pnlPct.toFixed(2)}%</span></div>
-            </div>
-            ${t.setup ? `<div class="journal-notes">${t.setup}</div>` : ''}
-            ${t.exitReason ? `<div class="journal-notes" style="font-style:normal;color:var(--text-faint)">Exit: ${t.exitReason}</div>` : ''}
-        </div>`;
+        <tr class="tt-row" onclick="ttToggleNotes('${t.id}')">
+            <td style="color:var(--text-muted)">${dateStr}</td>
+            <td style="color:var(--text-faint);font-size:0.72rem">${times}</td>
+            <td style="font-weight:700">${ttEsc(ttContractLabel(t))} ${expiryStr ? `<span style="color:var(--text-faint);font-weight:500;font-size:0.68rem">${expiryStr}</span>` : ''}${t.dir === 'short' ? ' <span style="color:var(--warn);font-size:0.65rem;font-weight:700">SHORT</span>' : ''}</td>
+            <td>${t.qty}</td>
+            <td>${px.buy != null ? '$' + Number(px.buy).toFixed(2) : '—'}</td>
+            <td>${px.sell != null ? '$' + Number(px.sell).toFixed(2) : '—'}</td>
+            <td style="color:${win ? 'var(--bull)' : 'var(--bear)'};font-weight:700">${ttFmtMoney(t.pnl, true)}</td>
+            <td style="color:${win ? 'var(--bull)' : 'var(--bear)'}">${t.pnlPct >= 0 ? '+' : ''}${Number(t.pnlPct).toFixed(1)}%</td>
+            <td style="color:var(--text-muted)">${ttFmtHold(t)}</td>
+            <td><span class="tt-badge ${win ? 'win' : 'loss'}">${win ? 'WIN' : 'LOSS'}</span></td>
+            <td onclick="event.stopPropagation()"><button class="journal-delete" style="position:static" onclick="deleteTradeEntry('${t.id}')">&times;</button></td>
+        </tr>
+        ${hasNotes ? `
+        <tr class="tt-notes-row" data-id="${t.id}" style="display:none">
+            <td colspan="11">
+                ${!t.legacy ? `<div style="margin-bottom:0.3rem"><span class="lbl">Values</span> IN ${ttFmtMoney(t.startVal)} → OUT ${ttFmtMoney(t.endVal)}</div>` : ''}
+                ${t.setup ? `<div style="margin-bottom:0.3rem"><span class="lbl">Setup</span> ${ttEsc(t.setup)}</div>` : ''}
+                ${t.setupNotes ? `<div style="margin-bottom:0.3rem"><span class="lbl">Notes</span> ${ttEsc(t.setupNotes)}</div>` : ''}
+                ${t.exitReason ? `<div><span class="lbl">Exit</span> ${ttEsc(t.exitReason)}</div>` : ''}
+            </td>
+        </tr>` : ''}`;
     }).join('');
+    el.innerHTML = `
+    <div class="tt-table-wrap">
+        <table class="tt-table">
+            <thead><tr><th>Date</th><th>In → Out</th><th>Contract</th><th>Qty</th><th>Avg Buy</th><th>Avg Sell</th><th>P&L</th><th>Return</th><th>Hold</th><th>W/L</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+    </div>`;
 }
 
-// ── Stats ────────────────────────────────────────────────────
+// ── Stats (hashira-style P&L summary) ────────────────────────
+
+let ttStatsPeriod = 'daily';
+
+function setTTPeriod(p) {
+    ttStatsPeriod = p;
+    document.querySelectorAll('#ttPeriodToggle button').forEach(b => b.classList.toggle('active', b.dataset.period === p));
+    document.getElementById('ttBarTitle').textContent = { daily: 'Daily P&L', weekly: 'Weekly P&L', monthly: 'Monthly P&L' }[p];
+    ttDrawBarChart();
+}
+
+// [TT-CALC] bucketing (unit-tested)
+function ttBucketKey(dateStr, period) {
+    if (period === 'daily') return dateStr;
+    if (period === 'monthly') return dateStr.slice(0, 7);
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() - (d.getDay() + 6) % 7); // back to Monday
+    return d.toISOString().slice(0, 10);
+}
+
+function ttBucketLabel(key, period) {
+    if (period === 'monthly') {
+        const [y, m] = key.split('-');
+        return new Date(+y, +m - 1, 1).toLocaleDateString('en-US', { month: 'short' }) + ' ' + y.slice(2);
+    }
+    const d = new Date(key + 'T12:00:00');
+    return (d.getMonth() + 1) + '/' + d.getDate();
+}
+
+function ttBuckets(trades, period) {
+    const map = new Map();
+    trades.forEach(t => {
+        const k = ttBucketKey(t.date, period);
+        map.set(k, (map.get(k) || 0) + t.pnl);
+    });
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([k, v]) => ({ key: k, label: ttBucketLabel(k, period), val: Math.round(v * 100) / 100 }));
+}
+
+function ttPrepCanvas(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || canvas.parentElement.clientWidth || 600;
+    const h = parseInt(canvas.getAttribute('height')) || 220;
+    canvas.width = Math.max(1, Math.round(w * dpr));
+    canvas.height = Math.round(h * dpr);
+    canvas.style.height = h + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w, h };
+}
+
+function ttCssVar(name, fallback) {
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return v || fallback;
+}
+
+function ttNiceRange(min, max) {
+    if (min === max) { min -= 1; max += 1; }
+    const pad = (max - min) * 0.08;
+    return { min: Math.min(0, min - pad), max: Math.max(0, max + pad) };
+}
+
+function ttDrawGrid(ctx, w, h, pad, range) {
+    const faint = ttCssVar('--text-faint', '#64748b');
+    ctx.strokeStyle = 'rgba(148,163,184,0.09)';
+    ctx.fillStyle = faint;
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    const steps = 4;
+    for (let i = 0; i <= steps; i++) {
+        const v = range.min + (range.max - range.min) * i / steps;
+        const y = h - pad.b - (h - pad.t - pad.b) * i / steps;
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillText(ttFmtK(v), pad.l - 6, y);
+    }
+    // zero line
+    if (range.min < 0 && range.max > 0) {
+        const y0 = h - pad.b - (0 - range.min) / (range.max - range.min) * (h - pad.t - pad.b);
+        ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(w - pad.r, y0); ctx.stroke();
+        ctx.setLineDash([]);
+    }
+}
+
+function ttDrawCumChart() {
+    const canvas = document.getElementById('ttCumCanvas');
+    if (!canvas || !canvas.offsetParent) return;
+    const { ctx, w, h } = ttPrepCanvas(canvas);
+    const trades = getTradeEntries().sort((a, b) => (a.date + (a.timeOut || '')).localeCompare(b.date + (b.timeOut || '')));
+    ctx.clearRect(0, 0, w, h);
+    if (!trades.length) { ttChartEmpty(ctx, w, h); return; }
+    let cum = 0;
+    const pts = trades.map(t => ({ date: t.date, v: Math.round((cum += t.pnl) * 100) / 100 }));
+    const pad = { l: 52, r: 12, t: 10, b: 22 };
+    const vals = [0, ...pts.map(p => p.v)];
+    const range = ttNiceRange(Math.min(...vals), Math.max(...vals));
+    ttDrawGrid(ctx, w, h, pad, range);
+    const x = i => pad.l + (w - pad.l - pad.r) * (pts.length === 1 ? 0.5 : i / (pts.length - 1));
+    const y = v => h - pad.b - (v - range.min) / (range.max - range.min) * (h - pad.t - pad.b);
+    const bull = ttCssVar('--bull', '#22c55e'), bear = ttCssVar('--bear', '#ef4444');
+    const lineColor = pts[pts.length - 1].v >= 0 ? bull : bear;
+    // fill
+    const grad = ctx.createLinearGradient(0, pad.t, 0, h - pad.b);
+    grad.addColorStop(0, lineColor + '33'); grad.addColorStop(1, lineColor + '00');
+    ctx.beginPath();
+    ctx.moveTo(x(0), y(0));
+    pts.forEach((p, i) => ctx.lineTo(x(i), y(p.v)));
+    ctx.lineTo(x(pts.length - 1), y(0));
+    ctx.closePath(); ctx.fillStyle = grad; ctx.fill();
+    // line
+    ctx.beginPath();
+    pts.forEach((p, i) => i === 0 ? ctx.moveTo(x(i), y(p.v)) : ctx.lineTo(x(i), y(p.v)));
+    ctx.strokeStyle = lineColor; ctx.lineWidth = 1.8; ctx.lineJoin = 'round'; ctx.stroke();
+    // x labels (~5)
+    ctx.fillStyle = ttCssVar('--text-faint', '#64748b');
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const step = Math.max(1, Math.ceil(pts.length / 5));
+    for (let i = 0; i < pts.length; i += step) {
+        const d = new Date(pts[i].date + 'T12:00:00');
+        ctx.fillText((d.getMonth() + 1) + '/' + d.getDate(), x(i), h - pad.b + 6);
+    }
+}
+
+function ttDrawBarChart() {
+    const canvas = document.getElementById('ttBarCanvas');
+    if (!canvas || !canvas.offsetParent) return;
+    const { ctx, w, h } = ttPrepCanvas(canvas);
+    ctx.clearRect(0, 0, w, h);
+    const all = ttBuckets(getTradeEntries(), ttStatsPeriod);
+    const maxBars = { daily: 20, weekly: 16, monthly: 12 }[ttStatsPeriod];
+    const buckets = all.slice(-maxBars);
+    if (!buckets.length) { ttChartEmpty(ctx, w, h); return; }
+    const pad = { l: 52, r: 12, t: 10, b: 22 };
+    const vals = [0, ...buckets.map(b => b.val)];
+    const range = ttNiceRange(Math.min(...vals), Math.max(...vals));
+    ttDrawGrid(ctx, w, h, pad, range);
+    const bull = ttCssVar('--bull', '#22c55e'), bear = ttCssVar('--bear', '#ef4444');
+    const plotW = w - pad.l - pad.r, plotH = h - pad.t - pad.b;
+    const slot = plotW / buckets.length;
+    const barW = Math.max(4, Math.min(38, slot * 0.62));
+    const y = v => h - pad.b - (v - range.min) / (range.max - range.min) * plotH;
+    const y0 = y(0);
+    buckets.forEach((b, i) => {
+        const cx = pad.l + slot * (i + 0.5);
+        ctx.fillStyle = b.val >= 0 ? bull : bear;
+        const top = Math.min(y(b.val), y0), bh = Math.max(1, Math.abs(y(b.val) - y0));
+        ctx.fillRect(cx - barW / 2, top, barW, bh);
+    });
+    ctx.fillStyle = ttCssVar('--text-faint', '#64748b');
+    ctx.font = '9px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const lblStep = Math.max(1, Math.ceil(buckets.length / 8));
+    buckets.forEach((b, i) => {
+        if (i % lblStep === 0) ctx.fillText(b.label, pad.l + slot * (i + 0.5), h - pad.b + 6);
+    });
+}
+
+function ttChartEmpty(ctx, w, h) {
+    ctx.fillStyle = ttCssVar('--text-faint', '#64748b');
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('No trades yet', w / 2, h / 2);
+}
 
 function renderStats() {
     const trades = getTradeEntries();
-    const wins = trades.filter(t => t.pnl >= 0);
-    const losses = trades.filter(t => t.pnl < 0);
-    const totalPnl = trades.reduce((s,t) => s + t.pnl, 0);
-    const winRate = trades.length ? (wins.length / trades.length * 100).toFixed(1) : '—';
-    const avgWin = wins.length ? (wins.reduce((s,t) => s + t.pnl, 0) / wins.length).toFixed(2) : '—';
-    const avgLoss = losses.length ? (losses.reduce((s,t) => s + t.pnl, 0) / losses.length).toFixed(2) : '—';
-    const grossW = wins.reduce((s,t) => s + t.pnl, 0);
-    const grossL = Math.abs(losses.reduce((s,t) => s + t.pnl, 0));
-    const pf = grossL > 0 ? (grossW / grossL).toFixed(2) : (wins.length ? '∞' : '—');
-    const avgDays = trades.length ? (trades.reduce((s,t) => s + (t.days||0), 0) / trades.length).toFixed(1) : '—';
+    const wins = trades.filter(t => t.win);
+    const losses = trades.filter(t => !t.win);
+    const totalPnl = trades.reduce((s, t) => s + t.pnl, 0);
+    const winRate = trades.length ? (wins.length / trades.length * 100) : null;
+    const grossW = wins.reduce((s, t) => s + Math.max(0, t.pnl), 0);
+    const grossL = Math.abs(losses.reduce((s, t) => s + Math.min(0, t.pnl), 0));
+    const avgWin = wins.length ? grossW / wins.length : null;
+    const avgLoss = losses.length ? grossL / losses.length : null;
+    const pf = grossL > 0 ? grossW / grossL : (wins.length ? Infinity : null);
+    const holds = trades.map(t => t.holdMin).filter(v => v != null);
+    const avgHold = holds.length ? Math.round(holds.reduce((s, v) => s + v, 0) / holds.length) : null;
+    const expectancy = trades.length ? totalPnl / trades.length : null;
+    const dayBuckets = ttBuckets(trades, 'daily');
+    const greenDays = dayBuckets.filter(b => b.val > 0).length;
+    const greenPct = dayBuckets.length ? greenDays / dayBuckets.length * 100 : null;
 
-    document.getElementById('statsGrid').innerHTML = [
-        { label: 'Total Trades', value: trades.length, color: 'var(--accent)' },
-        { label: 'Win Rate', value: winRate !== '—' ? winRate + '%' : '—', color: 'var(--accent)' },
-        { label: 'Avg Winner', value: avgWin !== '—' ? '+$' + avgWin : '—', color: 'var(--bull)' },
-        { label: 'Avg Loser', value: avgLoss !== '—' ? '-$' + Math.abs(parseFloat(avgLoss)).toFixed(2) : '—', color: 'var(--bear)' },
-        { label: 'Profit Factor', value: pf, color: 'var(--accent)' },
-        { label: 'Avg Days', value: avgDays, color: 'var(--text-muted)' },
-    ].map(s => `<div class="stat-card"><div class="stat-card-value" style="color:${s.color}">${s.value}</div><div class="stat-card-label">${s.label}</div></div>`).join('');
+    const kpi = (lbl, val, color) => `<div class="tt-kpi"><div class="lbl">${lbl}</div><div class="val" style="${color ? 'color:' + color : ''}">${val}</div></div>`;
+    document.getElementById('ttKpiMain').innerHTML =
+        kpi('Realized P&L', trades.length ? ttFmtMoney(totalPnl, true) : '—', totalPnl >= 0 ? 'var(--bull)' : 'var(--bear)') +
+        kpi('Win Rate', winRate != null ? winRate.toFixed(0) + '%' : '—', winRate != null && winRate < 50 ? 'var(--bear)' : 'var(--accent)') +
+        kpi('Profit Factor', pf == null ? '—' : pf === Infinity ? '∞' : pf.toFixed(2), pf != null && pf !== Infinity && pf < 1 ? 'var(--bear)' : 'var(--bull)') +
+        kpi('Avg Win / Avg Loss', `${avgWin != null ? '$' + avgWin.toFixed(0) : '—'} <span class="dim">/</span> ${avgLoss != null ? '$' + avgLoss.toFixed(0) : '—'}`);
+    document.getElementById('ttKpiScalp').innerHTML =
+        kpi('Total Trades', trades.length) +
+        kpi('Avg Hold', avgHold != null ? ttFmtHold({ holdMin: avgHold }) : '—') +
+        kpi('Expectancy / Trade', expectancy != null ? ttFmtMoney(expectancy, true) : '—', expectancy != null ? (expectancy >= 0 ? 'var(--bull)' : 'var(--bear)') : null) +
+        kpi('Green Days', greenPct != null ? `${greenPct.toFixed(0)}% <span class="dim">(${greenDays}/${dayBuckets.length})</span>` : '—', greenPct != null && greenPct < 50 ? 'var(--bear)' : 'var(--bull)');
 
-    // Top 5 winners
-    const topW = [...trades].filter(t => t.pnl > 0).sort((a,b) => b.pnl - a.pnl).slice(0,5);
+    // Best / Worst trade cards
+    const best = trades.length ? trades.reduce((a, b) => b.pnl > a.pnl ? b : a) : null;
+    const worst = trades.length ? trades.reduce((a, b) => b.pnl < a.pnl ? b : a) : null;
+    const bwCard = t => t ? `
+        <div class="contract">${ttEsc(ttContractLabel(t))}</div>
+        <span class="pnl" style="color:${t.pnl >= 0 ? 'var(--bull)' : 'var(--bear)'}">${ttFmtMoney(t.pnl, true)}</span>
+        <span class="pct">(${t.pnlPct >= 0 ? '+' : ''}${Number(t.pnlPct).toFixed(1)}%)${t.setup ? ' · ' + ttEsc(t.setup) : ''}</span>` :
+        '<span style="color:var(--text-faint)">—</span>';
+    document.getElementById('ttBestTrade').innerHTML = bwCard(best && best.pnl > 0 ? best : null);
+    document.getElementById('ttWorstTrade').innerHTML = bwCard(worst && worst.pnl < 0 ? worst : null);
+
+    // Performance by setup
+    const bySetup = new Map();
+    trades.forEach(t => {
+        const k = t.setup || '—';
+        if (!bySetup.has(k)) bySetup.set(k, { n: 0, w: 0, pnl: 0 });
+        const s = bySetup.get(k);
+        s.n++; if (t.win) s.w++; s.pnl += t.pnl;
+    });
+    const setupRows = [...bySetup.entries()].sort((a, b) => b[1].pnl - a[1].pnl).map(([k, s]) => {
+        const wr = s.w / s.n * 100;
+        return `<tr><td style="font-weight:700">${ttEsc(k)}</td><td>${s.n}</td><td style="color:${wr >= 50 ? 'var(--bull)' : 'var(--bear)'}">${wr.toFixed(0)}%</td><td style="color:${s.pnl >= 0 ? 'var(--bull)' : 'var(--bear)'}">${ttFmtMoney(s.pnl, true)}</td><td style="color:${s.pnl >= 0 ? 'var(--bull)' : 'var(--bear)'}">${ttFmtMoney(s.pnl / s.n, true)}</td></tr>`;
+    }).join('');
+    document.getElementById('ttSetupBreakdown').innerHTML = setupRows || '<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:1rem">No trades yet</td></tr>';
+
+    // Top 5 winners / losers
+    const topW = trades.filter(t => t.pnl > 0).sort((a, b) => b.pnl - a.pnl).slice(0, 5);
     document.getElementById('topWinners').innerHTML = topW.length ? topW.map(t =>
-        `<tr><td style="font-weight:700">${t.ticker}</td><td style="color:var(--bull)">+$${t.pnl.toFixed(2)}</td><td style="color:var(--bull)">+${t.pnlPct.toFixed(1)}%</td><td>${t.stage}</td></tr>`
+        `<tr><td style="font-weight:700">${ttEsc(ttContractLabel(t))}</td><td style="color:var(--bull)">${ttFmtMoney(t.pnl, true)}</td><td style="color:var(--bull)">+${Number(t.pnlPct).toFixed(1)}%</td><td>${ttEsc(t.setup || '')}</td></tr>`
     ).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:1rem">No winning trades yet</td></tr>';
-
-    // Top 5 losers
-    const topL = [...trades].filter(t => t.pnl < 0).sort((a,b) => a.pnl - b.pnl).slice(0,5);
+    const topL = trades.filter(t => t.pnl < 0).sort((a, b) => a.pnl - b.pnl).slice(0, 5);
     document.getElementById('topLosers').innerHTML = topL.length ? topL.map(t =>
-        `<tr><td style="font-weight:700">${t.ticker}</td><td style="color:var(--bear)">-$${Math.abs(t.pnl).toFixed(2)}</td><td style="color:var(--bear)">${t.pnlPct.toFixed(1)}%</td><td>${t.stage}</td></tr>`
+        `<tr><td style="font-weight:700">${ttEsc(ttContractLabel(t))}</td><td style="color:var(--bear)">${ttFmtMoney(t.pnl)}</td><td style="color:var(--bear)">${Number(t.pnlPct).toFixed(1)}%</td><td>${ttEsc(t.setup || '')}</td></tr>`
     ).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--text-faint);padding:1rem">No losing trades yet</td></tr>';
+
+    // Charts — canvas needs the panel visible for clientWidth
+    requestAnimationFrame(() => { ttDrawCumChart(); ttDrawBarChart(); });
 }
 
 // ── Export / Clear ───────────────────────────────────────────
@@ -2654,18 +3209,36 @@ function renderStats() {
 function exportTradesCSV() {
     const trades = getTradeEntries();
     if (!trades.length) return alert('No trades to export.');
-    const headers = ['date','ticker','dir','type','stage','entry','exit','qty','days','pnl','pnlPct','setup','exitReason'];
-    const rows = trades.map(t => headers.map(h => `"${String(t[h]||'').replace(/"/g,'""')}"`).join(','));
+    const headers = ['date','ticker','type','dir','strike','expiry','qty','timeIn','timeOut','startVal','endVal','pnl','pnlPct','win','holdMin','setup','setupNotes','exitReason'];
+    const rows = trades.map(t => headers.map(h => `"${String(t[h] ?? '').replace(/"/g,'""')}"`).join(','));
     const csv = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `apex_trades_${new Date().toISOString().slice(0,10)}.csv`; a.click();
 }
 
+function autofillDailyFromTrades() {
+    const date = document.getElementById('djDate').value || new Date().toISOString().slice(0, 10);
+    const dayTrades = getTradeEntries().filter(t => t.date === date);
+    if (!dayTrades.length) return alert(`No trades logged in the Trade Tracker for ${date}.`);
+    const pnl = Math.round(dayTrades.reduce((s, t) => s + t.pnl, 0) * 100) / 100;
+    const wins = dayTrades.filter(t => t.win).length;
+    // chronological order for the running-P&L curve (fall back to log order)
+    const ordered = [...dayTrades].sort((a, b) => ((a.timeOut || a.timeIn || '') + a.id).localeCompare((b.timeOut || b.timeIn || '') + b.id));
+    const maxDD = ttMaxDrawdownHOD(ordered.map(t => t.pnl));
+    document.getElementById('djTradeCount').value = dayTrades.length;
+    document.getElementById('djPnl').value = pnl;
+    document.getElementById('djHodDD').value = maxDD || '';
+    const notes = document.getElementById('djNotes');
+    const summary = `[Auto] ${dayTrades.length} trades, ${wins}W/${dayTrades.length - wins}L (${(wins / dayTrades.length * 100).toFixed(0)}%), P&L ${pnl >= 0 ? '+' : ''}$${pnl}${maxDD > 0 ? `, gave back $${maxDD} from HOD` : ''}`;
+    if (!notes.value.startsWith('[Auto]')) notes.value = summary + (notes.value ? '\n' + notes.value : '');
+    else notes.value = summary + notes.value.slice(notes.value.indexOf('\n') === -1 ? notes.value.length : notes.value.indexOf('\n'));
+}
+
 function exportJournalCSV() {
     const entries = getDailyEntries();
     if (!entries.length) return alert('No journal entries to export.');
-    const headers = ['date','market','psychology','tradeCount','pnl','notes','rulesFollowed','rulesBroken'];
+    const headers = ['date','market','psychology','tradeCount','pnl','hodDrawdown','notes','rulesFollowed','rulesBroken'];
     const rows = entries.map(e => headers.map(h => `"${String(e[h]||'').replace(/"/g,'""')}"`).join(','));
     const csv = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -2686,6 +3259,22 @@ function clearAllJournalData() {
 
 // Init journal
 document.getElementById('djDate').valueAsDate = new Date();
+(function initTradeTrackerForm() {
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('ttDate').value = today;
+    document.getElementById('ttExpiry').value = today; // 0DTE default
+    ['ttStartVal', 'ttEndVal', 'ttDir', 'ttQty', 'ttTimeIn', 'ttTimeOut'].forEach(id =>
+        document.getElementById(id).addEventListener('input', updateTTPreview));
+    document.getElementById('ttWin').addEventListener('click', () => ttWLClick('win'));
+    document.getElementById('ttLoss').addEventListener('click', () => ttWLClick('loss'));
+    let ttResizeTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(ttResizeTimer);
+        ttResizeTimer = setTimeout(() => {
+            if (document.getElementById('journalStats').classList.contains('active')) { ttDrawCumChart(); ttDrawBarChart(); }
+        }, 150);
+    });
+})();
 renderDailyEntries();
 setTimeout(syncJournalFromBackend, 2000);
 
