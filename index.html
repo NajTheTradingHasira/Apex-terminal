@@ -3832,20 +3832,54 @@ function renderUnusualActivity(unusual, ticker) {
     }).join('');
 }
 
+// ── Chain ATM centering ──────────────────────────────────────
+// Strike nearest spot (from the cached payload), falling back to the
+// ITM/OTM boundary flags when spot is unavailable. Rows are strike-asc.
+function chainAtmIdx(rows, isCall) {
+    if (!rows || rows.length === 0) return -1;
+    const spot = parseFloat(optionsDataCache?.spot);
+    if (isFinite(spot)) {
+        let best = 0, bd = Infinity;
+        rows.forEach((r, i) => { const d = Math.abs(r.strike - spot); if (d < bd) { bd = d; best = i; } });
+        return best;
+    }
+    if (isCall) {                       // ITM calls sit below spot → last ITM
+        let last = -1;
+        rows.forEach((r, i) => { if (r.inTheMoney) last = i; });
+        return last >= 0 ? last : Math.floor(rows.length / 2);
+    }
+    let first = -1;                     // ITM puts sit above spot → first ITM
+    rows.forEach((r, i) => { if (r.inTheMoney && first < 0) first = i; });
+    return first >= 0 ? first : Math.floor(rows.length / 2);
+}
+
+function chainScrollToATM(tbodyId, idx) {
+    if (idx < 0) return;
+    const tbody = document.getElementById(tbodyId);
+    const row = tbody?.rows?.[idx];
+    const scroller = tbody?.parentElement?.parentElement;   // tbody → table → scroll div
+    if (!row || !scroller) return;
+    scroller.scrollTop = Math.max(0, row.offsetTop - scroller.clientHeight / 2 + row.clientHeight / 2);
+}
+
 function renderOptionsChain(calls, puts) {
     document.getElementById('opt-calls-count').textContent = `(${calls.length})`;
     document.getElementById('opt-puts-count').textContent = `(${puts.length})`;
+
+    const callAtm = chainAtmIdx(calls, true);
+    const putAtm = chainAtmIdx(puts, false);
 
     const callsTbody = document.getElementById('optionsCallsBody');
     if (calls.length === 0) {
         callsTbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-faint);padding:1.5rem">No calls available</td></tr>`;
     } else {
-        callsTbody.innerHTML = calls.map(r => {
+        callsTbody.innerHTML = calls.map((r, i) => {
             const itmStyle = r.inTheMoney ? 'background:rgba(34,197,94,0.06);' : '';
             const unusualStyle = r.unusual ? 'border-left:2px solid var(--warn);' : '';
+            const atmStyle = i === callAtm ? 'box-shadow:inset 0 0 0 1.5px var(--accent);' : '';
             const volColor = r.unusual ? 'var(--warn)' : (r.volume > 0 ? 'var(--text)' : 'var(--text-faint)');
             const ciAttr = r.contractSymbol ? ` onclick="loadContractIntraday('${r.contractSymbol}')" title="Click for 1-min intraday flow"` : '';
-            return `<tr style="${itmStyle}${unusualStyle}${r.contractSymbol ? 'cursor:pointer;' : ''}"${ciAttr}>
+            return `<tr style="${itmStyle}${unusualStyle}${atmStyle}${r.contractSymbol ? 'cursor:pointer;' : ''}"${ciAttr}>
                 <td style="font-weight:600;${r.inTheMoney ? 'color:var(--bull)' : ''}">${r.strike.toFixed(2)}</td>
                 <td>$${r.lastPrice.toFixed(2)}</td>
                 <td style="color:var(--text-faint)">${r.bid.toFixed(2)}</td>
@@ -3861,12 +3895,13 @@ function renderOptionsChain(calls, puts) {
     if (puts.length === 0) {
         putsTbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--text-faint);padding:1.5rem">No puts available</td></tr>`;
     } else {
-        putsTbody.innerHTML = puts.map(r => {
+        putsTbody.innerHTML = puts.map((r, i) => {
             const itmStyle = r.inTheMoney ? 'background:rgba(239,68,68,0.06);' : '';
             const unusualStyle = r.unusual ? 'border-left:2px solid var(--warn);' : '';
+            const atmStyle = i === putAtm ? 'box-shadow:inset 0 0 0 1.5px var(--accent);' : '';
             const volColor = r.unusual ? 'var(--warn)' : (r.volume > 0 ? 'var(--text)' : 'var(--text-faint)');
             const ciAttr = r.contractSymbol ? ` onclick="loadContractIntraday('${r.contractSymbol}')" title="Click for 1-min intraday flow"` : '';
-            return `<tr style="${itmStyle}${unusualStyle}${r.contractSymbol ? 'cursor:pointer;' : ''}"${ciAttr}>
+            return `<tr style="${itmStyle}${unusualStyle}${atmStyle}${r.contractSymbol ? 'cursor:pointer;' : ''}"${ciAttr}>
                 <td style="font-weight:600;${r.inTheMoney ? 'color:var(--bear)' : ''}">${r.strike.toFixed(2)}</td>
                 <td>$${r.lastPrice.toFixed(2)}</td>
                 <td style="color:var(--text-faint)">${r.bid.toFixed(2)}</td>
@@ -3877,6 +3912,12 @@ function renderOptionsChain(calls, puts) {
             </tr>`;
         }).join('');
     }
+
+    // Open the tables at the money, not at the bottom of the strike ladder
+    requestAnimationFrame(() => {
+        chainScrollToATM('optionsCallsBody', callAtm);
+        chainScrollToATM('optionsPutsBody', putAtm);
+    });
 }
 
 // ── Contract Intraday Flow (UW 1-min drill-down) ─────────────
