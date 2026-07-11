@@ -577,6 +577,12 @@
         .cell-ants-pending { color: var(--text-faint); font-family: var(--font-mono); font-size: 11px; }
         .cell-ants-na { color: var(--text-faint); font-family: var(--font-mono); font-size: 12px; }
         .wl-ants-cell { text-align: right; min-width: 68px; }
+
+        /* ── Greeks suite sub-tabs (Gamma Exposure panel) ─── */
+        .gex-subtab { padding: 0.3rem 0.8rem; background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--border); border-radius: 0.3rem; cursor: pointer; font-size: 0.72rem; font-family: inherit; text-transform: uppercase; letter-spacing: 0.04em; transition: color 0.15s, border-color 0.15s; }
+        .gex-subtab:hover { color: var(--text); }
+        .gex-subtab.active { color: var(--accent); border-color: var(--accent); background: rgba(59,130,246,0.10); font-weight: 700; }
+        .gex-select { padding: 0.3rem 0.5rem; background: var(--surface-2); color: var(--text); border: 1px solid var(--border-strong); border-radius: 0.25rem; font-size: 0.72rem; font-family: inherit; }
     </style>
 </head>
 <body>
@@ -1041,6 +1047,72 @@
         </div>
         <div id="gexLadder" style="position:relative;height:64px;margin:0 0.5rem 0.75rem"></div>
         <div id="gexRegimeBar" style="display:none;padding:0.6rem 0.9rem;background:var(--surface-2);border-radius:0.35rem;border-left:3px solid var(--text-faint);font-size:0.8rem;font-weight:600"></div>
+
+        <!-- Greeks suite sub-views (UW greek-exposure / spot-exposures / greek-flow) -->
+        <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;margin-top:1rem;padding-top:0.9rem;border-top:1px solid var(--border)">
+            <button class="gex-subtab" id="gexTab-strike" onclick="gexShowSub('strike')">Strike Profile</button>
+            <button class="gex-subtab" id="gexTab-history" onclick="gexShowSub('history')">History</button>
+            <button class="gex-subtab" id="gexTab-spot" onclick="gexShowSub('spot')">Spot GEX</button>
+            <button class="gex-subtab" id="gexTab-flow" onclick="gexShowSub('flow')">Greek Flow</button>
+            <span id="gexSubStatus" style="font-size:0.7rem;color:var(--text-faint);margin-left:auto"></span>
+        </div>
+
+        <div id="gexViewStrike" style="display:none;margin-top:0.9rem">
+            <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:0.4rem">
+                <select id="gexStrikeBasis" class="gex-select" onchange="gexBasisChanged()">
+                    <option value="daily" selected>Daily OI profile</option>
+                    <option value="spotOi">Live spot · OI</option>
+                    <option value="spotVol">Live spot · Vol</option>
+                </select>
+                <select id="gexStrikeExpiry" class="gex-select" onchange="gexParamsChanged('strike')"><option value="">All expiries</option></select>
+                <select id="gexStrikeWindow" class="gex-select" onchange="gexDrawStrike()">
+                    <option value="5">±5% of spot</option>
+                    <option value="10" selected>±10% of spot</option>
+                    <option value="20">±20% of spot</option>
+                    <option value="0">All strikes</option>
+                </select>
+                <span style="font-size:0.7rem;color:var(--text-faint)">Net dealer GEX per strike · <span style="color:var(--bull)">■ positive (pins price)</span> <span style="color:var(--bear)">■ negative (fuels moves)</span><span id="gexStrikeMeta"></span></span>
+            </div>
+            <canvas id="gexStrikeCanvas" height="260" style="width:100%;display:block"></canvas>
+        </div>
+
+        <div id="gexViewHistory" style="display:none;margin-top:0.9rem">
+            <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:0.4rem">
+                <select id="gexHistTf" class="gex-select" onchange="gexParamsChanged('history')">
+                    <option value="1M">1M</option>
+                    <option value="3M" selected>3M</option>
+                    <option value="6M">6M</option>
+                    <option value="1Y">1Y</option>
+                </select>
+                <select id="gexHistGreek" class="gex-select" onchange="gexDrawHistory()">
+                    <option value="Gamma" selected>Gamma</option>
+                    <option value="Delta">Delta</option>
+                    <option value="Vanna">Vanna</option>
+                    <option value="Charm">Charm</option>
+                </select>
+                <span id="gexHistSummary" style="font-size:0.7rem;color:var(--text-faint)"></span>
+                <span style="font-size:0.7rem;color:var(--text-faint);margin-left:auto"><span style="color:var(--bull)">— call</span> <span style="color:var(--bear)">— put</span> <span style="color:var(--accent)">— net</span></span>
+            </div>
+            <canvas id="gexHistoryCanvas" height="240" style="width:100%;display:block"></canvas>
+        </div>
+
+        <div id="gexViewSpot" style="display:none;margin-top:0.9rem">
+            <div id="gexSpotChips" style="display:flex;gap:1.25rem;flex-wrap:wrap;font-size:0.75rem;margin-bottom:0.4rem"></div>
+            <div style="font-size:0.7rem;color:var(--text-faint);margin-bottom:0.25rem">Per-minute dealer gamma per 1% move (OI-based) · <span style="color:var(--bull)">— positive (dampens)</span> <span style="color:var(--bear)">— negative (amplifies)</span> · <span style="opacity:0.7">— price (right)</span></div>
+            <canvas id="gexSpotCanvas" height="240" style="width:100%;display:block"></canvas>
+        </div>
+
+        <div id="gexViewFlow" style="display:none;margin-top:0.9rem">
+            <div style="display:flex;gap:0.6rem;align-items:center;flex-wrap:wrap;margin-bottom:0.4rem">
+                <select id="gexFlowGreek" class="gex-select" onchange="gexDrawFlow()">
+                    <option value="Delta" selected>Delta flow</option>
+                    <option value="Vega">Vega flow</option>
+                </select>
+                <div id="gexFlowChips" style="display:flex;gap:1.25rem;flex-wrap:wrap;font-size:0.75rem"></div>
+            </div>
+            <div style="font-size:0.7rem;color:var(--text-faint);margin-bottom:0.25rem">Cumulative directional flow (top) · per-minute flow bars (bottom) · times ET</div>
+            <canvas id="gexFlowCanvas" height="240" style="width:100%;display:block"></canvas>
+        </div>
     </div>
 
     <!-- Summary Metric Cards -->
@@ -4277,6 +4349,9 @@ function renderGexLevels(gex, spot) {
     } else {
         regimeBar.style.display = 'none';
     }
+
+    // Greeks suite sub-views (strike profile / history / spot GEX / greek flow)
+    gexInitSub(gex, spot);
 }
 
 function renderGexLadder(gex, spot) {
@@ -4323,6 +4398,583 @@ function renderGexLadder(gex, spot) {
     }
     el.innerHTML = html;
 }
+
+// ============ GREEKS SUITE (UW greek-exposure / spot-exposures / greek-flow via /api/greeks) ============
+
+let gexSub = {
+    ticker: null, spot: null, levels: null, active: null, seq: 0,
+    data: { strike: null, spotStrike: null, history: null, spot: null, flow: null },
+};
+
+function gexStrikeBasis() {
+    return document.getElementById('gexStrikeBasis').value;   // daily | spotOi | spotVol
+}
+
+// The Strike Profile tab draws from one of two datasets depending on basis:
+// daily OI profile (/strike) or live intraday spot GEX (/spot-strike).
+function gexEnsureStrike(force = false) {
+    const need = gexStrikeBasis() === 'daily' ? 'strike' : 'spotStrike';
+    if (gexSub.data[need] && !force) {
+        requestAnimationFrame(() => gexDrawStrike());
+        return;
+    }
+    gexFetch(need);
+}
+
+function gexBasisChanged() {
+    if (gexSub.active === 'strike') gexEnsureStrike(false);
+}
+
+function gexFmtB(v) {
+    if (v === null || v === undefined || isNaN(v)) return '—';
+    const a = Math.abs(v);
+    const s = a >= 1e12 ? (a / 1e12).toFixed(2) + 'T'
+        : a >= 1e9 ? (a / 1e9).toFixed(2) + 'B'
+        : a >= 1e6 ? (a / 1e6).toFixed(1) + 'M'
+        : a >= 1e3 ? (a / 1e3).toFixed(1) + 'K' : a.toFixed(0);
+    return (v < 0 ? '-$' : '$') + s;
+}
+
+function gexViewEl(view) {
+    return document.getElementById('gexView' + view.charAt(0).toUpperCase() + view.slice(1));
+}
+
+function gexPopulateExpiries() {
+    const sel = document.getElementById('gexStrikeExpiry');
+    const current = sel.value;
+    sel.innerHTML = '<option value="">All expiries</option>';
+    (optionsDataCache?.expirations || []).forEach(exp => {
+        const opt = document.createElement('option');
+        opt.value = exp;
+        opt.textContent = 'Exp ' + exp;
+        sel.appendChild(opt);
+    });
+    if (current && [...sel.options].some(o => o.value === current)) sel.value = current;
+}
+
+// Hooked from renderGexLevels on every successful GEX-levels render
+function gexInitSub(gex, spot) {
+    const changed = gexSub.ticker !== gex.ticker;
+    gexSub.ticker = gex.ticker;
+    if (spot) gexSub.spot = spot;
+    gexSub.levels = gex;
+    if (changed) {
+        gexSub.data = { strike: null, spotStrike: null, history: null, spot: null, flow: null };
+    } else {
+        // Same ticker re-loaded — intraday views go stale fast, daily ones don't
+        gexSub.data.spotStrike = null;
+        gexSub.data.spot = null;
+        gexSub.data.flow = null;
+    }
+    gexPopulateExpiries();
+    gexShowSub(gexSub.active || 'strike', true);
+}
+
+function gexShowSub(view, force = false) {
+    gexSub.active = view;
+    ['strike', 'history', 'spot', 'flow'].forEach(v => {
+        document.getElementById('gexTab-' + v).classList.toggle('active', v === view);
+        gexViewEl(v).style.display = v === view ? 'block' : 'none';
+    });
+    if (!gexSub.ticker) return;
+    if (view === 'strike') { gexEnsureStrike(force); return; }   // basis-aware dataset
+    if (gexSub.data[view] && !force) {
+        requestAnimationFrame(() => gexRender(view));
+        return;
+    }
+    gexFetch(view);
+}
+
+// Expiry / timeframe control changed — invalidate that view and refetch
+function gexParamsChanged(view) {
+    if (view === 'strike') {
+        // Expiry filter applies to both strike datasets (daily + live spot)
+        gexSub.data.strike = null;
+        gexSub.data.spotStrike = null;
+        if (gexSub.active === 'strike') gexEnsureStrike(true);
+        return;
+    }
+    gexSub.data[view] = null;
+    if (gexSub.active === view) gexFetch(view);
+}
+
+async function gexFetch(view) {
+    const seq = ++gexSub.seq;
+    const ticker = gexSub.ticker;
+    const statusEl = document.getElementById('gexSubStatus');
+    statusEl.textContent = '⏳ loading…';
+    statusEl.style.color = 'var(--warn)';
+
+    let url = `${NEXUS_API}/api/greeks/${ticker}/`;
+    if (view === 'strike' || view === 'spotStrike') {
+        const exp = document.getElementById('gexStrikeExpiry').value;
+        url += (view === 'spotStrike' ? 'spot-strike' : 'strike') + (exp ? `?expiry=${exp}` : '');
+    } else if (view === 'history') {
+        url += `history?timeframe=${document.getElementById('gexHistTf').value}`;
+    } else if (view === 'spot') {
+        url += 'spot';
+    } else {
+        url += 'flow';
+    }
+
+    try {
+        const resp = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (seq !== gexSub.seq || ticker !== gexSub.ticker) return;   // stale
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => null);
+            throw new Error(err?.detail || `API ${resp.status}`);
+        }
+        const data = await resp.json();
+        if (seq !== gexSub.seq || ticker !== gexSub.ticker) return;
+        gexSub.data[view] = data;
+        statusEl.textContent = '';
+        requestAnimationFrame(() => gexRender(view));
+    } catch (err) {
+        if (seq !== gexSub.seq) return;
+        statusEl.textContent = `✗ ${err.message}`;
+        statusEl.style.color = 'var(--bear)';
+        console.warn('[APEX Greeks]', view, err.message);
+    }
+}
+
+function gexRender(view) {
+    if (view === 'strike' || view === 'spotStrike') gexDrawStrike();
+    else if (view === 'history') gexDrawHistory();
+    else if (view === 'spot') { gexSpotChips(); gexDrawSpot(); }
+    else { gexFlowChips(); gexDrawFlow(); }
+}
+
+// ── Strike Profile: net dealer GEX per strike ──
+
+function gexDrawStrike() {
+    const basis = gexStrikeBasis();
+    const live = basis !== 'daily';
+    const data = live ? gexSub.data.spotStrike : gexSub.data.strike;
+    const gKey = basis === 'spotVol' ? 'netGammaVol' : basis === 'spotOi' ? 'netGammaOi' : 'netGex';
+    const meta = document.getElementById('gexStrikeMeta');
+    const canvas = document.getElementById('gexStrikeCanvas');
+    if (!data || !canvas || !canvas.offsetParent) { if (meta) meta.textContent = ''; return; }
+
+    if (meta) {
+        const t = data.summary?.latestTime;
+        meta.textContent = live
+            ? ` · live spot ${basis === 'spotVol' ? '(volume-weighted)' : '(OI-based)'}${t ? ' · ' + ciTimeET(t) + ' ET' : ''}`
+            : ` · OI-derived daily${data.date ? ' · ' + data.date : ''}`;
+    }
+    const { ctx, w, h } = ttPrepCanvas(canvas);
+    const bull = ttCssVar('--bull', '#22c55e');
+    const bear = ttCssVar('--bear', '#ef4444');
+    const warn = ttCssVar('--warn', '#f59e0b');
+    const faint = ttCssVar('--text-faint', '#64748b');
+    const textC = ttCssVar('--text', '#e2e8f0');
+    ctx.clearRect(0, 0, w, h);
+
+    // Window around spot
+    const pct = parseFloat(document.getElementById('gexStrikeWindow').value) || 0;
+    let rows = data.strikes;
+    if (pct > 0 && gexSub.spot) {
+        const lo = gexSub.spot * (1 - pct / 100), hi = gexSub.spot * (1 + pct / 100);
+        const win = rows.filter(s => s.strike >= lo && s.strike <= hi);
+        if (win.length >= 3) rows = win;
+    }
+    const n = rows.length;
+    if (n === 0) return;
+
+    const pad = { l: 58, r: 10, t: 8, b: 26 };
+    const plotW = w - pad.l - pad.r;
+    const plotH = h - pad.t - pad.b;
+
+    let vMin = Math.min(0, ...rows.map(r => r[gKey]));
+    let vMax = Math.max(0, ...rows.map(r => r[gKey]));
+    if (vMin === vMax) { vMin -= 1; vMax += 1; }
+    const vPad = (vMax - vMin) * 0.08;
+    vMin -= vPad; vMax += vPad;
+
+    const xAt = i => pad.l + (i + 0.5) * (plotW / n);
+    const yAt = v => pad.t + (1 - (v - vMin) / (vMax - vMin)) * plotH;
+
+    // Grid + $ labels
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= 4; i++) {
+        const v = vMin + (vMax - vMin) * i / 4;
+        const y = yAt(v);
+        ctx.strokeStyle = 'rgba(148,163,184,0.09)';
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillStyle = faint;
+        ctx.fillText(gexFmtB(v), pad.l - 6, y);
+    }
+
+    // Zero line
+    const y0 = yAt(0);
+    ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+    ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(w - pad.r, y0); ctx.stroke();
+
+    // Bars
+    const barW = Math.max(1, plotW / n - Math.min(2, plotW / n * 0.25));
+    rows.forEach((r, i) => {
+        const x = pad.l + i * (plotW / n) + (plotW / n - barW) / 2;
+        const y = yAt(r[gKey]);
+        ctx.fillStyle = r[gKey] >= 0 ? bull : bear;
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(x, Math.min(y, y0), barW, Math.abs(y - y0) || 1);
+        ctx.globalAlpha = 1;
+    });
+
+    // Vertical markers: spot (solid) + gamma flip (dashed) when inside the window
+    const markerX = v => {
+        if (v == null) return null;
+        if (v < rows[0].strike || v > rows[n - 1].strike) return null;
+        let best = 0;
+        for (let i = 1; i < n; i++) if (Math.abs(rows[i].strike - v) < Math.abs(rows[best].strike - v)) best = i;
+        return xAt(best);
+    };
+    const drawMarker = (v, color, label, dashed) => {
+        const x = markerX(v);
+        if (x === null) return;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.4;
+        if (dashed) ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, h - pad.b); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineWidth = 1;
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.font = '600 9px "JetBrains Mono", monospace';
+        ctx.fillText(label, Math.min(w - 30, Math.max(pad.l + 20, x)), pad.t);
+    };
+    drawMarker(gexSub.spot, textC, `SPOT ${fmtGexPrice(gexSub.spot)}`, false);
+    drawMarker(gexSub.levels?.gammaFlip, warn, `FLIP ${fmtGexPrice(gexSub.levels?.gammaFlip)}`, true);
+
+    // Strike axis
+    ctx.fillStyle = faint;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.font = '10px "JetBrains Mono", monospace';
+    const ticks = Math.min(9, n);
+    for (let t = 0; t < ticks; t++) {
+        const i = Math.round(t * (n - 1) / Math.max(1, ticks - 1));
+        ctx.fillText(fmtGexPrice(rows[i].strike), xAt(i), h - pad.b + 8);
+    }
+}
+
+// ── History: daily call/put/net series for the selected greek ──
+
+function gexDrawHistory() {
+    const data = gexSub.data.history;
+    const canvas = document.getElementById('gexHistoryCanvas');
+    if (!data || !canvas || !canvas.offsetParent) return;
+    const { ctx, w, h } = ttPrepCanvas(canvas);
+    const bull = ttCssVar('--bull', '#22c55e');
+    const bear = ttCssVar('--bear', '#ef4444');
+    const accent = ttCssVar('--accent', '#3b82f6');
+    const faint = ttCssVar('--text-faint', '#64748b');
+    ctx.clearRect(0, 0, w, h);
+
+    const greek = document.getElementById('gexHistGreek').value;   // Gamma|Delta|Vanna|Charm
+    const rows = data.series;
+    const n = rows.length;
+    if (n === 0) return;
+    const kc = 'call' + greek, kp = 'put' + greek, kn = 'net' + greek;
+
+    // Summary line
+    const s = data.summary || {};
+    const latest = rows[n - 1];
+    let sumTxt = `latest net ${gexFmtB(latest[kn])}`;
+    if (greek === 'Gamma' && s.gammaRegime) sumTxt += ` · ${s.gammaRegime} ${s.gammaRegimeDays}d streak`;
+    document.getElementById('gexHistSummary').textContent = sumTxt + ` · ${n}d`;
+
+    const pad = { l: 58, r: 10, t: 8, b: 26 };
+    const plotW = w - pad.l - pad.r;
+    const plotH = h - pad.t - pad.b;
+
+    const all = rows.flatMap(r => [r[kc], r[kp], r[kn]]);
+    let vMin = Math.min(0, ...all), vMax = Math.max(0, ...all);
+    if (vMin === vMax) { vMin -= 1; vMax += 1; }
+    const vPad = (vMax - vMin) * 0.08;
+    vMin -= vPad; vMax += vPad;
+
+    const xAt = i => pad.l + (n === 1 ? plotW / 2 : i * (plotW / (n - 1)));
+    const yAt = v => pad.t + (1 - (v - vMin) / (vMax - vMin)) * plotH;
+
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= 4; i++) {
+        const v = vMin + (vMax - vMin) * i / 4;
+        const y = yAt(v);
+        ctx.strokeStyle = 'rgba(148,163,184,0.09)';
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillStyle = faint;
+        ctx.fillText(gexFmtB(v), pad.l - 6, y);
+    }
+    if (vMin < 0 && vMax > 0) {
+        const y0 = yAt(0);
+        ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(w - pad.r, y0); ctx.stroke();
+        ctx.setLineDash([]);
+    }
+
+    const line = (key, color, width) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        rows.forEach((r, i) => { const x = xAt(i), y = yAt(r[key]); i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); });
+        ctx.stroke();
+    };
+    line(kc, bull, 1.1);
+    line(kp, bear, 1.1);
+    line(kn, accent, 2);
+    ctx.lineWidth = 1;
+
+    // Date axis
+    ctx.fillStyle = faint;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const ticks = Math.min(7, n);
+    for (let t = 0; t < ticks; t++) {
+        const i = Math.round(t * (n - 1) / Math.max(1, ticks - 1));
+        ctx.fillText((rows[i].date || '').slice(5), xAt(i), h - pad.b + 8);
+    }
+}
+
+// ── Spot GEX: per-minute dealer gamma + price overlay ──
+
+function gexSpotChips() {
+    const s = gexSub.data.spot?.summary;
+    const el = document.getElementById('gexSpotChips');
+    if (!s) { el.innerHTML = ''; return; }
+    const gc = s.latestGammaOi > 0 ? 'var(--bull)' : s.latestGammaOi < 0 ? 'var(--bear)' : 'var(--text-muted)';
+    const chip = (label, val) =>
+        `<span><span style="color:var(--text-faint);text-transform:uppercase;font-size:0.65rem;letter-spacing:0.05em">${label}</span> <b>${val}</b></span>`;
+    el.innerHTML =
+        chip('Latest γ/1%', `<span style="color:${gc}">${gexFmtB(s.latestGammaOi)}</span>`) +
+        chip('Session', `${gexFmtB(s.gammaLow)} → ${gexFmtB(s.gammaHigh)}`) +
+        chip('Sign flips', s.signFlips ?? '—') +
+        chip('Regime', s.regime === 'POSITIVE'
+            ? '<span style="color:var(--bull)">▲ POSITIVE</span>'
+            : s.regime === 'NEGATIVE' ? '<span style="color:var(--bear)">▼ NEGATIVE</span>' : '—') +
+        chip('Date', (gexSub.data.spot.date || 'last market day') + ' 🐋');
+}
+
+function gexDrawSpot() {
+    const data = gexSub.data.spot;
+    const canvas = document.getElementById('gexSpotCanvas');
+    if (!data || !canvas || !canvas.offsetParent) return;
+    const { ctx, w, h } = ttPrepCanvas(canvas);
+    const bull = ttCssVar('--bull', '#22c55e');
+    const bear = ttCssVar('--bear', '#ef4444');
+    const faint = ttCssVar('--text-faint', '#64748b');
+    ctx.clearRect(0, 0, w, h);
+
+    const bars = data.bars;
+    const n = bars.length;
+    if (n === 0) return;
+    const pad = { l: 58, r: 52, t: 8, b: 26 };
+    const plotW = w - pad.l - pad.r;
+    const plotH = h - pad.t - pad.b;
+
+    const gvals = bars.map(b => b.gammaOi);
+    let gMin = Math.min(0, ...gvals), gMax = Math.max(0, ...gvals);
+    if (gMin === gMax) { gMin -= 1; gMax += 1; }
+    const gPad = (gMax - gMin) * 0.08;
+    gMin -= gPad; gMax += gPad;
+
+    const xAt = i => pad.l + (i + 0.5) * (plotW / n);
+    const yG = v => pad.t + (1 - (v - gMin) / (gMax - gMin)) * plotH;
+
+    // Left axis: gamma
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= 4; i++) {
+        const v = gMin + (gMax - gMin) * i / 4;
+        const y = yG(v);
+        ctx.strokeStyle = 'rgba(148,163,184,0.09)';
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillStyle = faint;
+        ctx.fillText(gexFmtB(v), pad.l - 6, y);
+    }
+
+    // Zero line
+    const y0 = yG(0);
+    ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(w - pad.r, y0); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Price overlay (right axis), faint
+    const pvals = bars.map(b => b.price).filter(v => v != null && v > 0);
+    if (pvals.length > 1) {
+        let pMin = Math.min(...pvals), pMax = Math.max(...pvals);
+        if (pMin === pMax) { pMin -= 0.5; pMax += 0.5; }
+        const yP = v => pad.t + (1 - (v - pMin) / (pMax - pMin)) * plotH;
+        ctx.strokeStyle = 'rgba(148,163,184,0.45)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        let started = false;
+        bars.forEach((b, i) => {
+            if (b.price == null || b.price <= 0) return;
+            const x = xAt(i), y = yP(b.price);
+            if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+        ctx.fillStyle = faint;
+        ctx.textAlign = 'left';
+        for (let i = 0; i <= 2; i++) {
+            const v = pMin + (pMax - pMin) * i / 2;
+            ctx.fillText(fmtGexPrice(v), w - pad.r + 6, yP(v));
+        }
+    }
+
+    // Gamma line, sign-colored per segment
+    ctx.lineWidth = 1.8;
+    for (let i = 1; i < n; i++) {
+        ctx.strokeStyle = (gvals[i] >= 0 && gvals[i - 1] >= 0) ? bull
+            : (gvals[i] < 0 && gvals[i - 1] < 0) ? bear
+            : (gvals[i] >= 0 ? bull : bear);
+        ctx.beginPath();
+        ctx.moveTo(xAt(i - 1), yG(gvals[i - 1]));
+        ctx.lineTo(xAt(i), yG(gvals[i]));
+        ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+
+    // Time axis (ET)
+    ctx.fillStyle = faint;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const ticks = Math.min(6, n);
+    for (let t = 0; t < ticks; t++) {
+        const i = Math.round(t * (n - 1) / Math.max(1, ticks - 1));
+        ctx.fillText(ciTimeET(bars[i].time), xAt(i), h - pad.b + 8);
+    }
+}
+
+// ── Greek Flow: cumulative directional delta/vega flow + per-minute bars ──
+
+function gexFlowChips() {
+    const s = gexSub.data.flow?.summary;
+    const el = document.getElementById('gexFlowChips');
+    if (!s) { el.innerHTML = ''; return; }
+    const dc = s.cumDirDeltaFlow > 0 ? 'var(--bull)' : s.cumDirDeltaFlow < 0 ? 'var(--bear)' : 'var(--text-muted)';
+    const vc = s.cumDirVegaFlow > 0 ? 'var(--bull)' : s.cumDirVegaFlow < 0 ? 'var(--bear)' : 'var(--text-muted)';
+    const chip = (label, val) =>
+        `<span><span style="color:var(--text-faint);text-transform:uppercase;font-size:0.65rem;letter-spacing:0.05em">${label}</span> <b>${val}</b></span>`;
+    el.innerHTML =
+        chip('Cum Δ-flow', `<span style="color:${dc}">${gexFmtB(s.cumDirDeltaFlow)}</span>${s.deltaBias ? ' ' + s.deltaBias.toLowerCase() : ''}`) +
+        chip('Cum vega-flow', `<span style="color:${vc}">${gexFmtB(s.cumDirVegaFlow)}</span>${s.vegaBias ? ' ' + s.vegaBias.replace('_', ' ').toLowerCase() : ''}`) +
+        chip('Volume', (s.totalVolume ?? 0).toLocaleString()) +
+        chip('Txns', (s.totalTransactions ?? 0).toLocaleString());
+}
+
+function gexDrawFlow() {
+    const data = gexSub.data.flow;
+    const canvas = document.getElementById('gexFlowCanvas');
+    if (!data || !canvas || !canvas.offsetParent) return;
+    const { ctx, w, h } = ttPrepCanvas(canvas);
+    const bull = ttCssVar('--bull', '#22c55e');
+    const bear = ttCssVar('--bear', '#ef4444');
+    const faint = ttCssVar('--text-faint', '#64748b');
+    ctx.clearRect(0, 0, w, h);
+
+    const greek = document.getElementById('gexFlowGreek').value;      // Delta|Vega
+    const cumKey = greek === 'Vega' ? 'cumDirVegaFlow' : 'cumDirDeltaFlow';
+    const barKey = greek === 'Vega' ? 'dirVegaFlow' : 'dirDeltaFlow';
+
+    const bars = data.bars;
+    const n = bars.length;
+    if (n === 0) return;
+    const pad = { l: 58, r: 10, t: 8, b: 26 };
+    const plotW = w - pad.l - pad.r;
+    const plotH = h - pad.t - pad.b;
+    const barH = plotH * 0.28;                    // bottom band: per-minute flow
+    const cumH = plotH - barH - 6;
+
+    const xAt = i => pad.l + (i + 0.5) * (plotW / n);
+
+    // Top band: cumulative line
+    const cvals = bars.map(b => b[cumKey]);
+    let cMin = Math.min(0, ...cvals), cMax = Math.max(0, ...cvals);
+    if (cMin === cMax) { cMin -= 1; cMax += 1; }
+    const cPad = (cMax - cMin) * 0.08;
+    cMin -= cPad; cMax += cPad;
+    const yC = v => pad.t + (1 - (v - cMin) / (cMax - cMin)) * cumH;
+
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i <= 3; i++) {
+        const v = cMin + (cMax - cMin) * i / 3;
+        const y = yC(v);
+        ctx.strokeStyle = 'rgba(148,163,184,0.09)';
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillStyle = faint;
+        ctx.fillText(gexFmtB(v), pad.l - 6, y);
+    }
+    const y0 = yC(0);
+    ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(w - pad.r, y0); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.lineWidth = 1.8;
+    for (let i = 1; i < n; i++) {
+        ctx.strokeStyle = (cvals[i] >= 0 && cvals[i - 1] >= 0) ? bull
+            : (cvals[i] < 0 && cvals[i - 1] < 0) ? bear
+            : (cvals[i] >= 0 ? bull : bear);
+        ctx.beginPath();
+        ctx.moveTo(xAt(i - 1), yC(cvals[i - 1]));
+        ctx.lineTo(xAt(i), yC(cvals[i]));
+        ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+    const lastV = cvals[n - 1];
+    ctx.fillStyle = lastV >= 0 ? bull : bear;
+    ctx.beginPath(); ctx.arc(xAt(n - 1), yC(lastV), 3, 0, Math.PI * 2); ctx.fill();
+
+    // Bottom band: per-minute directional flow bars
+    const bvals = bars.map(b => b[barKey]);
+    const bAbs = Math.max(1, ...bvals.map(v => Math.abs(v)));
+    const bTop = pad.t + cumH + 6;
+    const bMid = bTop + barH / 2;
+    const barW = Math.max(0.5, plotW / n - Math.min(1, plotW / n * 0.2));
+    ctx.globalAlpha = 0.8;
+    bars.forEach((b, i) => {
+        const v = b[barKey];
+        if (v === 0) return;
+        const x = pad.l + i * (plotW / n);
+        const hh = Math.abs(v) / bAbs * (barH / 2);
+        ctx.fillStyle = v > 0 ? bull : bear;
+        ctx.fillRect(x, v > 0 ? bMid - hh : bMid, barW, Math.max(0.5, hh));
+    });
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = 'rgba(148,163,184,0.25)';
+    ctx.beginPath(); ctx.moveTo(pad.l, bMid); ctx.lineTo(w - pad.r, bMid); ctx.stroke();
+
+    // Time axis (ET)
+    ctx.fillStyle = faint;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const ticks = Math.min(6, n);
+    for (let t = 0; t < ticks; t++) {
+        const i = Math.round(t * (n - 1) / Math.max(1, ticks - 1));
+        ctx.fillText(ciTimeET(bars[i].time), xAt(i), h - pad.b + 8);
+    }
+}
+
+// Redraw the active greeks view on resize (canvases are width:100%)
+window.addEventListener('resize', () => {
+    if (!gexSub.active) return;
+    if (document.getElementById('gexLevelsSection').style.display === 'none') return;
+    const has = gexSub.active === 'strike'
+        ? (gexStrikeBasis() === 'daily' ? gexSub.data.strike : gexSub.data.spotStrike)
+        : gexSub.data[gexSub.active];
+    if (has) gexRender(gexSub.active);
+});
 
 async function fetchUWData() {
     const ticker = (document.getElementById('optionsTickerInput').value.trim().toUpperCase()) || 'SPY';
@@ -4589,12 +5241,13 @@ async function gatherIndexContext(ticker) {
 
     // 6. Unusual Whales data (fire all in parallel, best-effort)
     try {
-        const [flowRes, tideRes, ivRes, dpRes, gexRes] = await Promise.allSettled([
+        const [flowRes, tideRes, ivRes, dpRes, gexRes, greeksRes] = await Promise.allSettled([
             fetch(`${NEXUS_API}/api/uw/flow-alerts?ticker=${ticker}&limit=10`).then(r => r.ok ? r.json() : null),
             fetch(`${NEXUS_API}/api/uw/market-tide`).then(r => r.ok ? r.json() : null),
             fetch(`${NEXUS_API}/api/uw/iv/${ticker}`).then(r => r.ok ? r.json() : null),
             fetch(`${NEXUS_API}/api/uw/darkpool/${ticker}`).then(r => r.ok ? r.json() : null),
             fetch(`${NEXUS_API}/api/gex/${ticker}`).then(r => r.ok ? r.json() : null),
+            fetch(`${NEXUS_API}/api/greeks/${ticker}/strike`).then(r => r.ok ? r.json() : null),
         ]);
 
         // Flow alerts — top 10 with call/put-aware sentiment
@@ -4675,7 +5328,44 @@ async function gatherIndexContext(ticker) {
             };
         }
 
-        console.log('[AI Context] UW data gathered:', { flow: ctx.uwFlowAlerts?.length || 0, tide: !!ctx.uwMarketTide, iv: !!ctx.uwIV, dp: ctx.uwDarkPool?.length || 0, gex: !!ctx.uwGexLevels });
+        // Greeks suite — strike profile landmarks + any intraday reads already loaded in the panel
+        const greeksData = greeksRes.status === 'fulfilled' ? greeksRes.value : null;
+        if (greeksData?.summary) {
+            const gs = greeksData.summary;
+            ctx.uwGreeks = {
+                strikeProfile: {
+                    maxPosGexStrike: gs.maxPosStrike,     // biggest positive net GEX (pin/resistance)
+                    maxNegGexStrike: gs.maxNegStrike,     // biggest negative net GEX (accelerant)
+                    profileFlip: gs.profileFlip,          // cumulative net-GEX zero-crossing
+                    topStrikes: gs.topStrikes,
+                },
+            };
+        }
+        // Piggyback panel caches (no extra fetches): regime history + intraday dealer gamma + flow bias
+        if (gexSub.ticker === ticker) {
+            const hs = gexSub.data.history?.summary;
+            if (hs?.gammaRegime) {
+                ctx.uwGreeks = ctx.uwGreeks || {};
+                ctx.uwGreeks.gammaRegimeHistory = { regime: hs.gammaRegime, streakDays: hs.gammaRegimeDays, latestNetGamma: hs.latestNetGamma };
+            }
+            const ss = gexSub.data.spot?.summary;
+            if (ss) {
+                ctx.uwGreeks = ctx.uwGreeks || {};
+                ctx.uwGreeks.spotGexIntraday = { latestGammaPer1Pct: ss.latestGammaOi, regime: ss.regime, signFlipsToday: ss.signFlips };
+            }
+            const fs = gexSub.data.flow?.summary;
+            if (fs) {
+                ctx.uwGreeks = ctx.uwGreeks || {};
+                ctx.uwGreeks.greekFlowIntraday = { cumDirDeltaFlow: fs.cumDirDeltaFlow, cumDirVegaFlow: fs.cumDirVegaFlow, deltaBias: fs.deltaBias, vegaBias: fs.vegaBias };
+            }
+            const sps = gexSub.data.spotStrike?.summary;
+            if (sps) {
+                ctx.uwGreeks = ctx.uwGreeks || {};
+                ctx.uwGreeks.liveSpotStrikeProfile = { maxPosGexStrike: sps.maxPosStrike, maxNegGexStrike: sps.maxNegStrike, profileFlip: sps.profileFlip, asOf: sps.latestTime };
+            }
+        }
+
+        console.log('[AI Context] UW data gathered:', { flow: ctx.uwFlowAlerts?.length || 0, tide: !!ctx.uwMarketTide, iv: !!ctx.uwIV, dp: ctx.uwDarkPool?.length || 0, gex: !!ctx.uwGexLevels, greeks: !!ctx.uwGreeks });
     } catch (e) {
         console.warn('[AI Context] UW fetch failed (non-blocking):', e.message);
     }
