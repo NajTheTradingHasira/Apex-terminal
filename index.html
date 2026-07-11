@@ -1096,6 +1096,28 @@
         </div>
     </div>
 
+    <!-- Contract Intraday Flow (UW 1-min drill-down; opens on chain-row click) -->
+    <div id="ciSection" style="display:none;margin-bottom:1.5rem;background:var(--surface-1);border:1px solid var(--border-strong);border-radius:0.5rem;padding:1rem 1.25rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+            <div class="section-title" style="margin-bottom:0">Contract Intraday Flow — <span id="ciLabel" style="color:var(--text-muted)">—</span> <span id="ciDate" style="color:var(--text-faint);font-size:0.7rem;font-weight:400;margin-left:0.5rem"></span></div>
+            <button onclick="ciClose()" style="background:none;border:1px solid var(--border);border-radius:0.3rem;color:var(--text-muted);cursor:pointer;font-size:0.8rem;padding:0.15rem 0.5rem">✕</button>
+        </div>
+        <div id="ciStatus" style="font-size:0.8rem;color:var(--text-faint);margin-bottom:0.75rem"></div>
+        <div id="ciStats" style="display:none;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:0.75rem;margin-bottom:1rem">
+            <div class="metric-card"><div class="metric-label">Last</div><div class="metric-value" id="ci-last">—</div><div class="metric-subtitle" id="ci-last-sub">&nbsp;</div></div>
+            <div class="metric-card"><div class="metric-label">Volume</div><div class="metric-value" id="ci-vol">—</div><div class="metric-subtitle" id="ci-vol-sub">&nbsp;</div></div>
+            <div class="metric-card"><div class="metric-label">Ask-Side %</div><div class="metric-value" id="ci-askpct">—</div><div class="metric-subtitle" id="ci-askpct-sub">&nbsp;</div></div>
+            <div class="metric-card"><div class="metric-label">Net Premium</div><div class="metric-value" id="ci-netprem">—</div><div class="metric-subtitle">ask − bid side</div></div>
+            <div class="metric-card"><div class="metric-label">IV Range</div><div class="metric-value" id="ci-iv">—</div><div class="metric-subtitle">session low–high</div></div>
+        </div>
+        <div id="ciCharts" style="display:none">
+            <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-faint);margin-bottom:0.25rem">Price &amp; side-split volume<span style="margin-left:0.9rem;color:var(--bull)">■ ask-side (bought)</span> <span style="color:var(--bear)">■ bid-side (sold)</span> <span style="color:var(--text-faint)">■ mid / no side</span></div>
+            <canvas id="ciPriceCanvas" height="240" style="width:100%;display:block;margin-bottom:1rem"></canvas>
+            <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-faint);margin-bottom:0.25rem">Cumulative net premium (ask − bid) — who's paying up</div>
+            <canvas id="ciCumCanvas" height="150" style="width:100%;display:block"></canvas>
+        </div>
+    </div>
+
     <!-- UW IV Context -->
     <div id="uwIVCard" style="display:none;margin-bottom:1.5rem;padding:1rem 1.25rem;background:var(--surface-1);border-radius:var(--r-lg);border:1px solid var(--border);box-shadow:var(--shadow-card)">
         <div class="section-title" style="color:#E040FB">IV Context — Unusual Whales</div>
@@ -3638,6 +3660,9 @@ async function fetchOptionsData() {
         // GEX key levels — fire-and-forget, renders its own section
         loadGexLevels(ticker, parseFloat(data.spot) || null);
 
+        // Stale contract drill-down belongs to the previous chain — hide it
+        ciClose();
+
         if (data.summary) {
             optionsDataCache = data;
             renderOptionsSummary(data);
@@ -3791,8 +3816,9 @@ function renderUnusualActivity(unusual, ticker) {
                : ' · mixed')
             : '';
         const sweepTag = (r.sweepVolume > 0) ? ' ⚡' : '';
+        const ciAttr = r.contractSymbol ? ` style="cursor:pointer" onclick="loadContractIntraday('${r.contractSymbol}')" title="Click for 1-min intraday flow"` : '';
 
-        return `<tr>
+        return `<tr${ciAttr}>
             <td style="color:${typeColor};font-weight:700">${typeLabel}</td>
             <td style="font-weight:700">$${r.strike.toFixed(2)}</td>
             <td style="color:var(--text-faint)">${expiry}</td>
@@ -3818,7 +3844,8 @@ function renderOptionsChain(calls, puts) {
             const itmStyle = r.inTheMoney ? 'background:rgba(34,197,94,0.06);' : '';
             const unusualStyle = r.unusual ? 'border-left:2px solid var(--warn);' : '';
             const volColor = r.unusual ? 'var(--warn)' : (r.volume > 0 ? 'var(--text)' : 'var(--text-faint)');
-            return `<tr style="${itmStyle}${unusualStyle}">
+            const ciAttr = r.contractSymbol ? ` onclick="loadContractIntraday('${r.contractSymbol}')" title="Click for 1-min intraday flow"` : '';
+            return `<tr style="${itmStyle}${unusualStyle}${r.contractSymbol ? 'cursor:pointer;' : ''}"${ciAttr}>
                 <td style="font-weight:600;${r.inTheMoney ? 'color:var(--bull)' : ''}">${r.strike.toFixed(2)}</td>
                 <td>$${r.lastPrice.toFixed(2)}</td>
                 <td style="color:var(--text-faint)">${r.bid.toFixed(2)}</td>
@@ -3838,7 +3865,8 @@ function renderOptionsChain(calls, puts) {
             const itmStyle = r.inTheMoney ? 'background:rgba(239,68,68,0.06);' : '';
             const unusualStyle = r.unusual ? 'border-left:2px solid var(--warn);' : '';
             const volColor = r.unusual ? 'var(--warn)' : (r.volume > 0 ? 'var(--text)' : 'var(--text-faint)');
-            return `<tr style="${itmStyle}${unusualStyle}">
+            const ciAttr = r.contractSymbol ? ` onclick="loadContractIntraday('${r.contractSymbol}')" title="Click for 1-min intraday flow"` : '';
+            return `<tr style="${itmStyle}${unusualStyle}${r.contractSymbol ? 'cursor:pointer;' : ''}"${ciAttr}>
                 <td style="font-weight:600;${r.inTheMoney ? 'color:var(--bear)' : ''}">${r.strike.toFixed(2)}</td>
                 <td>$${r.lastPrice.toFixed(2)}</td>
                 <td style="color:var(--text-faint)">${r.bid.toFixed(2)}</td>
@@ -3850,6 +3878,283 @@ function renderOptionsChain(calls, puts) {
         }).join('');
     }
 }
+
+// ── Contract Intraday Flow (UW 1-min drill-down) ─────────────
+// Click any chain / unusual-activity row → 1-min bars for that contract from
+// /api/contract-intraday/{occ} (uw_intraday.py): price + side-split volume +
+// cumulative net premium (ask − bid = aggressive buying vs selling).
+
+let ciData = null;
+
+function ciClose() {
+    const sec = document.getElementById('ciSection');
+    if (sec) sec.style.display = 'none';
+    ciData = null;
+}
+
+function ciFmtPrem(v) {
+    if (v === null || v === undefined || isNaN(v)) return '—';
+    const a = Math.abs(v);
+    const s = a >= 1e6 ? (a / 1e6).toFixed(2) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(1) + 'K' : a.toFixed(0);
+    return (v < 0 ? '-$' : '$') + s;
+}
+
+function ciTimeET(iso) {
+    try {
+        return new Date(iso).toLocaleTimeString('en-US',
+            { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/New_York' });
+    } catch { return ''; }
+}
+
+function ciContractTitle(d) {
+    if (!d.underlying || !d.strike) return d.contract;
+    const cp = d.type === 'C' ? 'CALL' : 'PUT';
+    return `${d.underlying} $${d.strike % 1 === 0 ? d.strike.toFixed(0) : d.strike.toFixed(2)} ${cp} · exp ${d.expiry}`;
+}
+
+async function loadContractIntraday(contract) {
+    const sec = document.getElementById('ciSection');
+    const statusEl = document.getElementById('ciStatus');
+    sec.style.display = 'block';
+    document.getElementById('ciStats').style.display = 'none';
+    document.getElementById('ciCharts').style.display = 'none';
+    document.getElementById('ciLabel').textContent = contract;
+    document.getElementById('ciDate').textContent = '';
+    statusEl.textContent = '⏳ Loading 1-min flow…';
+    statusEl.style.color = 'var(--warn)';
+    sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    try {
+        const resp = await fetch(`${NEXUS_API}/api/contract-intraday/${contract}`,
+            { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => null);
+            throw new Error(err?.detail || `API ${resp.status}: ${resp.statusText}`);
+        }
+        const data = await resp.json();
+        if (!data.bars || data.bars.length === 0) throw new Error('No intraday bars returned');
+        ciData = data;
+        ciRender(data);
+    } catch (err) {
+        statusEl.textContent = `✗ ${err.message}`;
+        statusEl.style.color = 'var(--bear)';
+        console.error('[APEX ContractIntraday]', err);
+    }
+}
+
+function ciRender(data) {
+    const s = data.summary;
+
+    document.getElementById('ciLabel').textContent = ciContractTitle(data);
+    document.getElementById('ciDate').textContent =
+        `${data.date || 'last market day'} · ${s.bars} bars · 🐋 UW 1-min`;
+    const statusEl = document.getElementById('ciStatus');
+    statusEl.textContent = '';
+
+    // Last + session change
+    const chColor = s.changePct > 0 ? 'var(--bull)' : s.changePct < 0 ? 'var(--bear)' : 'var(--text-muted)';
+    document.getElementById('ci-last').innerHTML =
+        s.priceClose !== null ? `<span style="color:${chColor}">$${s.priceClose.toFixed(2)}</span>` : '—';
+    document.getElementById('ci-last-sub').textContent = s.changePct !== null
+        ? `${s.changePct > 0 ? '+' : ''}${s.changePct.toFixed(1)}% vs open · H ${s.priceHigh?.toFixed(2) ?? '—'} L ${s.priceLow?.toFixed(2) ?? '—'}`
+        : ' ';
+
+    // Volume split
+    document.getElementById('ci-vol').textContent = s.totalVolume.toLocaleString();
+    document.getElementById('ci-vol-sub').textContent =
+        `A:${s.volAsk.toLocaleString()} B:${s.volBid.toLocaleString()} M:${s.volMid.toLocaleString()}`;
+
+    // Ask-side % + dominant side read
+    const apColor = s.askPct === null ? 'var(--text-muted)'
+        : s.askPct >= 55 ? 'var(--bull)' : s.askPct <= 45 ? 'var(--bear)' : 'var(--warn)';
+    document.getElementById('ci-askpct').innerHTML = s.askPct !== null
+        ? `<span style="color:${apColor}">${s.askPct.toFixed(1)}%</span>` : '—';
+    document.getElementById('ci-askpct-sub').textContent =
+        s.dominantSide === 'ask' ? 'Buyers lifting offers'
+        : s.dominantSide === 'bid' ? 'Sellers hitting bids'
+        : s.dominantSide === 'balanced' ? 'Balanced tape' : 'No directional volume';
+
+    // Net premium
+    const npColor = s.netPremium > 0 ? 'var(--bull)' : s.netPremium < 0 ? 'var(--bear)' : 'var(--text-muted)';
+    document.getElementById('ci-netprem').innerHTML =
+        `<span style="color:${npColor}">${ciFmtPrem(s.netPremium)}</span>`;
+
+    // IV range (UW serves decimals)
+    document.getElementById('ci-iv').textContent = (s.ivLow !== null && s.ivHigh !== null)
+        ? `${(s.ivLow * 100).toFixed(1)}–${(s.ivHigh * 100).toFixed(1)}%` : '—';
+
+    document.getElementById('ciStats').style.display = 'grid';
+    document.getElementById('ciCharts').style.display = 'block';
+    ciDrawPrice(data);
+    ciDrawCum(data);
+}
+
+function ciDrawPrice(data) {
+    const canvas = document.getElementById('ciPriceCanvas');
+    const { ctx, w, h } = ttPrepCanvas(canvas);
+    const bars = data.bars;
+    const n = bars.length;
+    const pad = { l: 52, r: 10, t: 8, b: 30 };
+    const plotW = w - pad.l - pad.r;
+    const plotH = h - pad.t - pad.b;
+    const volH = plotH * 0.30;                 // bottom band: side-split volume
+    const priceH = plotH - volH - 6;
+    const bull = ttCssVar('--bull', '#22c55e');
+    const bear = ttCssVar('--bear', '#ef4444');
+    const accent = ttCssVar('--accent', '#3b82f6');
+    const faint = ttCssVar('--text-faint', '#64748b');
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Price scale on closes (fallback avgPrice when close is 0 = no trades)
+    const px = bars.map(b => b.close > 0 ? b.close : (b.avgPrice > 0 ? b.avgPrice : null));
+    let last = null;
+    for (let i = 0; i < n; i++) { if (px[i] === null) px[i] = last; else last = px[i]; }
+    const valid = px.filter(v => v !== null);
+    if (valid.length === 0) return;
+    let pMin = Math.min(...valid), pMax = Math.max(...valid);
+    if (pMin === pMax) { pMin -= 0.05; pMax += 0.05; }
+    const pPad = (pMax - pMin) * 0.08;
+    pMin -= pPad; pMax += pPad;
+
+    const xAt = i => pad.l + (i + 0.5) * (plotW / n);
+    const yPrice = v => pad.t + (1 - (v - pMin) / (pMax - pMin)) * priceH;
+
+    // Grid + price labels
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = faint;
+    for (let i = 0; i <= 4; i++) {
+        const v = pMin + (pMax - pMin) * i / 4;
+        const y = yPrice(v);
+        ctx.strokeStyle = 'rgba(148,163,184,0.09)';
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillText(v.toFixed(2), pad.l - 6, y);
+    }
+
+    // Side-split volume: stacked ask (bull) / bid (bear) / mid+none (gray)
+    const vMax = Math.max(1, ...bars.map(b => b.volume));
+    const volTop = pad.t + priceH + 6;
+    const barW = Math.max(0.5, plotW / n - Math.min(1, plotW / n * 0.2));
+    bars.forEach((b, i) => {
+        const x = pad.l + i * (plotW / n);
+        let y = volTop + volH;
+        const seg = (vol, color) => {
+            if (vol <= 0) return;
+            const hh = vol / vMax * volH;
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y - hh, barW, hh);
+            y -= hh;
+        };
+        seg(b.volAsk, bull);
+        seg(b.volBid, bear);
+        seg(b.volMid + b.volNo, 'rgba(148,163,184,0.35)');
+    });
+
+    // Price line
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    let started = false;
+    for (let i = 0; i < n; i++) {
+        if (px[i] === null) continue;
+        const x = xAt(i), y = yPrice(px[i]);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.lineWidth = 1;
+
+    // Time axis (ET)
+    ctx.fillStyle = faint;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const ticks = Math.min(6, n);
+    for (let t = 0; t < ticks; t++) {
+        const i = Math.round(t * (n - 1) / Math.max(1, ticks - 1));
+        ctx.fillText(ciTimeET(bars[i].time), xAt(i), h - pad.b + 8);
+    }
+}
+
+function ciDrawCum(data) {
+    const canvas = document.getElementById('ciCumCanvas');
+    const { ctx, w, h } = ttPrepCanvas(canvas);
+    const bars = data.bars;
+    const n = bars.length;
+    const pad = { l: 52, r: 10, t: 8, b: 24 };
+    const plotW = w - pad.l - pad.r;
+    const plotH = h - pad.t - pad.b;
+    const bull = ttCssVar('--bull', '#22c55e');
+    const bear = ttCssVar('--bear', '#ef4444');
+    const faint = ttCssVar('--text-faint', '#64748b');
+
+    ctx.clearRect(0, 0, w, h);
+
+    const vals = bars.map(b => b.cumNetPremium);
+    let vMin = Math.min(0, ...vals), vMax = Math.max(0, ...vals);
+    if (vMin === vMax) { vMin -= 1; vMax += 1; }
+    const vPad = (vMax - vMin) * 0.08;
+    vMin -= vPad; vMax += vPad;
+
+    const xAt = i => pad.l + (i + 0.5) * (plotW / n);
+    const yAt = v => pad.t + (1 - (v - vMin) / (vMax - vMin)) * plotH;
+
+    // Grid + $ labels
+    ctx.font = '10px "JetBrains Mono", monospace';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = faint;
+    for (let i = 0; i <= 3; i++) {
+        const v = vMin + (vMax - vMin) * i / 3;
+        const y = yAt(v);
+        ctx.strokeStyle = 'rgba(148,163,184,0.09)';
+        ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(w - pad.r, y); ctx.stroke();
+        ctx.fillText(ciFmtPrem(v), pad.l - 6, y);
+    }
+
+    // Zero line
+    const y0 = yAt(0);
+    ctx.strokeStyle = 'rgba(148,163,184,0.35)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(w - pad.r, y0); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Cumulative line, colored by sign per segment
+    ctx.lineWidth = 1.8;
+    for (let i = 1; i < n; i++) {
+        ctx.strokeStyle = (vals[i] >= 0 && vals[i - 1] >= 0) ? bull
+            : (vals[i] < 0 && vals[i - 1] < 0) ? bear
+            : (vals[i] >= 0 ? bull : bear);
+        ctx.beginPath();
+        ctx.moveTo(xAt(i - 1), yAt(vals[i - 1]));
+        ctx.lineTo(xAt(i), yAt(vals[i]));
+        ctx.stroke();
+    }
+    ctx.lineWidth = 1;
+
+    // End-of-session marker
+    const lastV = vals[n - 1];
+    ctx.fillStyle = lastV >= 0 ? bull : bear;
+    ctx.beginPath(); ctx.arc(xAt(n - 1), yAt(lastV), 3, 0, Math.PI * 2); ctx.fill();
+
+    // Time axis (ET)
+    ctx.fillStyle = faint;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const ticks = Math.min(6, n);
+    for (let t = 0; t < ticks; t++) {
+        const i = Math.round(t * (n - 1) / Math.max(1, ticks - 1));
+        ctx.fillText(ciTimeET(bars[i].time), xAt(i), h - pad.b + 6);
+    }
+}
+
+// Redraw drill-down charts on resize (canvases are width:100%)
+window.addEventListener('resize', () => {
+    if (ciData && document.getElementById('ciSection').style.display !== 'none') {
+        ciDrawPrice(ciData);
+        ciDrawCum(ciData);
+    }
+});
 
 // Enter key in ticker input triggers fetch
 document.getElementById('optionsTickerInput').addEventListener('keydown', (e) => {
