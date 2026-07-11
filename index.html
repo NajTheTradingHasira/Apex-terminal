@@ -529,6 +529,41 @@
             font-size: 0.7rem; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em;
             font-weight: 600; padding: 0.5rem 0; border-bottom: 1px solid var(--border); margin-bottom: 0.25rem;
         }
+        /* Streaming feed additions */
+        .news-live-chip {
+            display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.65rem; font-weight: 700;
+            letter-spacing: 0.06em; padding: 0.15rem 0.55rem; border-radius: 0.75rem;
+            background: rgba(34,197,94,0.12); color: var(--bull); border: 1px solid rgba(34,197,94,0.25);
+        }
+        .news-live-chip .pulse-dot {
+            width: 6px; height: 6px; border-radius: 50%; background: var(--bull);
+            animation: newsPulse 2s ease-in-out infinite;
+        }
+        .news-live-chip.paused { background: rgba(148,163,184,0.08); color: var(--text-muted); border-color: var(--border-strong); }
+        .news-live-chip.paused .pulse-dot { background: var(--text-faint); animation: none; }
+        @keyframes newsPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+        .news-moving-section {
+            background: linear-gradient(180deg, rgba(251,191,36,0.06), rgba(251,191,36,0.02));
+            border: 1px solid rgba(251,191,36,0.25); border-radius: 0.5rem;
+            padding: 0.75rem 1rem; margin-bottom: 1rem;
+        }
+        .news-moving-title {
+            font-size: 0.7rem; font-weight: 700; color: #fbbf24; text-transform: uppercase;
+            letter-spacing: 0.08em; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem;
+        }
+        .news-moving-item {
+            display: block; padding: 0.45rem 0; border-bottom: 1px solid rgba(251,191,36,0.1);
+            text-decoration: none; cursor: pointer;
+        }
+        .news-moving-item:last-child { border-bottom: none; }
+        .news-moving-item:hover .news-moving-headline { color: #fbbf24; }
+        .news-moving-headline { font-size: 0.8rem; font-weight: 600; color: var(--text); line-height: 1.35; }
+        .news-moving-meta { font-size: 0.65rem; color: var(--text-faint); margin-top: 0.15rem; }
+        .news-new-chip {
+            font-size: 0.6rem; font-weight: 700; color: var(--accent); letter-spacing: 0.05em;
+            padding: 0.05rem 0.35rem; border: 1px solid rgba(0,212,255,0.35); border-radius: 0.2rem;
+            background: rgba(0,212,255,0.08);
+        }
 
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
 
@@ -993,6 +1028,19 @@
             <button class="api-btn" id="uwFetchBtn" onclick="fetchUWData()" style="margin:0;padding:0.5rem 1.25rem;background-color:rgba(224,64,251,0.15);color:#E040FB;border:1px solid rgba(224,64,251,0.3)">🐋 Whale Flow</button>
             <span id="optionsStatus" style="font-size:0.7rem;color:var(--text-faint);margin-left:auto"></span>
         </div>
+    </div>
+
+    <!-- GEX Key Levels (UW) -->
+    <div id="gexLevelsSection" style="display:none;margin-bottom:1.5rem;background:var(--surface-1);border:1px solid var(--border-strong);border-radius:0.5rem;padding:1rem 1.25rem">
+        <div class="section-title" style="margin-bottom:0.75rem">Gamma Exposure Levels — <span id="gexTickerLabel" style="color:var(--text-muted)">—</span> <span id="gexDateLabel" style="color:var(--text-faint);font-size:0.7rem;font-weight:400;margin-left:0.5rem"></span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:1rem">
+            <div class="metric-card"><div class="metric-label">Call Wall</div><div class="metric-value" id="gex-call-wall" style="color:var(--bull)">—</div><div class="metric-subtitle" id="gex-call-wall-sub">Resistance above spot</div></div>
+            <div class="metric-card"><div class="metric-label">Gamma Magnet</div><div class="metric-value" id="gex-magnet" style="color:var(--accent)">—</div><div class="metric-subtitle" id="gex-magnet-sub">Strongest pin</div></div>
+            <div class="metric-card"><div class="metric-label">Gamma Flip</div><div class="metric-value" id="gex-flip" style="color:var(--warn)">—</div><div class="metric-subtitle" id="gex-flip-sub">Zero-gamma level</div></div>
+            <div class="metric-card"><div class="metric-label">Put Wall</div><div class="metric-value" id="gex-put-wall" style="color:var(--bear)">—</div><div class="metric-subtitle" id="gex-put-wall-sub">Support below spot</div></div>
+        </div>
+        <div id="gexLadder" style="position:relative;height:64px;margin:0 0.5rem 0.75rem"></div>
+        <div id="gexRegimeBar" style="display:none;padding:0.6rem 0.9rem;background:var(--surface-2);border-radius:0.35rem;border-left:3px solid var(--text-faint);font-size:0.8rem;font-weight:600"></div>
     </div>
 
     <!-- Summary Metric Cards -->
@@ -1510,16 +1558,19 @@
 
     <!-- Runner Panel -->
     <div style="background-color:var(--surface-1);padding:1.5rem;border-radius:0.5rem;border:1px solid var(--border-strong);margin-bottom:1.5rem">
-        <div class="section-title">Market &amp; Ticker News</div>
+        <div class="section-title" style="display:flex;align-items:center;gap:0.75rem">Market News Stream
+            <span class="news-live-chip paused" id="newsLiveChip"><span class="pulse-dot"></span><span id="newsLiveChipLabel">CONNECTING</span></span>
+        </div>
         <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
-            <input type="text" id="newsTickerInput" placeholder="SPY, AAPL, NVDA..." value="" style="padding:0.5rem 0.75rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.25rem;font-size:0.875rem;font-family:inherit;text-transform:uppercase;width:220px" title="Comma-separated tickers or blank for general market news">
-            <button class="api-btn" id="newsFetchBtn" onclick="fetchNews()" style="margin:0;padding:0.5rem 1.25rem">▶ Fetch News</button>
-            <button class="api-btn" id="newsRefreshBtn" onclick="fetchNews(true)" style="margin:0;padding:0.5rem 1.25rem;background-color:var(--text-faint)">↻ Refresh All</button>
+            <input type="text" id="newsTickerInput" placeholder="Search: SPY, AAPL, NVDA..." value="" style="padding:0.5rem 0.75rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.25rem;font-size:0.875rem;font-family:inherit;text-transform:uppercase;width:220px" title="Comma-separated tickers for a targeted feed — the market stream keeps flowing underneath">
+            <button class="api-btn" id="newsFetchBtn" onclick="fetchNews()" style="margin:0;padding:0.5rem 1.25rem">🔍 Search</button>
+            <button class="api-btn" id="newsRefreshBtn" onclick="backToMarketStream()" style="margin:0;padding:0.5rem 1.25rem;background-color:var(--text-faint)">⟳ Market Stream</button>
             <span id="newsStatus" style="font-size:0.7rem;color:var(--text-faint);margin-left:auto"></span>
         </div>
         <div style="margin-top:0.75rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem">
             <div class="news-filter-bar" id="newsFilterBar">
                 <button class="news-filter-btn active" data-filter="all" onclick="filterNews('all',this)">All</button>
+                <button class="news-filter-btn" data-filter="moving" onclick="filterNews('moving',this)" style="color:#fbbf24">⚡ Market Moving</button>
                 <button class="news-filter-btn" data-filter="earnings" onclick="filterNews('earnings',this)">Earnings</button>
                 <button class="news-filter-btn" data-filter="macro" onclick="filterNews('macro',this)">Macro / Fed</button>
                 <button class="news-filter-btn" data-filter="sector" onclick="filterNews('sector',this)">Sector</button>
@@ -1536,11 +1587,12 @@
         <!-- Main Feed -->
         <div>
             <div class="section-title" id="newsMainTitle">Latest News</div>
+            <div id="newsMovingSection"></div>
             <div class="news-feed" id="newsFeedMain">
                 <div class="news-empty">
                     <div style="font-size:2rem;margin-bottom:0.75rem">📰</div>
-                    <div>Enter tickers above or click "Refresh All" for market-wide news</div>
-                    <div style="font-size:0.75rem;color:var(--text-faint);margin-top:0.5rem">Pulls from Yahoo Finance via Nexus backend</div>
+                    <div>Connecting to the market stream…</div>
+                    <div style="font-size:0.75rem;color:var(--text-faint);margin-top:0.5rem">Powered by Polygon.io via Nexus backend · auto-refreshes every 3 min</div>
                 </div>
             </div>
         </div>
@@ -1550,7 +1602,7 @@
             <div class="section-title">Watchlist Mentions</div>
             <div style="background:var(--surface-1);border:1px solid var(--border-strong);border-radius:0.5rem;padding:1rem;margin-bottom:1.5rem;min-height:150px" id="newsWatchlistMentions">
                 <div style="text-align:center;color:var(--text-faint);padding:1rem;font-size:0.8rem">
-                    Fetch news to see watchlist ticker mentions
+                    Watchlist tickers get flagged automatically as the stream flows
                 </div>
             </div>
 
@@ -3583,6 +3635,9 @@ async function fetchOptionsData() {
         const data = await resp.json();
         const srcTag = data.source === 'unusual_whales' ? ' · 🐋 UW' : data.source === 'cboe' ? ' · CBOE 15m' : '';
 
+        // GEX key levels — fire-and-forget, renders its own section
+        loadGexLevels(ticker, parseFloat(data.spot) || null);
+
         if (data.summary) {
             optionsDataCache = data;
             renderOptionsSummary(data);
@@ -3807,6 +3862,121 @@ document.getElementById('optionsExpirySelect').addEventListener('change', () => 
 });
 
 // ── Unusual Whales Integration ───────────────────────────────
+
+// ============ GEX KEY LEVELS (UW gex-levels via /api/gex) ============
+
+let gexRequestSeq = 0;
+
+function fmtGexPrice(v) {
+    if (v == null || !isFinite(v)) return '—';
+    return v % 1 === 0 ? v.toLocaleString('en-US') : v.toFixed(2);
+}
+
+async function loadGexLevels(ticker, spot) {
+    const seq = ++gexRequestSeq;
+    const section = document.getElementById('gexLevelsSection');
+    try {
+        const resp = await fetch(`${NEXUS_API}/api/gex/${ticker}`, { headers: { 'Accept': 'application/json' } });
+        if (seq !== gexRequestSeq) return;           // stale response — newer request in flight
+        if (!resp.ok) { section.style.display = 'none'; return; }
+        const gex = await resp.json();
+        if (seq !== gexRequestSeq) return;
+        renderGexLevels(gex, spot);
+    } catch (e) {
+        if (seq === gexRequestSeq) section.style.display = 'none';
+        console.warn('[APEX GEX] load failed (non-blocking):', e.message);
+    }
+}
+
+function renderGexLevels(gex, spot) {
+    const section = document.getElementById('gexLevelsSection');
+    const levels = [
+        { key: 'callWall',    el: 'gex-call-wall', sub: 'gex-call-wall-sub', fallback: 'Resistance above spot' },
+        { key: 'gammaMagnet', el: 'gex-magnet',    sub: 'gex-magnet-sub',    fallback: 'Strongest pin' },
+        { key: 'gammaFlip',   el: 'gex-flip',      sub: 'gex-flip-sub',      fallback: 'Zero-gamma level' },
+        { key: 'putWall',     el: 'gex-put-wall',  sub: 'gex-put-wall-sub',  fallback: 'Support below spot' },
+    ];
+    if (levels.every(l => gex[l.key] == null)) { section.style.display = 'none'; return; }
+
+    section.style.display = 'block';
+    document.getElementById('gexTickerLabel').textContent = gex.ticker || '';
+    document.getElementById('gexDateLabel').textContent =
+        (gex.date ? `as of ${gex.date}` : 'last trading date') + ' · OI-derived · 🐋 UW';
+
+    for (const l of levels) {
+        const v = gex[l.key];
+        document.getElementById(l.el).textContent = fmtGexPrice(v);
+        const subEl = document.getElementById(l.sub);
+        if (v != null && spot) {
+            const pct = ((v - spot) / spot) * 100;
+            subEl.innerHTML = `<span style="color:${pct >= 0 ? 'var(--bull)' : 'var(--bear)'}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</span> vs spot ${fmtGexPrice(spot)}`;
+        } else if (v == null) {
+            subEl.textContent = l.key === 'gammaFlip' ? 'No zero-crossing' : 'No data';
+        } else {
+            subEl.textContent = l.fallback;
+        }
+    }
+
+    renderGexLadder(gex, spot);
+
+    // Regime read: spot vs gamma flip
+    const regimeBar = document.getElementById('gexRegimeBar');
+    if (gex.gammaFlip != null && spot) {
+        const positive = spot >= gex.gammaFlip;
+        regimeBar.style.display = 'block';
+        regimeBar.style.borderLeftColor = positive ? 'var(--bull)' : 'var(--bear)';
+        regimeBar.innerHTML = positive
+            ? `<span style="color:var(--bull)">▲ POSITIVE GAMMA</span> <span style="color:var(--text-muted);font-weight:400">— spot above flip (${fmtGexPrice(gex.gammaFlip)}). Dealer hedging dampens moves: dips bought, rips sold. Mean-reversion tape; magnet ${fmtGexPrice(gex.gammaMagnet)} is the pin.</span>`
+            : `<span style="color:var(--bear)">▼ NEGATIVE GAMMA</span> <span style="color:var(--text-muted);font-weight:400">— spot below flip (${fmtGexPrice(gex.gammaFlip)}). Dealer hedging amplifies moves: expect vol expansion and trend extension. Put wall ${fmtGexPrice(gex.putWall)} is first support.</span>`;
+    } else {
+        regimeBar.style.display = 'none';
+    }
+}
+
+function renderGexLadder(gex, spot) {
+    const el = document.getElementById('gexLadder');
+    const markers = [
+        { v: gex.callWall,    label: 'CALL WALL', color: 'var(--bull)',   row: 1 },
+        { v: gex.gammaMagnet, label: 'MAGNET',    color: 'var(--accent)', row: 1 },
+        { v: gex.gammaFlip,   label: 'FLIP',      color: 'var(--warn)',   row: 2 },
+        { v: gex.putWall,     label: 'PUT WALL',  color: 'var(--bear)',   row: 2 },
+        ...(spot ? [{ v: spot, label: 'SPOT', color: 'var(--text)', row: 1, spot: true }] : []),
+    ].filter(m => m.v != null && isFinite(m.v));
+
+    if (markers.length < 2) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+
+    const vals = markers.map(m => m.v);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const pad = (max - min) * 0.07 || max * 0.005 || 1;
+    const lo = min - pad, hi = max + pad;
+    const x = v => Math.min(96, Math.max(4, (v - lo) / (hi - lo) * 100));
+
+    // Same-row labels too close → move the later one to the other row
+    for (const row of [1, 2]) {
+        const rm = markers.filter(m => m.row === row).sort((a, b) => x(a.v) - x(b.v));
+        for (let i = 1; i < rm.length; i++) {
+            if (x(rm[i].v) - x(rm[i - 1].v) < 9) rm[i].row = row === 1 ? 2 : 1;
+        }
+    }
+
+    // Track: negative-gamma zone (below flip) red, positive zone green
+    const flipX = gex.gammaFlip != null ? x(gex.gammaFlip) : null;
+    const trackBg = flipX != null
+        ? `linear-gradient(90deg, rgba(255,61,87,0.30) 0%, rgba(255,61,87,0.30) ${flipX}%, rgba(0,230,118,0.30) ${flipX}%, rgba(0,230,118,0.30) 100%)`
+        : 'var(--surface-2)';
+
+    let html = `<div style="position:absolute;left:0;right:0;top:28px;height:8px;border-radius:4px;background:${trackBg}"></div>`;
+    for (const m of markers) {
+        const px = x(m.v);
+        const labelTop = m.row === 1 ? 0 : 46;
+        const tickTop = m.spot ? 20 : 24;
+        const tickH = m.spot ? 24 : 16;
+        html += `<div style="position:absolute;left:calc(${px}% - ${m.spot ? 1.5 : 1}px);top:${tickTop}px;width:${m.spot ? 3 : 2}px;height:${tickH}px;background:${m.color};border-radius:1px${m.spot ? ';box-shadow:0 0 6px rgba(255,255,255,0.5)' : ''}"></div>`;
+        html += `<div style="position:absolute;left:${px}%;top:${labelTop}px;transform:translateX(-50%);font-size:0.62rem;font-family:var(--font-mono);color:${m.color};white-space:nowrap;font-weight:${m.spot ? 700 : 600}">${m.label} ${fmtGexPrice(m.v)}</div>`;
+    }
+    el.innerHTML = html;
+}
 
 async function fetchUWData() {
     const ticker = (document.getElementById('optionsTickerInput').value.trim().toUpperCase()) || 'SPY';
@@ -4073,11 +4243,12 @@ async function gatherIndexContext(ticker) {
 
     // 6. Unusual Whales data (fire all in parallel, best-effort)
     try {
-        const [flowRes, tideRes, ivRes, dpRes] = await Promise.allSettled([
+        const [flowRes, tideRes, ivRes, dpRes, gexRes] = await Promise.allSettled([
             fetch(`${NEXUS_API}/api/uw/flow-alerts?ticker=${ticker}&limit=10`).then(r => r.ok ? r.json() : null),
             fetch(`${NEXUS_API}/api/uw/market-tide`).then(r => r.ok ? r.json() : null),
             fetch(`${NEXUS_API}/api/uw/iv/${ticker}`).then(r => r.ok ? r.json() : null),
             fetch(`${NEXUS_API}/api/uw/darkpool/${ticker}`).then(r => r.ok ? r.json() : null),
+            fetch(`${NEXUS_API}/api/gex/${ticker}`).then(r => r.ok ? r.json() : null),
         ]);
 
         // Flow alerts — top 10 with call/put-aware sentiment
@@ -4143,7 +4314,22 @@ async function gatherIndexContext(ticker) {
                 .map(t => ({ ticker: t.ticker, price: t.price, size: t.size, notional: Math.round(t.notional) }));
         }
 
-        console.log('[AI Context] UW data gathered:', { flow: ctx.uwFlowAlerts?.length || 0, tide: !!ctx.uwMarketTide, iv: !!ctx.uwIV, dp: ctx.uwDarkPool?.length || 0 });
+        // GEX key levels — dealer positioning map (spot from last chain load, if any)
+        const gexData = gexRes.status === 'fulfilled' ? gexRes.value : null;
+        if (gexData && [gexData.callWall, gexData.putWall, gexData.gammaMagnet, gexData.gammaFlip].some(v => v != null)) {
+            const gexSpot = parseFloat(optionsDataCache?.spot) || null;
+            ctx.uwGexLevels = {
+                callWall: gexData.callWall,
+                putWall: gexData.putWall,
+                gammaMagnet: gexData.gammaMagnet,
+                gammaFlip: gexData.gammaFlip,
+                regime: (gexData.gammaFlip != null && gexSpot)
+                    ? (gexSpot >= gexData.gammaFlip ? 'POSITIVE_GAMMA' : 'NEGATIVE_GAMMA')
+                    : null,
+            };
+        }
+
+        console.log('[AI Context] UW data gathered:', { flow: ctx.uwFlowAlerts?.length || 0, tide: !!ctx.uwMarketTide, iv: !!ctx.uwIV, dp: ctx.uwDarkPool?.length || 0, gex: !!ctx.uwGexLevels });
     } catch (e) {
         console.warn('[AI Context] UW fetch failed (non-blocking):', e.message);
     }
@@ -4866,8 +5052,15 @@ const PRICE_CACHE = {};
 let liveDataActive = false;
 
 // ── 2. PRICE FETCH VIA NEXUS BACKEND ────────────────────────
-// Routes through Nexus /api/prices endpoint — no CORS proxy needed
-async function fetchYahooPrices(symbols) {
+// Polygon-primary (/api/polygon/prices — your Polygon key, held server-side),
+// legacy Yahoo /api/prices as automatic fallback. Identical response shapes,
+// so everything downstream of PRICE_CACHE is untouched.
+// Flip to 'yahoo' to revert to the old ~real-time Yahoo tape in one word
+// (Polygon Stocks Starter snapshots are 15-min delayed).
+const PRICE_SOURCE = 'polygon'; // 'polygon' | 'yahoo'
+let PRICE_SOURCE_ACTIVE = null; // what actually served the last cycle (for the LIVE badge tooltip)
+
+async function fetchYahooPrices(symbols) { // name kept — called from 5 sites
     let fetched = 0; // symbols successfully cached this call
     // Chunk into batches of 20 to keep URLs reasonable
     const chunks = [];
@@ -4877,31 +5070,55 @@ async function fetchYahooPrices(symbols) {
 
     for (const chunk of chunks) {
         const syms = chunk.join(',');
-        const url = `${NEXUS_API}/api/prices?symbols=${encodeURIComponent(syms)}`;
+        let data = null;
 
-        try {
-            const resp = await fetch(url, { cache: 'no-store' });
-            if (!resp.ok) {
-                console.warn(`[APEX Live] Nexus prices ${resp.status} for: ${syms}`);
+        // 1. Polygon proxy — one batched call (backend serves ^VIX etc. via
+        //    its own internal Yahoo fallback, so no client-side splitting)
+        if (PRICE_SOURCE === 'polygon' && !window.__apexPolygonPricesDown) {
+            try {
+                const resp = await fetch(`${NEXUS_API}/api/polygon/prices?symbols=${encodeURIComponent(syms)}`, { cache: 'no-store' });
+                if (resp.ok) {
+                    data = await resp.json();
+                    PRICE_SOURCE_ACTIVE = data.source || 'polygon';
+                } else if (resp.status === 404) {
+                    window.__apexPolygonPricesDown = true; // route not deployed — stop asking this session
+                    console.warn('[APEX Live] /api/polygon/prices not deployed — using legacy /api/prices (see POLYGON-UPGRADE-NOTES.md)');
+                } else {
+                    console.warn(`[APEX Live] polygon prices ${resp.status} for: ${syms}`);
+                }
+            } catch (e) {
+                console.warn('[APEX Live] polygon price fetch failed:', e.message);
+            }
+        }
+
+        // 2. Legacy Yahoo route — fallback or explicit PRICE_SOURCE='yahoo'
+        if (!data || !data.prices || Object.keys(data.prices).length === 0) {
+            try {
+                const resp = await fetch(`${NEXUS_API}/api/prices?symbols=${encodeURIComponent(syms)}`, { cache: 'no-store' });
+                if (!resp.ok) {
+                    console.warn(`[APEX Live] Nexus prices ${resp.status} for: ${syms}`);
+                    continue;
+                }
+                data = await resp.json();
+                PRICE_SOURCE_ACTIVE = 'yahoo';
+            } catch (e) {
+                console.warn('[APEX Live] Nexus price fetch failed for chunk:', syms, e.message);
                 continue;
             }
-            const data = await resp.json();
-            const prices = data.prices || {};
-
-            Object.entries(prices).forEach(([sym, d]) => {
-                if (!d.price && d.price !== 0) return;
-                PRICE_CACHE[sym] = {
-                    price: d.price?.toFixed(2),
-                    dayPct: d.dayPct?.toFixed(2) ?? null,
-                    weekPct: d.weekPct?.toFixed(2) ?? null,
-                    monthPct: d.monthPct?.toFixed(2) ?? null,
-                    volume: d.volume
-                };
-                fetched++;
-            });
-        } catch (e) {
-            console.warn('[APEX Live] Nexus price fetch failed for chunk:', syms, e.message);
         }
+
+        const prices = data.prices || {};
+        Object.entries(prices).forEach(([sym, d]) => {
+            if (!d.price && d.price !== 0) return;
+            PRICE_CACHE[sym] = {
+                price: d.price?.toFixed(2),
+                dayPct: d.dayPct?.toFixed(2) ?? null,
+                weekPct: d.weekPct?.toFixed(2) ?? null,
+                monthPct: d.monthPct?.toFixed(2) ?? null,
+                volume: d.volume
+            };
+            fetched++;
+        });
     }
     return fetched;
 }
@@ -5190,7 +5407,9 @@ function setLiveStatus(active, lastUpdated) {
         dotEl.textContent = active ? '● LIVE' : '○ STALE';
         dotEl.style.background = active ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.1)';
         dotEl.style.color = active ? 'var(--bull)' : 'var(--bear)';
-        dotEl.title = lastUpdated ? `Last updated: ${lastUpdated}` : 'Data not yet loaded';
+        const srcNote = PRICE_SOURCE_ACTIVE === 'polygon' ? ' · Polygon (15-min delayed)'
+            : PRICE_SOURCE_ACTIVE ? ` · ${PRICE_SOURCE_ACTIVE}` : '';
+        dotEl.title = lastUpdated ? `Last updated: ${lastUpdated}${srcNote}` : 'Data not yet loaded';
     }
 }
 
@@ -5474,12 +5693,44 @@ async function fetchMacroData() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// NEWS ENGINE — multi-ticker news via Nexus backend
-// Source: yfinance Ticker.news via /api/news/{ticker}
+// NEWS ENGINE v2 — Polygon market stream via Nexus backend
+//   GET /api/polygon/news            → market-wide stream (default mode)
+//   GET /api/polygon/news?tickers=   → targeted search mode
+// Auto-loads on boot + News tab open, re-polls every 3 minutes while the
+// page is visible, pins market-moving headlines, and auto-flags watchlist
+// mentions. The Polygon API key lives on the backend (Railway env var) —
+// the browser never sees it. If the backend route isn't deployed yet,
+// falls back to the legacy /api/news/{ticker} feeds and says so.
 // ══════════════════════════════════════════════════════════════
 
 let NEWS_CACHE = []; // all fetched articles
 let NEWS_ACTIVE_FILTER = 'all';
+let NEWS_MODE = 'market';          // 'market' | 'search'
+let NEWS_SEARCH_TICKERS = [];      // active tickers when in search mode
+let NEWS_TIMER = null;             // 3-min poll handle
+let NEWS_STARTED = false;          // stream initialized?
+let NEWS_POLYGON_DOWN = false;     // backend route missing → legacy fallback
+const NEWS_REFRESH_MS = 3 * 60 * 1000;
+const NEWS_MAX_ARTICLES = 300;
+
+// Headlines that can move the whole tape — pinned + filterable.
+// Broader than the 'macro' filter bucket: includes geopolitics, credit,
+// energy shocks, halts, and vol events.
+const MARKET_MOVING_KEYWORDS = [
+    'fomc','federal reserve','powell','rate cut','rate hike','rate decision','interest rate',
+    'cpi','ppi','pce','inflation','nonfarm','payroll','jobs report','unemployment','jobless',
+    'gdp','recession','soft landing','treasury yield','bond yield','yield curve','auction',
+    'tariff','trade war','sanction','export ban','opec','crude oil','oil price',
+    'credit rating','downgrade','default','debt ceiling','shutdown','stimulus',
+    'geopolit','war','missile','strike','invasion','escalation',
+    'sell-off','selloff','crash','plunge','circuit breaker','trading halt','halted',
+    'vix','volatility spike','flight to safety','risk-off','emergency meeting'
+];
+
+function isMarketMoving(article) {
+    const text = ((article.title || '') + ' ' + (article.summary || article.description || '')).toLowerCase();
+    return MARKET_MOVING_KEYWORDS.some(kw => text.includes(kw));
+}
 
 // Keyword buckets for filtering
 const NEWS_FILTER_KEYWORDS = {
@@ -5528,114 +5779,163 @@ function formatNewsTime(ts) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-async function fetchNewsForTicker(ticker) {
-    const normalize = (articles, source) => (Array.isArray(articles) ? articles : []).map(a => ({
+// Backend already normalizes Polygon articles — this adds the terminal's
+// internal fields (_ts, _sentiment, _categories, _moving, relatedTickers).
+function normalizePolygonArticle(a) {
+    return {
         ...a,
-        _ticker: ticker,
-        _source: source,
-        _categories: classifyArticle(a.title, a.summary || a.description || ''),
-        _sentiment: a.sentiment?.label?.toLowerCase().includes('bull') ? 'bullish'
-            : a.sentiment?.label?.toLowerCase().includes('bear') ? 'bearish'
-            : guessSentiment(a.title),
-        _ts: a.providerPublishTime || (typeof a.published === 'string' ? new Date(a.published.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6')).getTime() / 1000 : 0) || a.timestamp || a.date || 0
-    }));
-
-    // Fetch Polygon + Alpha Vantage in parallel
-    const [polygonResult, avResult] = await Promise.allSettled([
-        fetch(`${NEXUS_API}/api/news/${encodeURIComponent(ticker)}`, { headers: { 'Accept': 'application/json' } })
-            .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
-            .then(data => normalize(data.news || data.articles || data || [], 'Polygon')),
-        fetch(`${NEXUS_API}/api/news/av/${encodeURIComponent(ticker)}`, { headers: { 'Accept': 'application/json' } })
-            .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
-            .then(data => normalize(data.articles || [], 'Alpha Vantage'))
-    ]);
-
-    const polygonArticles = polygonResult.status === 'fulfilled' ? polygonResult.value : [];
-    const avArticles = avResult.status === 'fulfilled' ? avResult.value : [];
-
-    if (polygonResult.status === 'rejected') console.warn(`[APEX News] Polygon failed for ${ticker}:`, polygonResult.reason?.message);
-    if (avResult.status === 'rejected') console.warn(`[APEX News] Alpha Vantage failed for ${ticker}:`, avResult.reason?.message);
-
-    // Merge and deduplicate by URL
-    const seen = new Set();
-    const merged = [];
-    for (const a of [...polygonArticles, ...avArticles]) {
-        const key = (a.url || a.link || '').toLowerCase();
-        if (key && seen.has(key)) continue;
-        if (key) seen.add(key);
-        merged.push(a);
-    }
-    return merged;
+        link: a.url,
+        publisher: a.publisher,
+        relatedTickers: Array.isArray(a.tickers) ? a.tickers : [],
+        _ticker: (a.tickers && a.tickers[0]) || '',
+        _source: 'Polygon',
+        _categories: classifyArticle(a.title, a.summary || ''),
+        _sentiment: a.sentiment || guessSentiment(a.title),
+        _sentimentWhy: a.sentiment_reasoning || '',
+        _ts: typeof a.ts === 'number' ? a.ts : 0,
+        _moving: isMarketMoving(a)
+    };
 }
 
-async function fetchNews(refreshAll) {
-    const inputEl = document.getElementById('newsTickerInput');
-    const btn = document.getElementById('newsFetchBtn');
+// Legacy fallback (backend /api/polygon/news not deployed yet) — old
+// per-ticker yfinance route, Polygon-era fields absent but feed stays alive.
+async function legacyFetchNewsForTicker(ticker) {
+    const r = await fetch(`${NEXUS_API}/api/news/${encodeURIComponent(ticker)}`, { headers: { 'Accept': 'application/json' } });
+    if (!r.ok) throw new Error(`${r.status}`);
+    const data = await r.json();
+    const articles = data.news || data.articles || data || [];
+    return (Array.isArray(articles) ? articles : []).map(a => ({
+        ...a,
+        relatedTickers: a.relatedTickers || [ticker],
+        _ticker: ticker,
+        _source: 'Legacy',
+        _categories: classifyArticle(a.title, a.summary || a.description || ''),
+        _sentiment: guessSentiment(a.title),
+        _sentimentWhy: '',
+        _ts: a.providerPublishTime || (typeof a.published === 'string' ? new Date(a.published.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6')).getTime() / 1000 : 0) || a.timestamp || a.date || 0,
+        _moving: isMarketMoving(a)
+    }));
+}
+
+function newsSetLiveChip(mode) {
+    const chip = document.getElementById('newsLiveChip');
+    const label = document.getElementById('newsLiveChipLabel');
+    if (!chip || !label) return;
+    if (mode === 'live')        { chip.className = 'news-live-chip';        label.textContent = 'LIVE STREAM'; }
+    else if (mode === 'search') { chip.className = 'news-live-chip';        label.textContent = `TRACKING ${NEWS_SEARCH_TICKERS.length} TICKER${NEWS_SEARCH_TICKERS.length === 1 ? '' : 'S'}`; }
+    else if (mode === 'legacy') { chip.className = 'news-live-chip paused'; label.textContent = 'LEGACY FEED'; }
+    else                        { chip.className = 'news-live-chip paused'; label.textContent = 'CONNECTING'; }
+}
+
+function updateNewsStatusLine(ok, extra) {
     const statusEl = document.getElementById('newsStatus');
-    const feedEl = document.getElementById('newsFeedMain');
-
-    let tickers = [];
-    if (refreshAll) {
-        // Fetch for index ETFs + any watchlist tickers
-        tickers = ['SPY', 'QQQ', 'IWM'];
-        document.querySelectorAll('#watchlist tbody tr[data-sym]').forEach(tr => {
-            const sym = tr.dataset.sym;
-            if (!tickers.includes(sym)) tickers.push(sym);
-        });
+    if (!statusEl) return;
+    const t = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    if (ok) {
+        const modeTxt = NEWS_MODE === 'search' ? `Search: ${NEWS_SEARCH_TICKERS.join(', ')}` : 'Market stream';
+        statusEl.textContent = `✓ ${modeTxt} · ${NEWS_CACHE.length} articles · updated ${t} · next in 3 min${extra ? ` · ${extra}` : ''}`;
+        statusEl.style.color = 'var(--bull)';
     } else {
-        const raw = inputEl.value.trim().toUpperCase();
-        if (!raw) {
-            tickers = ['SPY', 'QQQ'];
-        } else {
-            tickers = raw.split(/[,\s]+/).filter(Boolean);
-        }
+        statusEl.textContent = `✗ ${extra || 'News fetch failed'} · ${t}`;
+        statusEl.style.color = 'var(--bear)';
     }
+}
 
-    btn.textContent = '⏳ Loading...';
-    btn.disabled = true;
-    statusEl.textContent = `Fetching news for ${tickers.length} ticker${tickers.length > 1 ? 's' : ''}...`;
-    statusEl.style.color = 'var(--warn)';
+// Core fetch. Market mode merges new articles into the flow; search mode
+// replaces the feed with the requested tickers.
+async function fetchNewsStream(opts = {}) {
+    const { quiet = false } = opts;
+    const tickers = NEWS_MODE === 'search' ? NEWS_SEARCH_TICKERS : [];
+    const feedEl = document.getElementById('newsFeedMain');
+    const btn = document.getElementById('newsFetchBtn');
 
-    feedEl.innerHTML = `<div class="news-loading"><span class="spinner"></span> Fetching news for ${tickers.join(', ')}...</div>`;
+    if (!quiet && feedEl) {
+        feedEl.innerHTML = `<div class="news-loading"><span class="spinner"></span> ${tickers.length ? `Fetching news for ${tickers.join(', ')}…` : 'Connecting to market stream…'}</div>`;
+    }
+    if (btn && !quiet) { btn.disabled = true; }
+
+    let incoming = [];
+    let usedLegacy = false;
 
     try {
-        const results = await Promise.allSettled(tickers.map(t => fetchNewsForTicker(t)));
-        const allArticles = results.flatMap(r => r.status === 'fulfilled' ? r.value : []);
+        if (!NEWS_POLYGON_DOWN) {
+            const qs = tickers.length ? `?tickers=${encodeURIComponent(tickers.join(','))}&limit=150` : '?limit=100';
+            const r = await fetch(`${NEXUS_API}/api/polygon/news${qs}`, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+            if (r.status === 404) {
+                NEWS_POLYGON_DOWN = true;
+                console.warn('[APEX News] /api/polygon/news not deployed — falling back to legacy feed (see POLYGON-UPGRADE-NOTES.md)');
+            } else if (!r.ok) {
+                throw new Error(`API ${r.status}`);
+            } else {
+                const data = await r.json();
+                if (data.error) console.warn('[APEX News] backend reported:', data.error);
+                incoming = (data.articles || []).map(normalizePolygonArticle);
+            }
+        }
 
-        // Deduplicate by URL (primary) then title similarity (fallback)
+        // Legacy path — either flagged 404 above or on this attempt
+        if (NEWS_POLYGON_DOWN) {
+            usedLegacy = true;
+            const legacyTickers = tickers.length ? tickers : ['SPY', 'QQQ', 'IWM'];
+            const results = await Promise.allSettled(legacyTickers.map(t => legacyFetchNewsForTicker(t)));
+            incoming = results.flatMap(res => res.status === 'fulfilled' ? res.value : []);
+        }
+
+        // Merge (market mode) or replace (search mode), dedupe by URL/title
+        const base = (NEWS_MODE === 'market' && quiet) ? NEWS_CACHE : [];
         const seen = new Set();
-        const deduped = allArticles.filter(a => {
-            const urlKey = (a.url || a.link || '').toLowerCase();
-            const titleKey = (a.title || '').substring(0, 60).toLowerCase();
-            const key = urlKey || titleKey;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
+        const keyOf = a => ((a.url || a.link || '') || (a.title || '').substring(0, 60)).toLowerCase();
+        base.forEach(a => { seen.add(keyOf(a)); a._new = false; });
+
+        const fresh = [];
+        incoming.forEach(a => {
+            const k = keyOf(a);
+            if (!k || seen.has(k)) return;
+            seen.add(k);
+            a._new = base.length > 0; // only badge as NEW when merging into an existing flow
+            fresh.push(a);
         });
 
-        // Sort newest first
-        deduped.sort((a, b) => {
-            const ta = typeof a._ts === 'number' ? a._ts : 0;
-            const tb = typeof b._ts === 'number' ? b._ts : 0;
-            return tb - ta;
-        });
+        NEWS_CACHE = [...fresh, ...base]
+            .sort((a, b) => (b._ts || 0) - (a._ts || 0))
+            .slice(0, NEWS_MAX_ARTICLES);
 
-        NEWS_CACHE = deduped;
         renderNews();
-        updateNewsStats(tickers);
+        updateNewsStats();
         updateWatchlistMentions();
-
-        const successCount = results.filter(r => r.status === 'fulfilled' && r.value.length > 0).length;
-        statusEl.textContent = `✓ ${deduped.length} articles from ${successCount}/${tickers.length} tickers · ${new Date().toLocaleTimeString('en-US', {hour:'2-digit',minute:'2-digit'})}`;
-        statusEl.style.color = 'var(--bull)';
+        newsSetLiveChip(usedLegacy ? 'legacy' : (NEWS_MODE === 'search' ? 'search' : 'live'));
+        updateNewsStatusLine(true, usedLegacy ? 'legacy feed — deploy backend for Polygon stream' : (fresh.length ? `${fresh.length} new` : ''));
     } catch (err) {
-        feedEl.innerHTML = `<div class="news-empty" style="color:var(--bear)">⚠ News fetch failed: ${err.message}</div>`;
-        statusEl.textContent = `✗ Error: ${err.message}`;
-        statusEl.style.color = 'var(--bear)';
+        console.warn('[APEX News] fetch failed:', err.message);
+        if (!quiet && feedEl && NEWS_CACHE.length === 0) {
+            feedEl.innerHTML = `<div class="news-empty" style="color:var(--bear)">⚠ News fetch failed: ${escapeHtml(err.message)}</div>`;
+        }
+        newsSetLiveChip('paused');
+        updateNewsStatusLine(false, `Error: ${err.message}`);
     } finally {
-        btn.textContent = '▶ Fetch News';
-        btn.disabled = false;
+        if (btn) { btn.textContent = '🔍 Search'; btn.disabled = false; }
     }
+}
+
+// Search entry point — button, Enter key, quick feeds.
+// Empty input = back to the market stream.
+async function fetchNews() {
+    const inputEl = document.getElementById('newsTickerInput');
+    const raw = (inputEl?.value || '').trim().toUpperCase();
+    if (!raw) { backToMarketStream(); return; }
+    NEWS_MODE = 'search';
+    NEWS_SEARCH_TICKERS = raw.split(/[,\s]+/).filter(Boolean).slice(0, 15);
+    const btn = document.getElementById('newsFetchBtn');
+    if (btn) btn.textContent = '⏳ Loading…';
+    await fetchNewsStream({ quiet: false });
+}
+
+function backToMarketStream() {
+    const inputEl = document.getElementById('newsTickerInput');
+    if (inputEl) inputEl.value = '';
+    NEWS_MODE = 'market';
+    NEWS_SEARCH_TICKERS = [];
+    fetchNewsStream({ quiet: false });
 }
 
 function fetchNewsForTickers(tickers) {
@@ -5658,16 +5958,51 @@ function fetchNewsFromWatchlist() {
     fetchNews();
 }
 
+// Idempotent stream boot — first fetch + 3-min poll (visible tab only).
+function ensureNewsStream() {
+    if (NEWS_STARTED) return;
+    NEWS_STARTED = true;
+    fetchNewsStream({ quiet: false });
+    NEWS_TIMER = setInterval(() => {
+        if (document.visibilityState === 'visible') fetchNewsStream({ quiet: true });
+    }, NEWS_REFRESH_MS);
+}
+
+// Pinned strip: market-moving headlines from the last 24h, newest first.
+function renderMovingSection() {
+    const el = document.getElementById('newsMovingSection');
+    if (!el) return;
+    const now = Date.now() / 1000;
+    const movers = NEWS_CACHE
+        .filter(a => a._moving && (now - (a._ts || 0)) < 86400)
+        .slice(0, 6);
+
+    if (movers.length === 0) { el.innerHTML = ''; return; }
+
+    el.innerHTML = `<div class="news-moving-section">
+        <div class="news-moving-title">⚡ Market Moving — Last 24h</div>
+        ${movers.map(a => `<a class="news-moving-item" href="${a.link || a.url || '#'}" target="_blank" rel="noopener">
+            <div class="news-moving-headline">${a._new ? '<span class="news-new-chip">NEW</span> ' : ''}${escapeHtml(a.title || 'Untitled')}</div>
+            <div class="news-moving-meta">${escapeHtml(a.publisher || a.source || '—')} · ${formatNewsTime(a._ts)}${(a.relatedTickers || []).slice(0, 4).length ? ' · ' + (a.relatedTickers || []).slice(0, 4).map(escapeHtml).join(' ') : ''}</div>
+        </a>`).join('')}
+    </div>`;
+}
+
 function renderNews() {
     const feedEl = document.getElementById('newsFeedMain');
+    renderMovingSection();
+
     const filtered = NEWS_ACTIVE_FILTER === 'all'
         ? NEWS_CACHE
-        : NEWS_CACHE.filter(a => a._categories.includes(NEWS_ACTIVE_FILTER));
+        : NEWS_ACTIVE_FILTER === 'moving'
+            ? NEWS_CACHE.filter(a => a._moving)
+            : NEWS_CACHE.filter(a => a._categories.includes(NEWS_ACTIVE_FILTER));
 
     if (filtered.length === 0) {
         feedEl.innerHTML = `<div class="news-empty">${NEWS_CACHE.length > 0
             ? 'No articles match this filter. Try "All".'
-            : 'No news loaded yet. Enter tickers or click a quick feed.'}</div>`;
+            : 'No news loaded yet — the stream connects automatically.'}</div>`;
+        document.getElementById('newsCountLabel').textContent = `0 / ${NEWS_CACHE.length} articles`;
         return;
     }
 
@@ -5697,21 +6032,22 @@ function renderNews() {
         const source = article.publisher || article.source || '—';
         const title = article.title || 'Untitled';
         const summary = article.summary || article.description || '';
-        const relatedTickers = article.relatedTickers || (article._ticker ? [article._ticker] : []);
+        const relatedTickers = (article.relatedTickers || (article._ticker ? [article._ticker] : [])).slice(0, 6);
         const sentiment = article._sentiment;
         const sentLabel = sentiment === 'bullish' ? '▲ Bullish' : sentiment === 'bearish' ? '▼ Bearish' : '';
+        const sentTitle = article._sentimentWhy ? ` title="${escapeHtml(article._sentimentWhy)}"` : '';
 
         html += `<a class="news-card" href="${url}" target="_blank" rel="noopener" title="Open article">
             <div class="news-card-header">
-                <div class="news-headline">${escapeHtml(title)}</div>
+                <div class="news-headline">${article._new ? '<span class="news-new-chip">NEW</span> ' : ''}${article._moving ? '<span style="color:#fbbf24" title="Market moving">⚡</span> ' : ''}${escapeHtml(title)}</div>
                 <div class="news-time">${formatNewsTime(ts)}</div>
             </div>
             ${summary ? `<div class="news-summary">${escapeHtml(summary.substring(0, 200))}${summary.length > 200 ? '…' : ''}</div>` : ''}
             <div class="news-meta" style="margin-top:0.5rem">
                 <span class="news-source">${escapeHtml(source)}</span>
-                ${article._source ? `<span style="font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:0.2rem;font-weight:600;letter-spacing:0.03em;${article._source === 'Alpha Vantage' ? 'background:rgba(139,92,246,0.15);color:var(--purple)' : 'background:rgba(0,212,255,0.12);color:var(--accent)'}">${article._source}</span>` : ''}
+                ${article._source ? `<span style="font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:0.2rem;font-weight:600;letter-spacing:0.03em;${article._source === 'Legacy' ? 'background:rgba(148,163,184,0.12);color:var(--text-muted)' : 'background:rgba(0,212,255,0.12);color:var(--accent)'}">${article._source}</span>` : ''}
                 ${relatedTickers.map(t => `<span class="news-ticker-tag">${escapeHtml(t)}</span>`).join('')}
-                ${sentLabel ? `<span class="news-sentiment ${sentiment}">${sentLabel}</span>` : ''}
+                ${sentLabel ? `<span class="news-sentiment ${sentiment}"${sentTitle}>${sentLabel}</span>` : ''}
                 ${article._categories.filter(c => c !== 'general').map(c =>
                     `<span style="font-size:0.65rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.04em">${c}</span>`
                 ).join('')}
@@ -5736,9 +6072,9 @@ function filterNews(cat, btn) {
     renderNews();
 }
 
-function updateNewsStats(tickers) {
+function updateNewsStats() {
     document.getElementById('nsTotal').textContent = NEWS_CACHE.length;
-    document.getElementById('nsTickers').textContent = new Set(NEWS_CACHE.map(a => a._ticker)).size;
+    document.getElementById('nsTickers').textContent = new Set(NEWS_CACHE.flatMap(a => a.relatedTickers || [])).size;
     const bull = NEWS_CACHE.filter(a => a._sentiment === 'bullish').length;
     const bear = NEWS_CACHE.filter(a => a._sentiment === 'bearish').length;
     document.getElementById('nsSentiment').innerHTML = `<span style="color:var(--bull)">${bull}</span> / <span style="color:var(--bear)">${bear}</span>`;
@@ -5797,7 +6133,7 @@ function updateWatchlistMentions() {
     }).join('');
 }
 
-// Enter key in news input triggers fetch
+// Enter key in news input triggers a search (empty input → market stream)
 document.getElementById('newsTickerInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') fetchNews();
 });
@@ -5940,6 +6276,7 @@ setTimeout(() => {
     fetchMacroData();
     fetchBreadthData();
     setTimeout(fetchRegimeScan, 3000);
+    setTimeout(ensureNewsStream, 2500); // warm the news stream so the tab opens hot + mentions populate
 }, 800);
 
 // Auto-refresh prices every 5 minutes
@@ -5954,10 +6291,8 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
                 updateWatchlistPrices();
             }, 100);
         }
-        // Auto-fetch news on first visit to News tab
-        if (tab === 'news' && NEWS_CACHE.length === 0) {
-            setTimeout(() => fetchNews(true), 200);
-        }
+        // Ensure the market news stream is running when the News tab opens
+        if (tab === 'news') ensureNewsStream();
     });
 });
 
