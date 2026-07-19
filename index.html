@@ -5655,7 +5655,8 @@ const SL_SCENARIOS = [
 const SL_PROVIDERS = {
     perplexity: { label: '⚡ PERPLEXITY', color: 'var(--accent)', note: 'sonar-pro · web search · 5-min cache' },
     claude:     { label: '⚡ CLAUDE',     color: 'var(--purple)', note: 'reasoning · 5-min cache' },
-    fable:      { label: '⚡ FABLE',      color: 'var(--warn)',   note: 'claude-fable-5 · deepest reasoning · Opus 4.8 fallback' }
+    fable:      { label: '⚡ FABLE',      color: 'var(--warn)',   note: 'claude-fable-5 · deepest reasoning · Opus 4.8 fallback' },
+    chatgpt:    { label: '⚡ CHATGPT',    color: 'var(--bull)',   note: 'gpt-5.6-sol · reasoning · 5-min cache' }
 };
 
 const SL_COLORS = {
@@ -5893,7 +5894,7 @@ function slRenderAiOut() {
         return;
     }
     if (st.loading) {
-        el.innerHTML = '<div style="text-align:center;padding:1.5rem"><div style="font-size:1.2rem;animation:pulse 1.5s infinite">⚡</div><div style="color:var(--text-muted);font-size:0.78rem;margin-top:0.4rem">⏳ Generating ' + slEsc(p) + ' tape reading…</div><div style="color:var(--text-faint);font-size:0.68rem;margin-top:0.25rem">live data → AI analysis' + (p === 'fable' ? ' (Fable can run longer)' : '') + '</div></div>';
+        el.innerHTML = '<div style="text-align:center;padding:1.5rem"><div style="font-size:1.2rem;animation:pulse 1.5s infinite">⚡</div><div style="color:var(--text-muted);font-size:0.78rem;margin-top:0.4rem">⏳ Generating ' + slEsc(p) + ' tape reading…</div><div style="color:var(--text-faint);font-size:0.68rem;margin-top:0.25rem">live data → AI analysis' + (p === 'fable' ? ' (Fable can run longer)' : p === 'chatgpt' ? ' (ChatGPT can run longer)' : '') + '</div></div>';
         return;
     }
     if (st.error) {
@@ -5986,7 +5987,7 @@ async function slRunProvider(provider) {
     slRenderAiOut();
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), provider === 'fable' ? 180000 : 120000);
+        const timeoutId = setTimeout(() => controller.abort(), (provider === 'fable' || provider === 'chatgpt') ? 180000 : 120000);
         const resp = await fetch(NEXUS_API + '/api/spy-logic/analysis', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
