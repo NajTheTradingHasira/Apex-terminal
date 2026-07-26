@@ -1578,7 +1578,10 @@
                 <span style="font-size:0.65rem;color:var(--text-faint)">AI runs hit the live backend · ~$0.02–0.20/run</span>
                 <span id="slStatus" style="font-size:0.7rem;color:var(--text-faint);margin-left:auto"></span>
             </div>
-            <div id="slCtx" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:1rem">Live SPY data: not loaded yet.</div>
+            <div id="slCtx" style="font-size:0.72rem;color:var(--text-muted);margin-bottom:0.7rem">Live SPY data: not loaded yet.</div>
+
+            <!-- Structural governor — weekly tag + level ladder (2026-07-26) -->
+            <div id="slStructureBar" style="margin-bottom:1rem"></div>
 
             <!-- Framework cards -->
             <div id="slCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin-bottom:1.25rem"></div>
@@ -5565,8 +5568,8 @@ function renderAICommentary(text, ticker, timestamp) {
     }
 
     const sourceNote = isIndex
-        ? 'Powered by Claude (claude-sonnet-4-20250514) · Web Search + Terminal Breadth/COT/Stage Data'
-        : 'Powered by Claude (claude-sonnet-4-20250514) · Source: Nexus /api/signal + /api/macro + /api/prices';
+        ? 'Powered by Claude (claude-sonnet-5) · Web Search + Terminal Breadth/COT/Stage Data'
+        : 'Powered by Claude (claude-sonnet-5) · Source: Nexus /api/signal + /api/macro + /api/prices';
 
     html += `<div style="margin-top:1rem;font-size:0.65rem;color:var(--text-faint);text-align:right">
         ${sourceNote}
@@ -5630,7 +5633,8 @@ const SL_MATRIX = [
     ['Open below supply, rally stalls, VWAP lost', 'SHORT RALLIES', 'red', 'Wait for lower high into resistance, buy puts on failure.'],
     ['Open above supply, hold above, VWAP defended', 'BUY PULLBACKS', 'green', 'Use first orderly retest of breakout zone.'],
     ['Inside range, internals mixed, price whipping VWAP', 'REDUCE SIZE', 'amber', 'Wait for ORB break or confirmed reclaim/reject.'],
-    ['Gap down into demand, immediate VWAP reclaim', 'CTR-TREND LONG', 'green', 'Target move back toward prior value / OR mid.']
+    ['Gap down into demand, immediate VWAP reclaim', 'CTR-TREND LONG', 'green', 'Target move back toward prior value / OR mid.'],
+    ['Intraday read fights the weekly structural tag', 'SCALP ONLY', 'amber', 'Half size, halved time stop, no runner. Counter-structural moves have a shelf life.']
 ];
 
 const SL_ZONES_META = [
@@ -5640,6 +5644,8 @@ const SL_ZONES_META = [
 ];
 
 const SL_CHECKLIST = [
+    ['Confirm the weekly structural tag first', 'Weekly + daily + VIX before any regime claim. Never assign a stage off a daily chart. If the tag is unverified, the governor is off and so is your size.'],
+    ['Pre-set the hard stop before entry', '−25% of premium, entered with the trade. Stops are the only remaining leak — no loser gets to exceed it.'],
     ['Locate price vs supply/demand', 'Do not take a momentum signal in isolation; anchor to structure first.'],
     ['Assess VWAP state', 'Holding above favors pullback longs; loss and rejection favors short rallies.'],
     ['Demand internal confirmation', 'A/D, TICK, sector confirmation, breadth should agree with direction.'],
@@ -5655,7 +5661,7 @@ const SL_SCENARIOS = [
 const SL_PROVIDERS = {
     perplexity: { label: '⚡ PERPLEXITY', color: 'var(--accent)', note: 'sonar-pro · web search · 5-min cache' },
     claude:     { label: '⚡ CLAUDE',     color: 'var(--purple)', note: 'reasoning · 5-min cache' },
-    fable:      { label: '⚡ FABLE',      color: 'var(--warn)',   note: 'claude-fable-5 · deepest reasoning · Opus 4.8 fallback' },
+    fable:      { label: '⚡ FABLE',      color: 'var(--warn)',   note: 'claude-fable-5 · deepest reasoning · Opus 5 fallback' },
     chatgpt:    { label: '⚡ CHATGPT',    color: 'var(--bull)',   note: 'gpt-5.6-sol · reasoning · 5-min cache' }
 };
 
@@ -5664,6 +5670,30 @@ const SL_COLORS = {
     green: { fg: 'var(--bull)', bg: 'var(--bull-dim)' },
     amber: { fg: 'var(--warn)', bg: 'var(--warn-dim)' }
 };
+
+// ══════════════════════════════════════════════════════════════
+// STRUCTURAL GOVERNOR  (added 2026-07-26)
+//   The weekly tag is the FRAME; the intraday read is the TRADE.
+//   A read that fights the weekly tag is a scalp with a shelf life,
+//   not a trend — the engine degrades it automatically (no runner,
+//   halved time stop, gate can never print GO).
+//   Re-anchor by editing the four numbers below off a WEEKLY chart.
+// ══════════════════════════════════════════════════════════════
+const SL_STRUCTURE = {
+    asOf:       '2026-07-26',
+    reclaim:    743.91,   // spot above  → weekly Stage 2 confirmed
+    support:    735.21,   // spot below  → Stage 2 under pressure
+    flip:       722.54,   // spot below  → structural tag flips bearish (Stage 3/4)
+    staleDays:  10,       // nudge to re-anchor after this many days
+    vixFragile: 25,       // VIX at/above this downgrades a confirmed tag
+    source:     'Weekly 30-wk SMA rising; levels from the 07/24 review.'
+};
+
+// The last leak. Hard, pre-set at entry, non-negotiable.
+const SL_STOP = { pct: 25, label: '\u221225% of premium' };
+
+// Counter-structural time stops (halved vs with-structure)
+const SL_SCALP_TIME = { open: '5 min', amprime: '8-10 min', lunch: '5 min', pmprime: '6-8 min', power: '5-8 min' };
 
 function slEsc(s) {
     return String(s == null ? '' : s)
@@ -5701,8 +5731,72 @@ function slDirectionalRead(inp) {
     return { dir: 'NEUTRAL', label: 'STAND ASIDE', note: 'Auction not yet clear.' };
 }
 
-// ── Gate engine (port of NEXUS $X) ───────────────────────────
-function slRunGate(inp) {
+// ── VIX read (PRICE_CACHE is declared later in the file → guard TDZ) ──
+function slVix() {
+    try {
+        const v = PRICE_CACHE['^VIX'];
+        const p = v && Number(v.price);
+        return isFinite(p) && p > 0 ? p : null;
+    } catch (e) { return null; }   // live price engine not booted yet
+}
+
+// ── Structural tag ────────────────────────────────────────
+// Regime-input discipline: a stage label is NEVER claimed off intraday
+// data alone. Weekly anchor + live daily price + VIX must all be present,
+// or the panel prints STRUCTURE UNVERIFIED and the governor stays off.
+function slStructure() {
+    const out = {
+        verified: false, missing: [], tag: null, label: 'STRUCTURE UNVERIFIED',
+        dir: null, color: 'amber', spot: null, vix: null, ageDays: null,
+        stale: false, detail: '', levels: SL_STRUCTURE
+    };
+
+    const anchored = Date.parse(SL_STRUCTURE.asOf + 'T00:00:00');
+    if (isFinite(anchored)) {
+        out.ageDays = Math.floor((Date.now() - anchored) / 86400000);
+        out.stale = out.ageDays > SL_STRUCTURE.staleDays;
+    } else {
+        out.missing.push('weekly anchor date');
+    }
+
+    const spot = SL_STATE.live ? Number(SL_STATE.live.price) : NaN;
+    if (isFinite(spot) && spot > 0) out.spot = spot; else out.missing.push('live daily price');
+
+    const vix = slVix();
+    if (vix != null) out.vix = vix; else out.missing.push('VIX');
+
+    if (out.missing.length) return out;   // no stage claim off partial inputs
+
+    out.verified = true;
+    const L = SL_STRUCTURE;
+    if (out.spot >= L.reclaim) {
+        out.tag = 'stage2';  out.dir = 'LONG';  out.color = 'green';
+        out.label = 'WEEKLY STAGE 2 — CONFIRMED';
+        out.detail = 'Holding above ' + L.reclaim.toFixed(2) + '. Shorts are counter-structural.';
+    } else if (out.spot >= L.support) {
+        out.tag = 'stage2w'; out.dir = 'LONG';  out.color = 'green';
+        out.label = 'WEEKLY STAGE 2 — WEAKENING';
+        out.detail = 'Below the ' + L.reclaim.toFixed(2) + ' reclaim but holding ' + L.support.toFixed(2) + '. Structure intact, conviction reduced.';
+    } else if (out.spot >= L.flip) {
+        out.tag = 'transition'; out.dir = null; out.color = 'amber';
+        out.label = 'STAGE 2 AT RISK — NO TAG';
+        out.detail = 'Lost ' + L.support.toFixed(2) + ', has not broken ' + L.flip.toFixed(2) + '. Tag unresolved — both sides are scalps.';
+    } else {
+        out.tag = 'stage3';  out.dir = 'SHORT'; out.color = 'red';
+        out.label = 'STRUCTURE BROKEN — STAGE 3/4';
+        out.detail = 'Broke ' + L.flip.toFixed(2) + '. Governor inverts: LONGS are now the counter-structural side.';
+    }
+
+    if (out.tag === 'stage2' && out.vix >= L.vixFragile) {
+        out.tag = 'stage2w'; out.color = 'amber';
+        out.label = 'WEEKLY STAGE 2 — WEAKENING';
+        out.detail += ' VIX ' + out.vix.toFixed(2) + ' at/above ' + L.vixFragile + ' — tag downgraded, structure fragile.';
+    }
+    return out;
+}
+
+// ── Gate engine (port of NEXUS $X) ─────────────────────────────
+function slRunGate(inp, st) {
     const windowLabels = { pre: 'Pre-market', open: '9:30-9:45 OPEN', amprime: '9:45-11:00 AM PRIME', lunch: '11:00-13:30 LUNCH', pmprime: '13:30-15:00 PM PRIME', power: '15:00-15:45 POWER HOUR', close: '15:45-16:00 CLOSE', after: 'After hours', closed: 'Market closed' };
     const reasons = [];
     let gate = 'GO';
@@ -5732,11 +5826,53 @@ function slRunGate(inp) {
 
     const stops = {
         time: win === 'lunch' ? '10 min' : win === 'amprime' ? '15-20 min' : (win === 'power' || win === 'pmprime') ? '10-15 min' : '10 min',
-        price: '-25% of premium (pre-set)',
-        target: '+30-50%, scale half, BE stop on runner'
+        price: SL_STOP.label + ' — HARD, pre-set at entry',
+        pricePct: SL_STOP.pct,
+        hard: true,
+        target: '+30-50%, scale half, BE stop on runner',
+        runner: true
     };
+
+    // ── STRUCTURAL GOVERNOR ────────────────────────────────
+    const struct = st || slStructure();
+    const scalp = () => {
+        stops.time   = SL_SCALP_TIME[win] || '5-8 min';
+        stops.target = '+20-30% — take the full clip, NO runner';
+        stops.runner = false;
+    };
+    let governor = { mode: 'off', label: 'GOVERNOR OFF', color: 'amber', note: '' };
+
+    if (!struct.verified) {
+        governor = { mode: 'unverified', label: 'STRUCTURE UNVERIFIED', color: 'amber',
+                     note: 'Missing ' + struct.missing.join(', ') + '.' };
+        worsen('CAUTION');
+        reasons.push('STRUCTURE UNVERIFIED — missing ' + struct.missing.join(', ') + '. No stage label claimed and the governor is off; do not size this off an intraday read alone.');
+    } else if (bias.dir === 'NEUTRAL') {
+        governor = { mode: 'idle', label: struct.label, color: struct.color,
+                     note: 'No directional read to govern yet.' };
+    } else if (struct.dir === null) {
+        governor = { mode: 'transition', label: 'TRANSITION — SCALP ONLY', color: 'amber',
+                     note: 'Structural tag unresolved between ' + SL_STRUCTURE.flip.toFixed(2) + ' and ' + SL_STRUCTURE.support.toFixed(2) + '.' };
+        worsen('CAUTION');
+        scalp();
+        reasons.push('TRANSITION ZONE — SPY ' + struct.spot.toFixed(2) + ' sits between ' + SL_STRUCTURE.flip.toFixed(2) + ' and ' + SL_STRUCTURE.support.toFixed(2) + '. No tag either way, so BOTH directions are scalps: half size, hard time stop, no runner.');
+    } else if (bias.dir !== struct.dir) {
+        governor = { mode: 'counter', label: 'COUNTER-STRUCTURAL — SCALP ONLY', color: 'red',
+                     note: bias.dir + ' against ' + struct.label + '.' };
+        worsen('CAUTION');
+        scalp();
+        reasons.push('COUNTER-STRUCTURAL — ' + bias.dir + ' into ' + struct.label + ' (SPY ' + struct.spot.toFixed(2) + '). This is a scalp with a shelf life, not a trend: half size, halved time stop, no runner, and the gate cannot print GO.');
+    } else {
+        governor = { mode: 'aligned', label: 'WITH-STRUCTURE', color: 'green',
+                     note: bias.dir + ' agrees with ' + struct.label + '.' };
+        reasons.push('WITH-STRUCTURE — ' + bias.dir + ' agrees with ' + struct.label + ' (SPY ' + struct.spot.toFixed(2) + '). Full plan available: scale half at target, BE stop on the runner.');
+    }
+
+    if (struct.stale) reasons.push('Weekly anchor is ' + struct.ageDays + ' days old (set ' + SL_STRUCTURE.asOf + ') — re-anchor SL_STRUCTURE off a fresh weekly chart.');
+    reasons.push('HARD STOP ' + SL_STOP.label + ' — pre-set at entry, no exceptions. No loser exceeds it.');
+
     if (reasons.length === 0) reasons.push('Time, ribbon and vol all clear; directional read intact.');
-    return { gate, windowKey: win, windowLabel: windowLabels[win] || win, structure, bias, reasons, stops };
+    return { gate, windowKey: win, windowLabel: windowLabels[win] || win, structure, bias, reasons, stops, struct, governor };
 }
 
 // ── Zone derivation from live 5-day range (port of NEXUS cZ) ──
@@ -5770,7 +5906,105 @@ function slMdToHtml(md) {
     return t;
 }
 
-// ── Renderers ─────────────────────────────────────────────────
+// ── Structural context for the AI providers ────────────────
+function slStructureContext() {
+    const S = slStructure();
+    const r = slRunGate(SL_STATE.inputs, S);
+    return {
+        verified: S.verified,
+        missing: S.missing,
+        tag: S.tag,
+        label: S.label,
+        detail: S.detail,
+        structural_direction: S.dir,
+        spot: S.spot,
+        vix: S.vix,
+        levels: { reclaim: SL_STRUCTURE.reclaim, support: SL_STRUCTURE.support, flip: SL_STRUCTURE.flip },
+        anchor: { as_of: SL_STRUCTURE.asOf, age_days: S.ageDays, stale: S.stale, source: SL_STRUCTURE.source },
+        local_read: { gate: r.gate, direction: r.bias.dir, label: r.bias.label, window: r.windowLabel, structure: r.structure },
+        governor: { mode: r.governor.mode, label: r.governor.label, note: r.governor.note },
+        stops: { time: r.stops.time, price: r.stops.price, target: r.stops.target, runner_allowed: r.stops.runner, hard_stop_pct: SL_STOP.pct },
+        rules: [
+            'The weekly structural tag is the frame; the intraday read is the trade.',
+            'A directional read that fights the weekly tag is a SCALP WITH A SHELF LIFE, not a trend: half size, halved time stop, no runner, and it can never be a GO.',
+            'Never assign a Weinstein stage off a daily or intraday chart alone — weekly + daily + VIX are all required before any regime claim.',
+            'The \u221225% premium stop is hard and pre-set at entry. No loser may exceed it.',
+            'Position size caps at 3 lots; sizing is no longer the leak — stops are.'
+        ]
+    };
+}
+
+// ── Renderers ─────────────────────────────────────────
+
+function slRenderStructure() {
+    const el = document.getElementById('slStructureBar');
+    if (!el) return;
+    const S = slStructure();
+    const c = SL_COLORS[S.color] || SL_COLORS.amber;
+
+    const rows = [
+        ['RECLAIM', SL_STRUCTURE.reclaim, 'Stage 2 confirmed above', 'green'],
+        ['SUPPORT', SL_STRUCTURE.support, 'Stage 2 pressured below', 'amber'],
+        ['FLIP',    SL_STRUCTURE.flip,    'Tag flips bearish below',  'red']
+    ].map(row => {
+        const lc = SL_COLORS[row[3]];
+        const d = (S.spot == null) ? null : S.spot - row[1];
+        const dist = d == null ? '—' : (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(2) + ' (' + (d >= 0 ? '+' : '−') + Math.abs(d / row[1] * 100).toFixed(2) + '%)';
+        const side = S.spot == null ? '—' : (S.spot >= row[1] ? 'ABOVE' : 'BELOW');
+        const sideC = S.spot == null ? SL_COLORS.amber : (S.spot >= row[1] ? SL_COLORS.green : SL_COLORS.red);
+        return '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.35rem 0.55rem;border-left:3px solid ' + lc.fg + ';background:var(--surface-2);border-radius:0.2rem;margin-bottom:0.3rem">' +
+            '<span style="font-size:0.6rem;font-weight:700;letter-spacing:0.07em;color:' + lc.fg + ';min-width:62px">' + row[0] + '</span>' +
+            '<span style="font-size:0.82rem;font-weight:700;color:var(--text);min-width:70px">' + row[1].toFixed(2) + '</span>' +
+            '<span style="font-size:0.58rem;font-weight:700;padding:1px 7px;border-radius:999px;background:' + sideC.bg + ';color:' + sideC.fg + '">' + side + '</span>' +
+            '<span style="font-size:0.7rem;color:var(--text-muted)">' + dist + '</span>' +
+            '<span style="margin-left:auto;font-size:0.66rem;color:var(--text-faint);text-align:right">' + row[2] + '</span>' +
+        '</div>';
+    }).join('');
+
+    const head =
+        '<div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.55rem">' +
+            '<span style="font-size:0.58rem;font-weight:700;letter-spacing:0.09em;color:var(--text-faint);text-transform:uppercase">Weekly Structure</span>' +
+            '<span style="font-size:0.72rem;font-weight:700;padding:2px 10px;border-radius:999px;background:' + c.bg + ';color:' + c.fg + ';border:1px solid ' + c.fg + '">' + slEsc(S.label) + '</span>' +
+            (S.spot != null ? '<span style="font-size:0.7rem;color:var(--text-muted)">SPY ' + S.spot.toFixed(2) + '</span>' : '') +
+            (S.vix  != null ? '<span style="font-size:0.7rem;color:' + (S.vix >= SL_STRUCTURE.vixFragile ? 'var(--warn)' : 'var(--text-muted)') + '">VIX ' + S.vix.toFixed(2) + '</span>' : '') +
+            (S.stale ? '<span style="font-size:0.6rem;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--warn-dim);color:var(--warn)">ANCHOR ' + S.ageDays + 'D OLD</span>' : '') +
+            '<span style="margin-left:auto;font-size:0.62rem;color:var(--text-faint)">anchored ' + slEsc(SL_STRUCTURE.asOf) + '</span>' +
+        '</div>' +
+        '<div style="font-size:0.72rem;color:var(--text-muted);line-height:1.45;margin-bottom:0.6rem">' +
+            (S.verified
+                ? slEsc(S.detail)
+                : '<span style="color:var(--warn)">No stage label claimed — missing ' + slEsc(S.missing.join(', ')) + '. Weekly + daily + VIX are all required before any regime call; the governor stays off until they are present.</span>') +
+        '</div>';
+
+    el.innerHTML =
+        '<div style="background:var(--surface-1);border:1px solid ' + c.fg + ';border-radius:0.375rem;padding:0.8rem 0.9rem">' +
+            head + rows +
+            '<div style="margin-top:0.5rem;font-size:0.63rem;color:var(--text-faint)">' + slEsc(SL_STRUCTURE.source) + ' · counter-structural reads are scalps with a shelf life, not trends.</div>' +
+        '</div>';
+}
+
+// ── Hard-stop calculator (targeted update — never re-renders the input) ──
+function slStopCalc() {
+    const out = document.getElementById('slStopCalcOut');
+    if (!out) return;
+    const premEl = document.getElementById('slStopPrem');
+    const qtyEl  = document.getElementById('slStopQty');
+    const prem = premEl ? Number(premEl.value) : NaN;
+    const qty  = qtyEl  ? Math.max(1, Math.min(3, Number(qtyEl.value) || 1)) : 1;
+    if (premEl) SL_STATE.stopPrem = premEl.value;
+    if (qtyEl)  SL_STATE.stopQty  = qty;
+    if (!isFinite(prem) || prem <= 0) {
+        out.innerHTML = '<span style="color:var(--text-faint)">Enter entry premium → exact stop price and max loss.</span>';
+        return;
+    }
+    const stopPx = prem * (1 - SL_STOP.pct / 100);
+    const loss   = prem * (SL_STOP.pct / 100) * 100 * qty;
+    out.innerHTML =
+        '<span style="color:var(--bear);font-weight:700">STOP $' + stopPx.toFixed(2) + '</span>' +
+        '<span style="color:var(--text-muted)"> · max loss $' + loss.toFixed(0) + ' on ' + qty + ' lot' + (qty > 1 ? 's' : '') + '</span>' +
+        (qty >= 3 ? '<span style="color:var(--text-faint)"> · 3-lot cap</span>' : '');
+}
+
 function slRenderCards() {
     const el = document.getElementById('slCards');
     if (!el) return;
@@ -5812,16 +6046,30 @@ function slRenderLocalRead() {
     const r = slRunGate(SL_STATE.inputs);
     const gateC = r.gate === 'GO' ? SL_COLORS.green : r.gate === 'CAUTION' ? SL_COLORS.amber : SL_COLORS.red;
     const dirC = r.bias.dir === 'LONG' ? SL_COLORS.green : r.bias.dir === 'SHORT' ? SL_COLORS.red : SL_COLORS.amber;
+    const govC = SL_COLORS[r.governor.color] || SL_COLORS.amber;
     const badge = (label, val, c) =>
         '<div style="background:' + (c ? c.bg : 'var(--surface-2)') + ';border:1px solid ' + (c ? c.fg : 'var(--border-strong)') + ';border-radius:0.375rem;padding:0.5rem 0.85rem">' +
             '<span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.07em;display:block">' + label + '</span>' +
             '<span style="font-size:0.85rem;font-weight:700;color:' + (c ? c.fg : 'var(--text)') + '">' + val + '</span>' +
+        '</div>';
+    const stopCard =
+        '<div style="background:var(--bear-dim);border:1px solid var(--bear);border-radius:0.375rem;padding:0.6rem 0.8rem">' +
+            '<span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;display:block;margin-bottom:0.2rem">Price Stop ' +
+                '<span style="font-size:0.55rem;font-weight:700;padding:1px 6px;border-radius:999px;background:var(--bear);color:#fff;letter-spacing:0.06em">HARD</span>' +
+            '</span>' +
+            '<span style="font-size:0.78rem;font-weight:700;color:var(--bear)">' + slEsc(r.stops.price) + '</span>' +
+            '<div style="display:flex;gap:0.35rem;align-items:center;margin-top:0.45rem">' +
+                '<input id="slStopPrem" type="number" step="0.01" min="0" placeholder="entry $" value="' + slEsc(SL_STATE.stopPrem == null ? '' : SL_STATE.stopPrem) + '" oninput="slStopCalc()" style="width:78px;padding:0.3rem 0.4rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.2rem;font-size:0.72rem;font-family:inherit">' +
+                '<input id="slStopQty" type="number" step="1" min="1" max="3" value="' + slEsc(SL_STATE.stopQty == null ? 3 : SL_STATE.stopQty) + '" oninput="slStopCalc()" style="width:52px;padding:0.3rem 0.4rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.2rem;font-size:0.72rem;font-family:inherit" title="lots (3-lot cap)">' +
+                '<span id="slStopCalcOut" style="font-size:0.68rem"></span>' +
+            '</div>' +
         '</div>';
     el.innerHTML =
         '<div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.7rem">' +
             badge('Gate', r.gate, gateC) +
             badge('Window', r.windowLabel, null) +
             badge('Directional Read', r.bias.dir + ' — ' + r.bias.label, dirC) +
+            badge('Governor', slEsc(r.governor.label), govC) +
             badge('Structure', r.structure, null) +
         '</div>' +
         '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem">' + r.bias.note + '</div>' +
@@ -5829,11 +6077,12 @@ function slRenderLocalRead() {
             r.reasons.map(x => '<div style="font-size:0.74rem;color:var(--text);margin:0.2rem 0">· ' + x + '</div>').join('') +
         '</div>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:0.6rem">' +
-            '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.6rem 0.8rem"><span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;display:block;margin-bottom:0.2rem">Time Stop</span><span style="font-size:0.78rem;font-weight:700;color:var(--text)">' + r.stops.time + '</span></div>' +
-            '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.6rem 0.8rem"><span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;display:block;margin-bottom:0.2rem">Price Stop</span><span style="font-size:0.78rem;font-weight:700;color:var(--text)">' + r.stops.price + '</span></div>' +
-            '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.6rem 0.8rem"><span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;display:block;margin-bottom:0.2rem">Target</span><span style="font-size:0.78rem;font-weight:700;color:var(--text)">' + r.stops.target + '</span></div>' +
+            '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.6rem 0.8rem"><span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;display:block;margin-bottom:0.2rem">Time Stop</span><span style="font-size:0.78rem;font-weight:700;color:var(--text)">' + slEsc(r.stops.time) + '</span></div>' +
+            stopCard +
+            '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:0.375rem;padding:0.6rem 0.8rem"><span style="font-size:0.6rem;color:var(--text-faint);text-transform:uppercase;display:block;margin-bottom:0.2rem">Target</span><span style="font-size:0.78rem;font-weight:700;color:' + (r.stops.runner ? 'var(--text)' : 'var(--warn)') + '">' + slEsc(r.stops.target) + '</span></div>' +
         '</div>' +
         '<div style="margin-top:0.7rem;font-size:0.65rem;color:var(--text-faint)">Logic is a framework, not a signal service. Final entry quality depends on tape, spread, option liquidity, and whether price is trading into a real inflection.</div>';
+    slStopCalc();
 }
 
 function slRenderZones(values) {
@@ -5967,10 +6216,12 @@ async function slFetchLive(force) {
         SL_STATE.inputs.vwap = (d.above_vwap && d.vwap_distance > 1) ? 'holding' : (!d.above_vwap && d.vwap_distance > 1) ? 'lost' : 'chop';
         slRenderInputs();
         slRenderZones(slDeriveZones(d));
+        slRenderStructure();
         slRenderLocalRead();
         const chg = (d.day_change_pct >= 0 ? '+' : '') + d.day_change_pct + '%';
         ctxEl.textContent = 'Live: SPY $' + d.price + ' (' + chg + ') · VWAP $' + d.vwap + ' (' + (d.above_vwap ? 'holding above' : 'below') + ') · ' + (d.sector_breadth || '') + (d.timestamp ? ' · as of ' + new Date(d.timestamp).toLocaleTimeString() : '');
-        if (headEl) headEl.textContent = 'SPY $' + d.price + ' ' + chg + ' · VWAP ' + (d.above_vwap ? 'above' : 'below');
+        const slS = slStructure();
+        if (headEl) headEl.textContent = 'SPY $' + d.price + ' ' + chg + ' · VWAP ' + (d.above_vwap ? 'above' : 'below') + ' · ' + (slS.verified ? slS.label : 'structure unverified');
     } catch (e) {
         const local = (typeof location !== 'undefined' && location.protocol === 'file:') ? ' Local file preview: backend CORS only allows the deployed site — push to GitHub Pages and use najthetradinghasira.github.io.' : '';
         ctxEl.innerHTML = '<span style="color:var(--warn)">Live SPY data unavailable (' + slEsc(e.message) + ') — inputs stay manual; zones need live data.' + slEsc(local) + '</span>';
@@ -5988,12 +6239,27 @@ async function slRunProvider(provider) {
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), (provider === 'fable' || provider === 'chatgpt') ? 180000 : 120000);
-        const resp = await fetch(NEXUS_API + '/api/spy-logic/analysis', {
+        // Structural context rides along so the AI read is framed by the
+        // same governor as the local engine. Backends that do not accept
+        // the extra keys (422/400) get a plain retry, once, then sticky.
+        const post = body => fetch(NEXUS_API + '/api/spy-logic/analysis', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ provider: provider }),
+            body: JSON.stringify(body),
             signal: controller.signal
         });
+        let resp;
+        if (window.__apexSlStructUnsupported) {
+            resp = await post({ provider: provider });
+        } else {
+            let ctx = null;
+            try { ctx = slStructureContext(); } catch (e) { console.warn('[SPY Logic] structure ctx failed', e); }
+            resp = await post(ctx ? { provider: provider, structure: ctx } : { provider: provider });
+            if (resp.status === 422 || resp.status === 400) {
+                window.__apexSlStructUnsupported = true;   // backend not upgraded yet
+                resp = await post({ provider: provider });
+            }
+        }
         clearTimeout(timeoutId);
         const d = await resp.json().catch(() => ({}));
         if (!resp.ok || d.error || !d.analysis) throw new Error(d.error || d.detail || 'API ' + resp.status);
@@ -6039,6 +6305,7 @@ try {
     slRenderCards();
     slRenderInputs();
     slRenderZones(null);
+    slRenderStructure();
     slRenderLocalRead();
     slRenderAiRunBtns();
     slRenderAiTabs();
@@ -6047,6 +6314,20 @@ try {
     let slSavedOpen = false;
     try { slSavedOpen = localStorage.getItem('apex_spylogic_open') === '1'; } catch (e) {}
     if (slSavedOpen) slToggle();
+
+    // PRICE_CACHE (VIX) and /api/spy-logic (spot) land after this block runs.
+    // Poll cheaply and re-render only when the structural signature changes.
+    let slStructSig = '';
+    setInterval(() => {
+        try {
+            const S = slStructure();
+            const sig = [S.verified, S.tag, S.spot, S.vix].join('|');
+            if (sig === slStructSig) return;
+            slStructSig = sig;
+            slRenderStructure();
+            slRenderLocalRead();
+        } catch (e) {}
+    }, 10000);
 } catch (e) {
     console.warn('[SPY Logic] init failed (non-blocking):', e);
 }
