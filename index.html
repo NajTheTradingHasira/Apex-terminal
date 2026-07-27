@@ -5999,6 +5999,25 @@ function slStructureContext() {
 // would leave it permanently oscillating in and out of UNVERIFIED. Refreshing
 // at the soft threshold instead keeps it comfortably inside the hard one.
 let slSpotRefreshing = false;
+// VIX has the same problem as spot, one level further out: its only refresh is
+// the 5-minute price engine, which is EXACTLY the hard staleness threshold, so
+// vixAge reaches the gate just as the refresh comes due. Left alone the panel
+// would drop into UNVERIFIED near the end of every cycle and stay there for any
+// fetch that ran slow or failed. Refreshing the single symbol at the soft
+// threshold keeps it comfortably inside the hard one, and reuses the existing
+// batch fetcher rather than opening a second path to the price feed.
+let slVixRefreshing = false;
+async function slRefreshVix() {
+    if (slVixRefreshing) return;
+    slVixRefreshing = true;
+    try { await fetchYahooPrices(['^VIX']); }
+    catch (e) { /* leave the old stamp — ageing out is the correct outcome */ }
+    finally {
+        slVixRefreshing = false;
+        try { slRenderStructure(); } catch (e) {}
+    }
+}
+
 async function slRefreshSpot() {
     if (slSpotRefreshing || !SL_STATE.live) return;   // panel never opened — nothing to keep fresh
     slSpotRefreshing = true;
@@ -6411,6 +6430,7 @@ try {
             // reaches the hard one during RTH. Reuses this timer rather than
             // adding another; slRefreshSpot() guards against overlap itself.
             if (S.rth && S.spotAge != null && S.spotAge >= SL_STALE.soft) slRefreshSpot();
+            if (S.rth && S.vixAge != null && S.vixAge >= SL_STALE.soft) slRefreshVix();
             // Age is part of what the bar renders, so it belongs in the
             // signature — otherwise the age text would freeze between crosses.
             const sig = [S.verified, S.tag, S.spot, S.vix, S.spotAgeLabel, S.vixAgeLabel].join('|');
