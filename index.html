@@ -5731,6 +5731,40 @@ function slDirectionalRead(inp) {
     return { dir: 'NEUTRAL', label: 'STAND ASIDE', note: 'Auction not yet clear.' };
 }
 
+// ── Input freshness ───────────────────────────────────────
+// A stale input is treated exactly like a missing one during RTH. A tag
+// computed off a spot from forty minutes ago still renders as a confident
+// stage label, which is strictly worse than printing nothing: it looks
+// authoritative and it is not. Outside RTH a stale spot is stale BY
+// DEFINITION (the market is closed), so the age is shown and nothing is
+// downgraded.
+const SL_STALE = { soft: 120000, hard: 300000 };   // 2 min show age · 5 min downgrade
+
+// Fetch stamps. Absent stamp => age unknown => no staleness is claimed; we do
+// not assert freshness we have not measured. This is also what keeps parity.mjs
+// unaffected: it injects bare {price} objects carrying no stamps.
+function slSpotAt() {
+    try { return (SL_STATE.live && SL_STATE.liveAt) || null; } catch (e) { return null; }
+}
+function slVixAt() {
+    try { const v = PRICE_CACHE['^VIX']; return (v && v.at) || null; } catch (e) { return null; }
+}
+function slAgeMs(at, now) {
+    return (typeof at === 'number' && isFinite(at) && at > 0) ? Math.max(0, now - at) : null;
+}
+function slFmtAge(ms) {
+    const s = Math.floor(ms / 1000);
+    return s < 60 ? s + 's' : Math.floor(s / 60) + 'm';
+}
+// RTH = the cash session. Reuses slTimeWindow rather than introducing a second
+// clock that could disagree with it.
+function slIsRTH(d) {
+    try {
+        const w = slTimeWindow(d || new Date());
+        return w !== 'pre' && w !== 'after' && w !== 'closed';
+    } catch (e) { return false; }
+}
+
 // ── VIX read (PRICE_CACHE is declared later in the file → guard TDZ) ──
 function slVix() {
     try {
@@ -5765,7 +5799,24 @@ function slStructure() {
     const vix = slVix();
     if (vix != null) out.vix = vix; else out.missing.push('VIX');
 
-    if (out.missing.length) return out;   // no stage claim off partial inputs
+    // Freshness is graded after presence: an input that is absent is already
+    // in `missing`, and a second complaint about its age would be noise.
+    const nowMs = Date.now();
+    out.rth = slIsRTH(new Date(nowMs));
+    out.spotAge = out.spot != null ? slAgeMs(slSpotAt(), nowMs) : null;
+    out.vixAge = out.vix != null ? slAgeMs(slVixAt(), nowMs) : null;
+    out.spotStale = out.spotAge != null && out.spotAge >= SL_STALE.hard;
+    out.vixStale = out.vixAge != null && out.vixAge >= SL_STALE.hard;
+    // Age is surfaced past the soft threshold during RTH, and always outside
+    // it — a closed-market panel should say so rather than look current.
+    out.spotAgeLabel = (out.spotAge != null && (!out.rth || out.spotAge >= SL_STALE.soft)) ? slFmtAge(out.spotAge) : null;
+    out.vixAgeLabel = (out.vixAge != null && (!out.rth || out.vixAge >= SL_STALE.soft)) ? slFmtAge(out.vixAge) : null;
+    if (out.rth) {
+        if (out.spotStale) out.missing.push('a fresh daily price (last fetch ' + slFmtAge(out.spotAge) + ' ago)');
+        if (out.vixStale) out.missing.push('a fresh VIX (last fetch ' + slFmtAge(out.vixAge) + ' ago)');
+    }
+
+    if (out.missing.length) return out;   // no stage claim off partial or stale inputs
 
     out.verified = true;
     const L = SL_STRUCTURE;
@@ -5936,6 +5987,38 @@ function slStructureContext() {
 
 // ── Renderers ─────────────────────────────────────────
 
+// Keeps spot fresh without a new timer — driven by the existing 10s structure
+// poll below, which refetches once the soft threshold is crossed.
+//
+// Deliberately NOT slFetchLive(true): that re-derives SL_STATE.inputs.opening
+// and .vwap from the payload, so polling it would silently overwrite manual
+// input selections. This touches the spot value, its stamp and the bar only.
+//
+// Note the cadence choice: APEX's own price engine runs every 5 minutes, which
+// is the same as the hard staleness threshold — driving spot off that timer
+// would leave it permanently oscillating in and out of UNVERIFIED. Refreshing
+// at the soft threshold instead keeps it comfortably inside the hard one.
+let slSpotRefreshing = false;
+async function slRefreshSpot() {
+    if (slSpotRefreshing || !SL_STATE.live) return;   // panel never opened — nothing to keep fresh
+    slSpotRefreshing = true;
+    try {
+        const resp = await fetch(NEXUS_API + '/api/spy-logic', { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) throw new Error('API ' + resp.status);
+        const d = await resp.json();
+        if (d && !d.error && Number(d.price) > 0) {
+            SL_STATE.live = d;
+            SL_STATE.liveAt = Date.now();
+        }
+        // A failed refresh deliberately leaves the OLD stamp in place: ageing
+        // into STRUCTURE UNVERIFIED is the correct outcome of a dead feed.
+    } catch (e) { /* same — never re-stamp on failure */ }
+    finally {
+        slSpotRefreshing = false;
+        try { slRenderStructure(); } catch (e) {}
+    }
+}
+
 function slRenderStructure() {
     const el = document.getElementById('slStructureBar');
     if (!el) return;
@@ -5965,8 +6048,10 @@ function slRenderStructure() {
         '<div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.55rem">' +
             '<span style="font-size:0.58rem;font-weight:700;letter-spacing:0.09em;color:var(--text-faint);text-transform:uppercase">Weekly Structure</span>' +
             '<span style="font-size:0.72rem;font-weight:700;padding:2px 10px;border-radius:999px;background:' + c.bg + ';color:' + c.fg + ';border:1px solid ' + c.fg + '">' + slEsc(S.label) + '</span>' +
-            (S.spot != null ? '<span style="font-size:0.7rem;color:var(--text-muted)">SPY ' + S.spot.toFixed(2) + '</span>' : '') +
-            (S.vix  != null ? '<span style="font-size:0.7rem;color:' + (S.vix >= SL_STRUCTURE.vixFragile ? 'var(--warn)' : 'var(--text-muted)') + '">VIX ' + S.vix.toFixed(2) + '</span>' : '') +
+            (S.spot != null ? '<span style="font-size:0.7rem;color:var(--text-muted)">SPY ' + S.spot.toFixed(2) +
+                (S.spotAgeLabel ? '<span style="margin-left:0.3rem;font-size:0.6rem;color:' + (S.spotStale ? SL_COLORS.amber.fg : 'var(--text-faint)') + '">' + slEsc(S.spotAgeLabel) + ' old</span>' : '') + '</span>' : '') +
+            (S.vix  != null ? '<span style="font-size:0.7rem;color:' + (S.vix >= SL_STRUCTURE.vixFragile ? 'var(--warn)' : 'var(--text-muted)') + '">VIX ' + S.vix.toFixed(2) +
+                (S.vixAgeLabel ? '<span style="margin-left:0.3rem;font-size:0.6rem;color:' + (S.vixStale ? SL_COLORS.amber.fg : 'var(--text-faint)') + '">' + slEsc(S.vixAgeLabel) + ' old</span>' : '') + '</span>' : '') +
             (S.stale ? '<span style="font-size:0.6rem;font-weight:700;padding:1px 7px;border-radius:999px;background:var(--warn-dim);color:var(--warn)">ANCHOR ' + S.ageDays + 'D OLD</span>' : '') +
             '<span style="margin-left:auto;font-size:0.62rem;color:var(--text-faint)">anchored ' + slEsc(SL_STRUCTURE.asOf) + '</span>' +
         '</div>' +
@@ -6210,6 +6295,7 @@ async function slFetchLive(force) {
         const d = await resp.json();
         if (!d || d.error) throw new Error((d && d.error) || 'empty payload');
         SL_STATE.live = d;
+        SL_STATE.liveAt = Date.now();   // freshness stamp, see slSpotAt()
         SL_STATE.liveFetched = true;
         // Auto-derive opening context + VWAP state (same rules as NEXUS)
         SL_STATE.inputs.opening = d.price > d.recent_5d_high ? 'above' : d.price < d.recent_5d_low ? 'gapdown' : 'below';
@@ -6321,7 +6407,13 @@ try {
     setInterval(() => {
         try {
             const S = slStructure();
-            const sig = [S.verified, S.tag, S.spot, S.vix].join('|');
+            // Refetch spot once it crosses the soft threshold, so it never
+            // reaches the hard one during RTH. Reuses this timer rather than
+            // adding another; slRefreshSpot() guards against overlap itself.
+            if (S.rth && S.spotAge != null && S.spotAge >= SL_STALE.soft) slRefreshSpot();
+            // Age is part of what the bar renders, so it belongs in the
+            // signature — otherwise the age text would freeze between crosses.
+            const sig = [S.verified, S.tag, S.spot, S.vix, S.spotAgeLabel, S.vixAgeLabel].join('|');
             if (sig === slStructSig) return;
             slStructSig = sig;
             slRenderStructure();
@@ -6429,6 +6521,7 @@ async function fetchYahooPrices(symbols) { // name kept — called from 5 sites
         Object.entries(prices).forEach(([sym, d]) => {
             if (!d.price && d.price !== 0) return;
             PRICE_CACHE[sym] = {
+                at: Date.now(),   // freshness stamp, see slVixAt()
                 price: d.price?.toFixed(2),
                 dayPct: d.dayPct?.toFixed(2) ?? null,
                 weekPct: d.weekPct?.toFixed(2) ?? null,
