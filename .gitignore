@@ -1,7 +1,23 @@
+# Apex Terminal — .gitignore
+
 # Runtime artifacts — never commit these
 output/
 universe_cache.json
 *.bak
 __pycache__/
 *.pyc
-.env
+node_modules/
+.DS_Store
+Thumbs.db
+
+# --- secret hygiene (added 2026-07-19) ---
+.env*
+!.env.example
+!.env.sample
+# stray editor/OS duplicates that slip narrower .env rules
+* - Copy.*
+*- Copy.*
+*.key
+*.pem
+credentials.json
+secrets.json
