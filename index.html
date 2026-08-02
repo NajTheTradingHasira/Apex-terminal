@@ -5677,9 +5677,13 @@ const SL_COLORS = {
 //   A read that fights the weekly tag is a scalp with a shelf life,
 //   not a trend — the engine degrades it automatically (no runner,
 //   halved time stop, gate can never print GO).
-//   Re-anchor by editing the four numbers below off a WEEKLY chart.
+//   Re-anchor by setting SPY_STRUCTURE_JSON on the nexus-terminal Railway
+//   service — NOT by editing the numbers below. Since slFetchStructure()
+//   landed, these are the fallback that shows when the endpoint is
+//   unreachable or returns a payload that fails validation; editing them
+//   only moves the fallback, it does not re-anchor the panel.
 // ══════════════════════════════════════════════════════════════
-const SL_STRUCTURE = {
+let SL_STRUCTURE = {
     asOf:       '2026-07-26',
     reclaim:    743.91,   // spot above  → weekly Stage 2 confirmed
     support:    735.21,   // spot below  → Stage 2 under pressure
@@ -5688,6 +5692,29 @@ const SL_STRUCTURE = {
     vixFragile: 25,       // VIX at/above this downgrades a confirmed tag
     source:     'Weekly 30-wk SMA rising; levels from the 07/24 review.'
 };
+
+// Provenance of whatever is currently in SL_STRUCTURE. Anything other than
+// 'live' renders in the warn colour, so a glance at the bar always says
+// whether the levels on screen came from the endpoint or the fallback.
+let SL_STRUCTURE_SOURCE = { kind: 'baked', label: 'BAKED', detail: 'endpoint not consulted yet' };
+
+// Last line of defence before a bad triple silently inverts the structural
+// tag. The endpoint validates server-side too; this is deliberate belt-and-
+// braces, because the client is what actually grades trades.
+function slValidStructure(d) {
+    if (!d || typeof d !== 'object') return false;
+    for (const k of ['reclaim', 'support', 'flip']) {
+        if (typeof d[k] !== 'number' || !isFinite(d[k]) || d[k] <= 0) return false;
+    }
+    // Two comparisons joined by &&, NOT a chain. `d.flip < d.support < d.reclaim`
+    // parses in JS as ((d.flip < d.support) < d.reclaim) — a boolean coerced to
+    // 0/1 and compared against a SPY price, which is true for any plausible
+    // input. It would pass on exactly the inverted levels this exists to catch.
+    // (spy_logic_router.py chains legitimately — Python chains, JavaScript does not.)
+    if (!(d.flip < d.support && d.support < d.reclaim)) return false;
+    if (typeof d.asOf !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(d.asOf)) return false;
+    return true;
+}
 
 // The last leak. Hard, pre-set at entry, non-negotiable.
 const SL_STOP = { pct: 25, label: '\u221225% of premium' };
@@ -6038,6 +6065,41 @@ async function slRefreshSpot() {
     }
 }
 
+// Seeds SL_STRUCTURE from the nexus-terminal endpoint so re-anchoring is one
+// Railway env var edit instead of a commit in each of the three terminals.
+//
+// Deliberately below the renderer banner: it touches the network and the DOM,
+// so it stays out of the pure-logic slice that parity.mjs extracts.
+//
+// Never blocks first paint — called without await after the panel has drawn.
+// A hung endpoint must degrade to a stale-but-correct panel, never a blank one.
+async function slFetchStructure() {
+    try {
+        const resp = await fetch(NEXUS_API + '/api/spy-logic/structure', { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) throw new Error('API ' + resp.status);
+        const d = await resp.json();
+        if (!slValidStructure(d)) {
+            SL_STRUCTURE_SOURCE = { kind: 'rejected', label: 'BAKED — payload rejected',
+                                    detail: 'endpoint returned levels that failed validation' };
+            return;
+        }
+        SL_STRUCTURE = {
+            asOf: d.asOf, reclaim: d.reclaim, support: d.support, flip: d.flip,
+            staleDays: d.staleDays, vixFragile: d.vixFragile, source: d.source
+        };
+        // degraded is a state to display, not an error to retry.
+        SL_STRUCTURE_SOURCE = d.degraded
+            ? { kind: 'degraded', label: 'SERVER — DEGRADED',
+                detail: d.degradedReason || 'server served its baked default' }
+            : { kind: 'live', label: 'SERVER', detail: 'revision ' + d.revision };
+    } catch (e) {
+        SL_STRUCTURE_SOURCE = { kind: 'unreachable', label: 'BAKED — endpoint unreachable',
+                                detail: String((e && e.message) || e) };
+    } finally {
+        slRenderStructure();   // repaint in place, whatever the outcome
+    }
+}
+
 function slRenderStructure() {
     const el = document.getElementById('slStructureBar');
     if (!el) return;
@@ -6083,7 +6145,9 @@ function slRenderStructure() {
     el.innerHTML =
         '<div style="background:var(--surface-1);border:1px solid ' + c.fg + ';border-radius:0.375rem;padding:0.8rem 0.9rem">' +
             head + rows +
-            '<div style="margin-top:0.5rem;font-size:0.63rem;color:var(--text-faint)">' + slEsc(SL_STRUCTURE.source) + ' · counter-structural reads are scalps with a shelf life, not trends.</div>' +
+            '<div style="margin-top:0.5rem;font-size:0.63rem;color:var(--text-faint)">' + slEsc(SL_STRUCTURE.source) + ' · counter-structural reads are scalps with a shelf life, not trends.' +
+                '<span style="margin-left:0.5rem;font-weight:700;color:' + (SL_STRUCTURE_SOURCE.kind === 'live' ? 'var(--text-faint)' : SL_COLORS.amber.fg) + '">' + slEsc(SL_STRUCTURE_SOURCE.label) + '</span>' +
+            '</div>' +
         '</div>';
 }
 
@@ -6332,6 +6396,11 @@ async function slFetchLive(force) {
         ctxEl.innerHTML = '<span style="color:var(--warn)">Live SPY data unavailable (' + slEsc(e.message) + ') — inputs stay manual; zones need live data.' + slEsc(local) + '</span>';
     } finally {
         SL_STATE.liveLoading = false;
+        // Not awaited, and in the finally rather than the success path: the
+        // structure endpoint is independent of /api/spy-logic, so it must
+        // still be consulted when that fetch fails — which is exactly when
+        // the panel is already degraded and the levels matter most.
+        slFetchStructure();
     }
 }
 
@@ -6411,6 +6480,10 @@ try {
     slRenderInputs();
     slRenderZones(null);
     slRenderStructure();
+    // Fire once on load, independently of slFetchLive: that function early-
+    // returns when live data is already cached, so a collapsed-then-expanded
+    // panel would otherwise never consult the endpoint and would sit on BAKED.
+    slFetchStructure();
     slRenderLocalRead();
     slRenderAiRunBtns();
     slRenderAiTabs();
