@@ -1,0 +1,19 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Cross-terminal parity file: the SL_ inline block in index.html is compared
+# against trading-hashira spy-logic/spy-governor-core.js and nexus
+# src/lib/spyGovernor.js. Pin the working-tree copy to LF on every platform so
+# a raw md5sum matches the canonical file without having to go through
+# `git show`.
+#
+# Needed because core.autocrlf is true on the Windows checkouts and this repo
+# had no .gitattributes at all, so `git check-attr text eol -- index.html`
+# returned "unspecified" for both. The blob is LF (459398 bytes, CR=0), but a
+# checkout materialized it as CRLF at 467524 — exactly +8126, one CR per line —
+# while `git status` still reported clean, because the clean filter normalizes
+# CRLF back to LF on read. Git never sees the drift; a raw md5sum does.
+#
+# That false drift is worst exactly when it matters: during a port, when a real
+# md5 comparison between the terminals is the check being run.
+index.html text eol=lf
