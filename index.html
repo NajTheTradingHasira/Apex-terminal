@@ -28,6 +28,7 @@
           --warn: #ffb74d;
           --warn-dim: rgba(255,183,77,0.12);
           --purple: #b388ff;
+          --grok: #d9e2ef;
           --font-ui: 'Inter', system-ui, sans-serif;
           --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
           --shadow-card: 0 2px 8px rgba(0,0,0,0.4), 0 0 1px rgba(0,0,0,0.6);
@@ -5662,7 +5663,8 @@ const SL_PROVIDERS = {
     perplexity: { label: '⚡ PERPLEXITY', color: 'var(--accent)', note: 'sonar-pro · web search · 5-min cache' },
     claude:     { label: '⚡ CLAUDE',     color: 'var(--purple)', note: 'reasoning · 5-min cache' },
     fable:      { label: '⚡ FABLE',      color: 'var(--warn)',   note: 'claude-fable-5 · deepest reasoning · Opus 5 fallback' },
-    chatgpt:    { label: '⚡ CHATGPT',    color: 'var(--bull)',   note: 'gpt-5.6-sol · reasoning · 5-min cache' }
+    chatgpt:    { label: '⚡ CHATGPT',    color: 'var(--bull)',   note: 'gpt-5.6-sol · reasoning · 5-min cache' },
+    grok:       { label: '⚡ GROK',       color: 'var(--grok)',   note: 'grok-4.5 · 5-min cache', tab: 'Grok' }
 };
 
 const SL_COLORS = {
@@ -6481,7 +6483,7 @@ function slRenderAiOut() {
         return;
     }
     if (st.loading) {
-        el.innerHTML = '<div style="text-align:center;padding:1.5rem"><div style="font-size:1.2rem;animation:pulse 1.5s infinite">⚡</div><div style="color:var(--text-muted);font-size:0.78rem;margin-top:0.4rem">⏳ Generating ' + slEsc(p) + ' tape reading…</div><div style="color:var(--text-faint);font-size:0.68rem;margin-top:0.25rem">live data → AI analysis' + (p === 'fable' ? ' (Fable can run longer)' : p === 'chatgpt' ? ' (ChatGPT can run longer)' : '') + '</div></div>';
+        el.innerHTML = '<div style="text-align:center;padding:1.5rem"><div style="font-size:1.2rem;animation:pulse 1.5s infinite">⚡</div><div style="color:var(--text-muted);font-size:0.78rem;margin-top:0.4rem">⏳ Generating ' + slEsc(p) + ' tape reading…</div><div style="color:var(--text-faint);font-size:0.68rem;margin-top:0.25rem">live data → AI analysis' + (p === 'fable' ? ' (Fable can run longer)' : p === 'chatgpt' ? ' (ChatGPT can run longer)' : p === 'grok' ? ' (Grok can run longer)' : '') + '</div></div>';
         return;
     }
     if (st.error) {
@@ -6582,7 +6584,7 @@ async function slRunProvider(provider) {
     slRenderAiOut();
     try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), (provider === 'fable' || provider === 'chatgpt') ? 180000 : 120000);
+        const timeoutId = setTimeout(() => controller.abort(), (provider === 'fable' || provider === 'chatgpt' || provider === 'grok') ? 180000 : 120000);
         // Structural context rides along so the AI read is framed by the
         // same governor as the local engine. Backends that do not accept
         // the extra keys (422/400) get a plain retry, once, then sticky.
