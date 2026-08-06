@@ -5659,13 +5659,24 @@ const SL_SCENARIOS = [
     ['SCENARIO C', 'amber', 'Range chop around VWAP',    'Expect theta burn and false starts. Reduce size or wait for expansion from ORB.']
 ];
 
+// can_search mirrors SL_PROVIDERS in nexus-terminal's spy_logic_router.py, which
+// is authoritative: it decides whether that provider's prompt ends with the web
+// search instruction or with the data-discipline clause (write UNAVAILABLE, do
+// not guess). Only Perplexity browses; the rest answer from the live block the
+// backend hands them. Kept here so the panel never advertises a capability the
+// prompt has already denied — Grok's stub of 2026-08-05 was exactly that gap.
 const SL_PROVIDERS = {
-    perplexity: { label: '⚡ PERPLEXITY', color: 'var(--accent)', note: 'sonar-pro · web search · 5-min cache' },
-    claude:     { label: '⚡ CLAUDE',     color: 'var(--purple)', note: 'reasoning · 5-min cache' },
-    fable:      { label: '⚡ FABLE',      color: 'var(--warn)',   note: 'claude-fable-5 · deepest reasoning · Opus 5 fallback' },
-    chatgpt:    { label: '⚡ CHATGPT',    color: 'var(--bull)',   note: 'gpt-5.6-sol · reasoning · 5-min cache' },
-    grok:       { label: '⚡ GROK',       color: 'var(--grok)',   note: 'grok-4.5 · 5-min cache', tab: 'Grok' }
+    perplexity: { label: '⚡ PERPLEXITY', color: 'var(--accent)', can_search: true,  note: 'sonar-pro · web search · 5-min cache' },
+    claude:     { label: '⚡ CLAUDE',     color: 'var(--purple)', can_search: false, note: 'reasoning · 5-min cache' },
+    fable:      { label: '⚡ FABLE',      color: 'var(--warn)',   can_search: false, note: 'claude-fable-5 · deepest reasoning · Opus 5 fallback' },
+    chatgpt:    { label: '⚡ CHATGPT',    color: 'var(--bull)',   can_search: false, note: 'gpt-5.6-sol · reasoning · 5-min cache' },
+    grok:       { label: '⚡ GROK',       color: 'var(--grok)',   can_search: false, note: 'grok-4.5 · 5-min cache', tab: 'Grok' }
 };
+
+// Note as shown to the user, with the browsing state made explicit.
+function slProviderNote(cfg) {
+    return cfg.note + (cfg.can_search ? '' : ' · no browsing');
+}
 
 const SL_COLORS = {
     red:   { fg: 'var(--bear)', bg: 'var(--bear-dim)' },
@@ -6462,7 +6473,7 @@ function slRenderAiRunBtns() {
     if (!el) return;
     el.innerHTML = Object.keys(SL_PROVIDERS).map(p => {
         const cfg = SL_PROVIDERS[p];
-        return '<button onclick="slRunProvider(\'' + p + '\')" title="' + slEsc(cfg.note) + '" style="font-size:0.68rem;font-weight:700;letter-spacing:0.04em;background:color-mix(in srgb, ' + cfg.color + ' 10%, transparent);border:1px solid ' + cfg.color + ';color:' + cfg.color + ';border-radius:0.25rem;padding:0.35rem 0.75rem;cursor:pointer;font-family:inherit">' + cfg.label + '</button>';
+        return '<button onclick="slRunProvider(\'' + p + '\')" title="' + slEsc(slProviderNote(cfg)) + '" style="font-size:0.68rem;font-weight:700;letter-spacing:0.04em;background:color-mix(in srgb, ' + cfg.color + ' 10%, transparent);border:1px solid ' + cfg.color + ';color:' + cfg.color + ';border-radius:0.25rem;padding:0.35rem 0.75rem;cursor:pointer;font-family:inherit">' + cfg.label + '</button>';
     }).join('');
 }
 
@@ -6479,7 +6490,7 @@ function slRenderAiOut() {
     const cfg = SL_PROVIDERS[p];
     const st = SL_STATE.ai[p];
     if (!st) {
-        el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-faint);font-size:0.8rem">Click ' + cfg.label + ' — ' + slEsc(cfg.note) + '<div style="font-size:0.68rem;margin-top:0.35rem">or press ▶ RUN TRADE LOGIC to fire Perplexity + Claude in parallel (~$0.02–0.20/run)</div></div>';
+        el.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--text-faint);font-size:0.8rem">Click ' + cfg.label + ' — ' + slEsc(slProviderNote(cfg)) + '<div style="font-size:0.68rem;margin-top:0.35rem">or press ▶ RUN TRADE LOGIC to fire Perplexity + Claude in parallel (~$0.02–0.20/run)</div></div>';
         return;
     }
     if (st.loading) {
