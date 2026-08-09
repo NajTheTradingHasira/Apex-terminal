@@ -4358,15 +4358,27 @@ function renderGexLevels(gex, spot) {
     // stat now; it never drives the banner again. Runs AFTER gexInitSub so
     // gexSub.ticker/levels/spot are current.
     grxClassifyNow('levels');
+
+    // v1.1: prior-session AH dark-pool cluster → ladder reference marker.
+    // Fire-and-forget; the ladder repaints when the cluster lands.
+    grxLoadAhPrints(gex.ticker);
 }
 
 function renderGexLadder(gex, spot) {
     const el = document.getElementById('gexLadder');
+    // Prior-session AH dark-pool cluster (v1.1) — where institutions positioned
+    // into the close. Reference only; loads async, ladder repaints when it lands.
+    const ah = (typeof GRX !== 'undefined' && GRX.ahCluster && !GRX.ahCluster.empty &&
+                GRX.ahCluster.ticker === gex.ticker) ? GRX.ahCluster : null;
     const markers = [
         { v: gex.callWall,    label: 'CALL WALL', color: 'var(--bull)',   row: 1 },
         { v: gex.gammaMagnet, label: 'MAGNET',    color: 'var(--accent)', row: 1 },
         { v: gex.gammaFlip,   label: 'FLIP',      color: 'var(--warn)',   row: 2 },
         { v: gex.putWall,     label: 'PUT WALL',  color: 'var(--bear)',   row: 2 },
+        ...(ah ? [{ v: ah.vwap, label: 'AH DP', color: 'var(--purple)', row: 2,
+                    title: 'Prior-session after-hours dark pool (' + ah.date + '): ' + ah.prints +
+                           ' prints ' + ah.lo.toFixed(2) + '–' + ah.hi.toFixed(2) +
+                           ' · notional-weighted ' + ah.vwap.toFixed(2) + ' · ' + ah.netBias }] : []),
         ...(spot ? [{ v: spot, label: 'SPOT', color: 'var(--text)', row: 1, spot: true }] : []),
     ].filter(m => m.v != null && isFinite(m.v));
 
@@ -4400,7 +4412,7 @@ function renderGexLadder(gex, spot) {
         const tickTop = m.spot ? 20 : 24;
         const tickH = m.spot ? 24 : 16;
         html += `<div style="position:absolute;left:calc(${px}% - ${m.spot ? 1.5 : 1}px);top:${tickTop}px;width:${m.spot ? 3 : 2}px;height:${tickH}px;background:${m.color};border-radius:1px${m.spot ? ';box-shadow:0 0 6px rgba(255,255,255,0.5)' : ''}"></div>`;
-        html += `<div style="position:absolute;left:${px}%;top:${labelTop}px;transform:translateX(-50%);font-size:0.62rem;font-family:var(--font-mono);color:${m.color};white-space:nowrap;font-weight:${m.spot ? 700 : 600}">${m.label} ${fmtGexPrice(m.v)}</div>`;
+        html += `<div${m.title ? ` title="${m.title}"` : ''} style="position:absolute;left:${px}%;top:${labelTop}px;transform:translateX(-50%);font-size:0.62rem;font-family:var(--font-mono);color:${m.color};white-space:nowrap;font-weight:${m.spot ? 700 : 600}${m.title ? ';cursor:help' : ''}">${m.label} ${fmtGexPrice(m.v)}</div>`;
     }
     el.innerHTML = html;
 }
@@ -4686,9 +4698,14 @@ async function grxClassifyNow(trigger) {
         GRX.source = src.source;
         GRX.asOf = src.asOf;
 
-        // First classification of the (ET) day for SPY is the hypothesis of record.
+        // First classification of the (ET) day for SPY is the hypothesis of
+        // record — TRADING days only. Weekend board-checks still classify and
+        // render, but stamping Sat/Sun would seed scorecard rows whose 11:00
+        // confirm can never fire (grxTick skips weekends), polluting the
+        // confusion-matrix denominator with permanent "pending".
         const now = grxEtNow();
-        if (GRX.ticker === 'SPY' && (!GRX.preOpen || GRX.preOpen.date !== now.date)) {
+        if (GRX.ticker === 'SPY' && now.wd !== 'Sat' && now.wd !== 'Sun' &&
+            (!GRX.preOpen || GRX.preOpen.date !== now.date)) {
             GRX.preOpen = { date: now.date, regime: read.regime, at: new Date().toISOString(), preOpen: now.mins < 570 };
             GRX.confirm = null; GRX.breakInvalidated = false; GRX.brokenWalls = null;
             grxLogUpsert({ date: now.date, preOpenRegime: read.regime, preOpenAt: GRX.preOpen.at,
@@ -4835,14 +4852,21 @@ function grxCheckWallBreak(spot) {
 
 // ── Self-scoring log (localStorage, own key — never TRADES storage) ─────────
 
+function grxIsWeekendDate(dateStr) {
+    const d = new Date(String(dateStr) + 'T12:00:00Z').getUTCDay();   // calendar weekday of the ET date string
+    return d === 0 || d === 6;
+}
 function grxLog() {
     try { return JSON.parse(localStorage.getItem(GRX_CONFIG.logKey)) || []; } catch (e) { return []; }
 }
 function grxLogUpsert(patch) {
     try {
-        const rows = grxLog();
+        let rows = grxLog();
         const i = rows.findIndex(r => r.date === patch.date);
         if (i >= 0) rows[i] = Object.assign({}, rows[i], patch); else rows.push(patch);
+        // Weekend rows can never be scored (no session, no 11:00 vote) — prune
+        // them on every write. Also retires any stamped before the v1.1 guard.
+        rows = rows.filter(r => r.date && !grxIsWeekendDate(r.date));
         rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
         localStorage.setItem(GRX_CONFIG.logKey, JSON.stringify(rows.slice(-120)));
     } catch (e) { console.warn('[GRX] log write failed:', e.message); }
@@ -4899,7 +4923,7 @@ function grxRenderBanner() {
         if (GRX.confirm && GRX.confirm.date === today) chips += chip('11:00: ' + GRX.confirm.regime + (GRX.confirm.ratio != null ? ' · ' + GRX.confirm.ratio + '× implied' : ''), GRX.confirm.regime === 'TREND' ? 'var(--bear)' : 'var(--bull)');
         else chips += chip('11:00 re-confirm pending — OI-derived read is a HYPOTHESIS until the tape votes');
         if (GRX.breakInvalidated) chips += chip('WALL BREAK — pre-open read invalidated live', 'var(--bear)');
-        const n = grxLog().length;
+        const n = grxLog().filter(r => r.date && !grxIsWeekendDate(r.date)).length;
         chips += '<a onclick="grxToggleScorecard()" style="font-size:0.62rem;color:var(--accent);cursor:pointer;text-decoration:underline">scorecard (' + n + ')</a>';
     }
 
@@ -4926,7 +4950,7 @@ function grxToggleScorecard() {
 function grxRenderScorecard() {
     const el = document.getElementById('gexRegimeScorecard');
     if (!el) return;
-    const rows = grxLog();
+    const rows = grxLog().filter(r => r.date && !grxIsWeekendDate(r.date));   // belt-and-braces with the upsert prune
     if (!GRX.scorecardOpen || !rows.length) { el.style.display = 'none'; return; }
     el.style.display = 'block';
     const scored = rows.filter(r => r.preOpenRegime && r.confirmRegime);
@@ -5041,6 +5065,59 @@ function grxApplyToGate(r) {
 // alignment instead of inferring day-type from charts after the fact.
 function grxActiveRegimeTag() {
     try { return grxEffectiveRegime(); } catch (e) { return null; }
+}
+
+// ── v1.1: prior-session after-hours dark-pool cluster on the ladder ─────────
+// The AH prints (16:00+ ET of the last print date in the feed) mark where
+// institutions positioned into the close — 08/08: cluster right on spot, net
+// buys, exactly where the next session pinned. Rendered as a reference marker
+// on the GEX ladder; notional-weighted price, min–max band in the tooltip.
+
+let grxAhLoading = false;
+async function grxLoadAhPrints(ticker) {
+    if (grxAhLoading) return;
+    if (GRX.ahCluster && GRX.ahCluster.ticker === ticker &&
+        Date.now() - GRX.ahCluster.fetchedAt < 600000) return;   // 10-min cache
+    grxAhLoading = true;
+    try {
+        const resp = await fetch(`${NEXUS_API}/api/uw/darkpool/${ticker}`, { headers: { 'Accept': 'application/json' } });
+        if (!resp.ok) return;
+        const dp = await resp.json();
+        const rows = (dp && dp.data) || [];
+        if (!Array.isArray(rows) || !rows.length) return;
+        const parsed = rows.map(t => {
+            const at = t.executed_at ? new Date(t.executed_at) : null;
+            if (!at || isNaN(at)) return null;
+            const et = grxEtNow(at);
+            const price = parseFloat(t.price || 0);
+            const size = Number(t.size || t.volume) || 0;
+            const bid = parseFloat(t.nbbo_bid || price), ask = parseFloat(t.nbbo_ask || price);
+            return { et: et, price: price, size: size, buy: price >= (bid + ask) / 2 };
+        }).filter(p => p && p.price > 0 && p.size > 0);
+        if (!parsed.length) return;
+        const lastDate = parsed.map(p => p.et.date).sort().pop();      // prior session = latest print date
+        const ah = parsed.filter(p => p.et.date === lastDate && p.et.mins >= 960);
+        if (!ah.length) { GRX.ahCluster = { ticker: ticker, empty: true, fetchedAt: Date.now() }; return; }
+        let notional = 0, weighted = 0, buyN = 0, sellN = 0, lo = Infinity, hi = -Infinity;
+        for (const p of ah) {
+            const n = p.price * p.size;
+            notional += n; weighted += p.price * n;
+            if (p.buy) buyN += n; else sellN += n;
+            if (p.price < lo) lo = p.price;
+            if (p.price > hi) hi = p.price;
+        }
+        GRX.ahCluster = {
+            ticker: ticker, date: lastDate, vwap: weighted / notional, lo: lo, hi: hi,
+            prints: ah.length, netBias: buyN >= sellN ? 'net buys' : 'net sells',
+            fetchedAt: Date.now(),
+        };
+        // Ladder already drew without the marker — repaint with it.
+        try { if (gexSub.levels && gexSub.ticker === ticker) renderGexLadder(gexSub.levels, grxSpot()); } catch (e) {}
+    } catch (e) {
+        console.warn('[GRX] AH dark-pool cluster load failed (non-blocking):', e.message);
+    } finally {
+        grxAhLoading = false;
+    }
 }
 
 grxStartTimer();
