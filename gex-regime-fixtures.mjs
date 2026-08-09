@@ -46,6 +46,11 @@ extra.push(['regime log uses its own storage key (nx_gammaRegime_log), TRADES ke
     !/nx_gammaRegime_log[\s\S]{0,120}apex_journal_trades|apex_journal_trades[\s\S]{0,120}nx_gammaRegime_log/.test(src)]);
 extra.push(['slRunGate parity surface untouched (overlay pattern in use)',
     src.includes('grxApplyToGate(slRunGate(') && !/function slRunGate[\s\S]{0,8000}?grx/i.test(src.slice(src.indexOf('function slRunGate'), src.indexOf('function slRunGate') + 8200))]);
+// v1.1
+extra.push(['weekend guard on the hypothesis-of-record stamp (no permanent-pending scorecard rows)',
+    /now\.wd !== 'Sat' && now\.wd !== 'Sun' &&\s*\n\s*\(!GRX\.preOpen/.test(src) && src.includes('grxIsWeekendDate')]);
+extra.push(['AH dark-pool cluster wired to the ladder (marker + async loader)',
+    src.includes('grxLoadAhPrints') && src.includes("label: 'AH DP'")]);
 
 for (const [name, pass] of extra) console.log((pass ? '  ✓ ' : '  ✗ ') + name);
 
