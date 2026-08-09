@@ -1048,6 +1048,7 @@
         </div>
         <div id="gexLadder" style="position:relative;height:64px;margin:0 0.5rem 0.75rem"></div>
         <div id="gexRegimeBar" style="display:none;padding:0.6rem 0.9rem;background:var(--surface-2);border-radius:0.35rem;border-left:3px solid var(--text-faint);font-size:0.8rem;font-weight:600"></div>
+        <div id="gexRegimeScorecard" style="display:none;margin-top:0.6rem"></div>
 
         <!-- Greeks suite sub-views (UW greek-exposure / spot-exposures / greek-flow) -->
         <div style="display:flex;gap:0.4rem;align-items:center;flex-wrap:wrap;margin-top:1rem;padding-top:0.9rem;border-top:1px solid var(--border)">
@@ -3047,6 +3048,12 @@ function addTradeEntry() {
         pnl, pnlPct: pct, win,
         setup, setupNotes, exitReason,
     };
+    // Gamma day-type tag — lets the monthly analytics split P&L by regime
+    // alignment instead of re-deriving the day-type from charts. Additive
+    // field on the SAME trade object; the storage key and every existing
+    // field are untouched (normalizeTrade spreads unknowns through).
+    const grxTag = typeof grxActiveRegimeTag === 'function' ? grxActiveRegimeTag() : null;
+    if (grxTag) trade.regime = grxTag;
 
     const trades = getTradeEntries();
     trades.unshift(trade);
@@ -4341,21 +4348,16 @@ function renderGexLevels(gex, spot) {
 
     renderGexLadder(gex, spot);
 
-    // Regime read: spot vs gamma flip
-    const regimeBar = document.getElementById('gexRegimeBar');
-    if (gex.gammaFlip != null && spot) {
-        const positive = spot >= gex.gammaFlip;
-        regimeBar.style.display = 'block';
-        regimeBar.style.borderLeftColor = positive ? 'var(--bull)' : 'var(--bear)';
-        regimeBar.innerHTML = positive
-            ? `<span style="color:var(--bull)">▲ POSITIVE GAMMA</span> <span style="color:var(--text-muted);font-weight:400">— spot above flip (${fmtGexPrice(gex.gammaFlip)}). Dealer hedging dampens moves: dips bought, rips sold. Mean-reversion tape; magnet ${fmtGexPrice(gex.gammaMagnet)} is the pin.</span>`
-            : `<span style="color:var(--bear)">▼ NEGATIVE GAMMA</span> <span style="color:var(--text-muted);font-weight:400">— spot below flip (${fmtGexPrice(gex.gammaFlip)}). Dealer hedging amplifies moves: expect vol expansion and trend extension. Put wall ${fmtGexPrice(gex.putWall)} is first support.</span>`;
-    } else {
-        regimeBar.style.display = 'none';
-    }
-
     // Greeks suite sub-views (strike profile / history / spot GEX / greek flow)
     gexInitSub(gex, spot);
+
+    // Regime read — LOCAL-GEX day-type classifier (module below). The old
+    // spot-vs-flip banner is gone on purpose: on the 08/08 board it printed
+    // "NEGATIVE GAMMA / trend extension" against the largest positive dealer
+    // cluster on the board bracketing spot. The cumulative flip is a context
+    // stat now; it never drives the banner again. Runs AFTER gexInitSub so
+    // gexSub.ticker/levels/spot are current.
+    grxClassifyNow('levels');
 }
 
 function renderGexLadder(gex, spot) {
@@ -4401,6 +4403,650 @@ function renderGexLadder(gex, spot) {
         html += `<div style="position:absolute;left:${px}%;top:${labelTop}px;transform:translateX(-50%);font-size:0.62rem;font-family:var(--font-mono);color:${m.color};white-space:nowrap;font-weight:${m.spot ? 700 : 600}">${m.label} ${fmtGexPrice(m.v)}</div>`;
     }
     el.innerHTML = html;
+}
+
+// ============ GAMMA REGIME CLASSIFIER — PIN vs TREND day-type gate (v1.0) ============
+//
+// WHY THIS EXISTS: the old regime bar keyed on spot vs the CUMULATIVE gamma
+// flip alone. The flip is a cumulative zero-crossing dragged around by far-OTM
+// put OI 5-10% below spot; it says nothing about the gamma dealers actually
+// hedge AT spot. 08/08 board (08/10 chain): walls 770/775 bracketing spot
+// 773.38, magnet 775, the largest POSITIVE dealer cluster on the board at
+// 770-780 — and the banner printed "NEGATIVE GAMMA / trend extension" because
+// spot sat below a flip parked at 784.02. The regime that governs the day's
+// tape is LOCAL GEX. A wrong banner is worse than no banner: 08/07 P&L split
+// +$1,182 aligned with the day-type vs −$919 against it.
+//
+// DATA SOURCE (decided with Naj 2026-08-09): PRIMARY is the same per-strike
+// net dealer GEX the Strike Profile bars draw (/api/greeks/{t}/spot-strike
+// live, else /strike daily) — classifier and chart can never disagree.
+// FALLBACK is Black-Scholes gamma computed from the loaded options chain
+// (the chain carries no gamma field), used only when the greeks endpoint
+// has nothing. Walls/magnet/flip are REUSED from /api/gex, never recomputed.
+//
+// LIFECYCLE (OI-derived GEX is stale by construction — 0DTE morning volume
+// rewrites the picture): pre-open classify on board load → 09:35 ATM-straddle
+// capture → 11:00 ET re-confirm from the realized tape → live invalidation
+// the moment spot exits the wall bracket. A pre-open PIN is a HYPOTHESIS,
+// never presented as valid after a wall break.
+//
+// Advisory + gate input only. Nothing here executes; it informs the banner,
+// the SPY Logic gate overlay (grxApplyToGate — DOWNWARD ONLY, same doctrine
+// as slApplyPlan), the journal regime tag, and the self-scoring log.
+// Spec: apex-gex-regime-classifier (v1.0). NX.gammaRegime in the spec maps to
+// grx* here — APEX has no NX namespace and the sl/gex prefixes are the local law.
+
+// ── GRX-PURE-BEGIN — pure logic only, no DOM/network/globals. ─────────────
+//    gex-regime-fixtures.mjs extracts everything between these two marker
+//    lines and runs the §2.3 fixtures under node. Keep it self-contained.
+
+const GRX_CONFIG = {
+    localBandPct:    0.01,    // localGEX = Σ netGEX(k) for |k − S| ≤ 1% · S
+    pinFrac:         0.25,    // rule 1: localGEX ≥ +25% of boardMax (and inside walls) → PIN
+    trendFrac:       0.10,    // rule 2: localGEX ≤ −10% of boardMax → TREND
+    confirmPinMax:   0.5,     // 11:00 realized/implied < 0.5, still inside walls → PIN CONFIRMED
+    confirmTrendMin: 0.9,     // 11:00 ratio > 0.9 (or spot outside walls) → flip to TREND
+    r:               0.05,    // risk-free rate for the BS fallback path
+    tFloorYears:     2 / (24 * 365),   // ~2h floor — expiry-day gamma must not blow up
+    logKey:          'nx_gammaRegime_log',   // own key; TRADES storage untouched
+};
+// pinFrac/trendFrac are v1 constants. Revisit after ~20 scored sessions in the
+// scorecard — that confusion matrix is what earns (or revokes) these numbers.
+
+function grxNormPdf(x) { return Math.exp(-0.5 * x * x) / Math.sqrt(2 * Math.PI); }
+
+// BS gamma from iv/spot/strike/T. FALLBACK path only — the verified chain
+// fields are strike/bid/ask/delta/iv/oi with NO gamma. IV arrives in percent
+// from this app's chain rows (7.2 = 7.2%); legacy decimal is normalized too.
+function grxBsGamma(S, K, ivRaw, Tyears, r) {
+    const iv = Number(ivRaw) > 3 ? Number(ivRaw) / 100 : Number(ivRaw);
+    const T = Math.max(Number(Tyears) || 0, GRX_CONFIG.tFloorYears);
+    if (!(S > 0) || !(K > 0) || !(iv > 0)) return 0;
+    const sq = iv * Math.sqrt(T);
+    const d1 = (Math.log(S / K) + ((r == null ? GRX_CONFIG.r : r) + iv * iv / 2) * T) / sq;
+    return grxNormPdf(d1) / (S * sq);
+}
+
+// Chain → per-strike net dealer GEX rows. Handles BOTH verified response
+// shapes — {options:{calls,puts}} and {calls,puts} — plus this app's cached
+// {chain:{calls,puts}}. GEX(k) = Γ · OI · 100 · S² · 0.01 ($ per 1% move),
+// dealer convention calls +, puts − (matches the Strike Profile bars: green
+// near spot pins, red fuels).
+function grxStrikesFromChain(chain, spot, expiryMs, nowMs) {
+    const calls = (chain && ((chain.options && chain.options.calls) || (chain.chain && chain.chain.calls) || chain.calls)) || [];
+    const puts  = (chain && ((chain.options && chain.options.puts)  || (chain.chain && chain.chain.puts)  || chain.puts))  || [];
+    const now = Number(nowMs) || 0;
+    const T = ((Number(expiryMs) || now) - now) / (365 * 86400000);   // grxBsGamma applies the floor
+    const by = new Map();
+    const add = (rows, sign) => {
+        for (const o of rows) {
+            const K = Number(o.strike);
+            const oi = Number(o.openInterest != null ? o.openInterest : o.oi) || 0;
+            const iv = o.impliedVolatility != null ? o.impliedVolatility : o.iv;
+            if (!(K > 0) || !(oi > 0) || !(Number(iv) > 0)) continue;
+            const gex = grxBsGamma(spot, K, iv, T) * oi * 100 * spot * spot * 0.01;
+            by.set(K, (by.get(K) || 0) + sign * gex);
+        }
+    };
+    add(calls, +1); add(puts, -1);
+    return Array.from(by.entries()).map(([strike, netGex]) => ({ strike, netGex }))
+        .sort((a, b) => a.strike - b.strike);
+}
+
+// THE CLASSIFIER. strikes: [{strike, netGex}] dealer-convention rows.
+// walls: {callWall, putWall, gammaMagnet, gammaFlip} — reused, never recomputed.
+// Rules in order, first match wins. The flip drives NOTHING here.
+function grxClassify(strikes, spot, walls) {
+    const w = walls || {};
+    const out = { regime: 'MIXED', rule: 0, localGEX: null, boardMax: null, localFrac: null,
+                  inBracket: null, spot: spot, walls: { callWall: Number(w.callWall), putWall: Number(w.putWall),
+                  gammaMagnet: w.gammaMagnet != null ? Number(w.gammaMagnet) : null,
+                  gammaFlip: w.gammaFlip != null ? Number(w.gammaFlip) : null } };
+    if (!(spot > 0) || !Array.isArray(strikes) || strikes.length === 0) return out;   // no data, no claim
+    const band = GRX_CONFIG.localBandPct * spot;
+    let local = 0, boardMax = 0;
+    for (const row of strikes) {
+        const v = Number(row.netGex);
+        if (!isFinite(v)) continue;
+        const a = Math.abs(v);
+        if (a > boardMax) boardMax = a;
+        if (Math.abs(Number(row.strike) - spot) <= band) local += v;
+    }
+    out.localGEX = local;
+    out.boardMax = boardMax;
+    if (!(boardMax > 0)) return out;                                  // rule 4 by vacancy
+    out.localFrac = local / boardMax;
+    const cw = out.walls.callWall, pw = out.walls.putWall;
+    const hasBracket = isFinite(cw) && isFinite(pw);
+    out.inBracket = hasBracket ? (spot >= pw && spot <= cw) : null;
+    if (local >= GRX_CONFIG.pinFrac * boardMax && out.inBracket === true) {
+        out.regime = 'PIN'; out.rule = 1; return out;                 // dealers long gamma AT SPOT
+    }
+    if (local <= -GRX_CONFIG.trendFrac * boardMax) {
+        out.regime = 'TREND'; out.rule = 2; return out;               // dealers short gamma at spot
+    }
+    if (hasBracket && (spot > cw || spot < pw)) {
+        out.regime = 'BREAK'; out.rule = 3; return out;               // outside the bracket — hedging thins
+    }
+    out.regime = 'MIXED'; out.rule = 4;
+    return out;
+}
+
+// §2.3 regression fixtures. Runs identically in-browser (?grxtest=1) and under
+// node via gex-regime-fixtures.mjs. Fixture 1 is the board that motivated the
+// build; it also proves the OLD flip-only logic produced the wrong label.
+function grxSelfTest() {
+    const results = [];
+    const t = (name, pass, detail) => results.push({ name: name, pass: !!pass, detail: detail || '' });
+
+    // Fixture 1 — 08/08 board, 08/10 chain: spot 773.38, walls 770/775,
+    // magnet 775, flip 784.02, dominant POSITIVE cluster 770-780 (peak ≈$654K
+    // at 774-775), far-OTM put drag below. MUST classify PIN by rule 1.
+    const spot1 = 773.38;
+    const walls1 = { callWall: 775, putWall: 770, gammaMagnet: 775, gammaFlip: 784.02 };
+    const s1 = [];
+    for (let k = 740; k <= 765; k += 5) s1.push({ strike: k, netGex: -180e3 });
+    for (let k = 770; k <= 780; k++) s1.push({ strike: k, netGex: k === 774 ? 654e3 : k === 775 ? 640e3 : 320e3 });
+    for (let k = 785; k <= 800; k += 5) s1.push({ strike: k, netGex: 60e3 });
+    const f1 = grxClassify(s1, spot1, walls1);
+    t('fixture 1: 08/08 board → PIN (rule 1)', f1.regime === 'PIN' && f1.rule === 1,
+      'got ' + f1.regime + ' rule ' + f1.rule + ', localFrac ' + (f1.localFrac == null ? 'null' : f1.localFrac.toFixed(2)));
+    const oldFlipLogic = spot1 >= walls1.gammaFlip ? 'POSITIVE_GAMMA' : 'NEGATIVE_GAMMA';
+    t('fixture 1: old flip-only logic demonstrably wrong on this board',
+      oldFlipLogic === 'NEGATIVE_GAMMA' && f1.regime === 'PIN',
+      'flip-only said ' + oldFlipLogic + ' while local read is ' + f1.regime);
+
+    // Fixture 2 — synthetic negative local GEX at spot → TREND (rule 2).
+    const s2 = [];
+    for (let k = 770; k <= 780; k++) s2.push({ strike: k, netGex: k === 774 ? -654e3 : -300e3 });
+    for (let k = 790; k <= 810; k += 5) s2.push({ strike: k, netGex: 120e3 });
+    const f2 = grxClassify(s2, spot1, walls1);
+    t('fixture 2: negative local GEX → TREND (rule 2)', f2.regime === 'TREND' && f2.rule === 2,
+      'got ' + f2.regime + ' rule ' + f2.rule);
+
+    // Fixture 3 — same positive board but spot ABOVE the call wall → BREAK
+    // (rule 1 requires the bracket; rule 3 catches the exit).
+    const f3 = grxClassify(s1, 777.5, walls1);
+    t('fixture 3: spot outside walls → BREAK (rule 3)', f3.regime === 'BREAK' && f3.rule === 3,
+      'got ' + f3.regime + ' rule ' + f3.rule);
+
+    // Fixture 4 — nothing dominant near spot, inside walls → MIXED (rule 4).
+    const s4 = [{ strike: 700, netGex: 654e3 }];
+    for (let k = 770; k <= 780; k++) s4.push({ strike: k, netGex: 3e3 });
+    const f4 = grxClassify(s4, spot1, walls1);
+    t('fixture 4: no dominant local gamma → MIXED (rule 4)', f4.regime === 'MIXED' && f4.rule === 4,
+      'got ' + f4.regime + ' rule ' + f4.rule);
+
+    // Chain-shape guard — {options:{calls,puts}} and {calls,puts} must agree.
+    const rowsA = { options: { calls: [{ strike: 100, oi: 500, iv: 20 }], puts: [{ strike: 100, oi: 400, iv: 20 }] } };
+    const rowsB = { calls: [{ strike: 100, openInterest: 500, impliedVolatility: 20 }], puts: [{ strike: 100, openInterest: 400, impliedVolatility: 20 }] };
+    const now = 1770000000000, exp = now + 86400000;
+    const a = grxStrikesFromChain(rowsA, 100, exp, now);
+    const b = grxStrikesFromChain(rowsB, 100, exp, now);
+    t('chain-shape guard: both shapes parse to the same net GEX',
+      a.length === 1 && b.length === 1 && Math.abs(a[0].netGex - b[0].netGex) < 1e-6 && a[0].netGex > 0,
+      'A=' + (a[0] && a[0].netGex) + ' B=' + (b[0] && b[0].netGex));
+
+    // Expiry-day guard: T = 0 must hit the ~2h floor, not blow up.
+    const g0 = grxBsGamma(100, 100, 20, 0);
+    t('expiry-day T floor: gamma finite and positive at T=0', isFinite(g0) && g0 > 0, 'gamma=' + g0);
+
+    return { pass: results.every(r => r.pass), results: results };
+}
+// ── GRX-PURE-END ───────────────────────────────────────────────────────────
+
+// ── App-side state + lifecycle ──────────────────────────────────────────────
+
+let GRX = {
+    ticker: null,            // ticker the current read belongs to (lifecycle is SPY-only)
+    read: null,              // last grxClassify output
+    source: null,            // 'live spot GEX' | 'daily OI GEX' | 'chain BS fallback'
+    asOf: null,
+    preOpen: null,           // { date, regime, at, preOpen } — hypothesis of record
+    straddle: null,          // { date, value, spot, strike, at, late }
+    confirm: null,           // { date, regime, ratio, range, rangeSrc, at, why }
+    confirmPending: false,
+    breakInvalidated: false, // PIN → BREAK live invalidation fired
+    brokenWalls: null,       // wall pair that broke — a NEW bracket clears the flag
+    trackHi: null, trackLo: null, trackDate: null,   // observed-spot range fallback
+    scorecardOpen: false,
+};
+
+function grxEtNow(d) {
+    const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const p = Object.fromEntries(fmt.formatToParts(d || new Date()).map(x => [x.type, x.value]));
+    return { date: p.year + '-' + p.month + '-' + p.day, mins: (+p.hour % 24) * 60 + +p.minute, wd: p.weekday };
+}
+
+// Spot for classification/invalidation: freshest SPY price wins, else the
+// chain-load spot the panel is already anchored to.
+function grxSpot() {
+    try {
+        if (gexSub.ticker === 'SPY' && typeof SL_STATE !== 'undefined' && SL_STATE.live) {
+            const p = Number(SL_STATE.live.price);
+            if (isFinite(p) && p > 0 && SL_STATE.liveAt && Date.now() - SL_STATE.liveAt < 300000) return p;
+        }
+    } catch (e) { /* SL panel not booted — chain spot below */ }
+    const s = Number(gexSub.spot);
+    return isFinite(s) && s > 0 ? s : null;
+}
+
+// Per-strike rows, primary path: exactly what the Strike Profile bars draw.
+function grxStrikeRows() {
+    const live = gexSub.data.spotStrike;
+    if (live && Array.isArray(live.strikes) && live.strikes.length) {
+        return { rows: live.strikes.map(s => ({ strike: s.strike, netGex: s.netGammaOi })),
+                 source: 'live spot GEX', asOf: (live.summary && live.summary.latestTime) || null };
+    }
+    const daily = gexSub.data.strike;
+    if (daily && Array.isArray(daily.strikes) && daily.strikes.length) {
+        return { rows: daily.strikes, source: 'daily OI GEX', asOf: daily.date || null };
+    }
+    return null;
+}
+
+let grxClassifying = false;
+async function grxClassifyNow(trigger) {
+    if (grxClassifying) return;
+    grxClassifying = true;
+    try {
+        const gex = gexSub.levels;
+        const spot = grxSpot();
+        if (!gex || !(spot > 0)) { grxRenderBanner(); return; }
+        let src = grxStrikeRows();
+        if (!src && gexSub.ticker) {
+            // Strike profile tab not visited yet — fetch the daily profile once.
+            try {
+                const resp = await fetch(`${NEXUS_API}/api/greeks/${gexSub.ticker}/strike`, { headers: { 'Accept': 'application/json' } });
+                if (resp.ok) {
+                    const d = await resp.json();
+                    if (d && Array.isArray(d.strikes) && d.strikes.length) {
+                        if (!gexSub.data.strike) gexSub.data.strike = d;   // panel reuses it — no double fetch
+                        src = { rows: d.strikes, source: 'daily OI GEX', asOf: d.date || null };
+                    }
+                }
+            } catch (e) { /* chain fallback below */ }
+        }
+        if (!src && optionsDataCache && (optionsDataCache.chain || optionsDataCache.calls)) {
+            const expiry = optionsDataCache.nearestExpiry || optionsDataCache.expiry;
+            const expMs = expiry ? Date.parse(expiry + 'T16:00:00-05:00') : Date.now();
+            const rows = grxStrikesFromChain(optionsDataCache, spot, expMs, Date.now());
+            if (rows.length) src = { rows: rows, source: 'chain BS fallback', asOf: null };
+        }
+        if (!src) { GRX.read = null; GRX.source = null; GRX.asOf = null; grxRenderBanner(); return; }
+
+        const read = grxClassify(src.rows, spot, gex);
+        // A NEW bracket (different wall pair) retires a previous wall-break.
+        if (GRX.breakInvalidated && GRX.brokenWalls &&
+            (read.walls.putWall !== GRX.brokenWalls.putWall || read.walls.callWall !== GRX.brokenWalls.callWall)) {
+            GRX.breakInvalidated = false; GRX.brokenWalls = null;
+        }
+        GRX.ticker = gexSub.ticker;
+        GRX.read = read;
+        GRX.source = src.source;
+        GRX.asOf = src.asOf;
+
+        // First classification of the (ET) day for SPY is the hypothesis of record.
+        const now = grxEtNow();
+        if (GRX.ticker === 'SPY' && (!GRX.preOpen || GRX.preOpen.date !== now.date)) {
+            GRX.preOpen = { date: now.date, regime: read.regime, at: new Date().toISOString(), preOpen: now.mins < 570 };
+            GRX.confirm = null; GRX.breakInvalidated = false; GRX.brokenWalls = null;
+            grxLogUpsert({ date: now.date, preOpenRegime: read.regime, preOpenAt: GRX.preOpen.at,
+                           preOpenTrue: GRX.preOpen.preOpen, source: src.source });
+        }
+        grxStartTimer();
+        grxRenderBanner();
+        grxSyncSpyPanel();
+    } finally {
+        grxClassifying = false;
+    }
+}
+
+// Effective regime for the gate/journal: manual override > live wall-break >
+// 11:00 confirmation > pre-open read. SPY only — day-type is a tape claim.
+function grxEffectiveRegime() {
+    try { if (typeof SL_STATE !== 'undefined' && SL_STATE.gammaOverride) return SL_STATE.gammaOverride; } catch (e) {}
+    if (GRX.ticker !== 'SPY' || !GRX.read) return null;
+    if (GRX.breakInvalidated) return 'BREAK';
+    const today = grxEtNow().date;
+    if (GRX.confirm && GRX.confirm.date === today) return GRX.confirm.regime;
+    return GRX.read.regime;
+}
+
+// ── Module B: 09:35 straddle capture · 11:00 re-confirm · live invalidation ──
+
+let GRX_TIMER = null;
+function grxStartTimer() {
+    if (!GRX_TIMER) GRX_TIMER = setInterval(grxTick, 60000);
+}
+
+async function grxTick() {
+    if (GRX.ticker !== 'SPY' || !GRX.read) return;
+    const now = grxEtNow();
+    if (now.wd === 'Sat' || now.wd === 'Sun') return;
+    const spot = grxSpot();
+    if (!(spot > 0)) return;
+    if (now.mins >= 570 && now.mins < 960) {
+        if (GRX.trackDate !== now.date) { GRX.trackDate = now.date; GRX.trackHi = spot; GRX.trackLo = spot; }
+        if (spot > GRX.trackHi) GRX.trackHi = spot;
+        if (spot < GRX.trackLo) GRX.trackLo = spot;
+    }
+    if (now.mins >= 575 && now.mins < 660 && (!GRX.straddle || GRX.straddle.date !== now.date)) grxCaptureStraddle(now, spot);
+    if (now.mins >= 660 && GRX.preOpen && GRX.preOpen.date === now.date &&
+        (!GRX.confirm || GRX.confirm.date !== now.date) && !GRX.confirmPending) await grxConfirm(now, spot);
+    grxCheckWallBreak(spot);
+}
+
+// Opening ATM straddle ≈ the market's implied move for the session. Captured
+// from the loaded SPY chain at/after 09:35; if the chain was loaded pre-open
+// the quote is what it is — `late` records an off-schedule capture honestly.
+function grxCaptureStraddle(now, spot) {
+    try {
+        const d = optionsDataCache;
+        if (!d) return;
+        const calls = (d.chain && d.chain.calls) || d.calls || [];
+        const puts = (d.chain && d.chain.puts) || d.puts || [];
+        if (!calls.length || !puts.length) return;
+        const tickEl = document.getElementById('optionsTickerInput');
+        if (tickEl && tickEl.value.trim().toUpperCase() !== 'SPY') return;
+        const mid = o => {
+            const b = Number(o.bid), a = Number(o.ask);
+            if (b > 0 && a > 0) return (b + a) / 2;
+            const lp = Number(o.lastPrice != null ? o.lastPrice : o.last);
+            return isFinite(lp) && lp > 0 ? lp : null;
+        };
+        const atm = rows => rows.reduce((best, o) => Math.abs(o.strike - spot) < Math.abs(best.strike - spot) ? o : best);
+        const c = atm(calls), p = atm(puts);
+        const cm = mid(c), pm = mid(p);
+        if (cm == null || pm == null || !(cm + pm > 0)) return;
+        GRX.straddle = { date: now.date, value: Math.round((cm + pm) * 100) / 100, spot: spot,
+                         strike: c.strike, at: new Date().toISOString(), late: now.mins > 585 };
+        grxLogUpsert({ date: now.date, straddle: GRX.straddle.value, straddleStrike: c.strike, straddleLate: GRX.straddle.late });
+        grxRenderBanner();
+    } catch (e) { console.warn('[GRX] straddle capture failed:', e.message); }
+}
+
+// 11:00 ET — the tape votes exactly once. Session range primary source is the
+// per-minute price series in /api/greeks/SPY/spot (covers the whole session
+// even if this page opened late); observed spots are the honest fallback.
+async function grxConfirm(now, spot) {
+    GRX.confirmPending = true;
+    try {
+        let range = null, rangeSrc = null;
+        try {
+            const resp = await fetch(`${NEXUS_API}/api/greeks/SPY/spot`, { headers: { 'Accept': 'application/json' } });
+            if (resp.ok) {
+                const d = await resp.json();
+                const px = ((d && d.bars) || []).map(b => Number(b.price)).filter(p => isFinite(p) && p > 0);
+                if (px.length >= 5) { range = Math.max.apply(null, px) - Math.min.apply(null, px); rangeSrc = 'greeks/spot 1-min bars'; }
+            }
+        } catch (e) { /* fallback below */ }
+        if (range == null && GRX.trackDate === now.date && GRX.trackHi > GRX.trackLo) {
+            range = GRX.trackHi - GRX.trackLo; rangeSrc = 'observed spots (page-open only — undercounts)';
+        }
+        const w = (GRX.read && GRX.read.walls) || {};
+        const inWalls = isFinite(w.putWall) && isFinite(w.callWall) ? (spot >= w.putWall && spot <= w.callWall) : null;
+        const straddle = GRX.straddle && GRX.straddle.date === now.date ? GRX.straddle.value : null;
+        const ratio = range != null && straddle > 0 ? range / straddle : null;
+        let regime = GRX.preOpen.regime, why;
+        if (ratio != null && ratio < GRX_CONFIG.confirmPinMax && inWalls === true) {
+            regime = 'PIN';
+            why = 'realized ' + ratio.toFixed(2) + '× implied by 11:00, inside walls — PIN CONFIRMED';
+        } else if ((ratio != null && ratio > GRX_CONFIG.confirmTrendMin) || inWalls === false) {
+            regime = 'TREND';
+            why = inWalls === false
+                ? 'spot outside the walls at 11:00 — flipped to TREND'
+                : 'realized ' + ratio.toFixed(2) + '× implied by 11:00 — flipped to TREND';
+        } else {
+            why = ratio == null
+                ? 'no implied-move capture — pre-open read stands UNCONFIRMED'
+                : 'ratio ' + ratio.toFixed(2) + ' inconclusive (0.5–0.9) — pre-open read stands';
+        }
+        GRX.confirm = { date: now.date, regime: regime, ratio: ratio != null ? Math.round(ratio * 100) / 100 : null,
+                        range: range != null ? Math.round(range * 100) / 100 : null, rangeSrc: rangeSrc,
+                        at: new Date().toISOString(), why: why };
+        grxLogUpsert({ date: now.date, confirmRegime: regime, ratio1100: GRX.confirm.ratio,
+                       range1100: GRX.confirm.range, rangeSrc: rangeSrc, confirmWhy: why });
+        grxRenderBanner();
+        grxSyncSpyPanel();
+    } finally {
+        GRX.confirmPending = false;
+    }
+}
+
+// Live invalidation: a PIN (or MIXED) read dies the moment spot leaves the
+// bracket. Fires once per wall pair; a NEW bracket on reload retires it.
+function grxCheckWallBreak(spot) {
+    const r = GRX.read;
+    if (!r || GRX.breakInvalidated) return;
+    const w = r.walls || {};
+    if (!isFinite(w.putWall) || !isFinite(w.callWall)) return;
+    if (spot > w.callWall || spot < w.putWall) {
+        const eff = grxEffectiveRegime();
+        if (eff === 'PIN' || eff === 'MIXED') {
+            GRX.breakInvalidated = true;
+            GRX.brokenWalls = { putWall: w.putWall, callWall: w.callWall };
+            grxLogUpsert({ date: grxEtNow().date, wallBreakAt: new Date().toISOString(), wallBreakSpot: spot });
+            grxRenderBanner();
+            grxSyncSpyPanel();
+        }
+    }
+}
+
+// ── Self-scoring log (localStorage, own key — never TRADES storage) ─────────
+
+function grxLog() {
+    try { return JSON.parse(localStorage.getItem(GRX_CONFIG.logKey)) || []; } catch (e) { return []; }
+}
+function grxLogUpsert(patch) {
+    try {
+        const rows = grxLog();
+        const i = rows.findIndex(r => r.date === patch.date);
+        if (i >= 0) rows[i] = Object.assign({}, rows[i], patch); else rows.push(patch);
+        rows.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+        localStorage.setItem(GRX_CONFIG.logKey, JSON.stringify(rows.slice(-120)));
+    } catch (e) { console.warn('[GRX] log write failed:', e.message); }
+    grxRenderScorecard();
+}
+
+// ── Banner + scorecard renderers ─────────────────────────────────────────────
+
+const GRX_BANNERS = {
+    PIN:   { icon: '◎', color: 'var(--bull)', title: 'PIN — DEALERS LONG GAMMA AT SPOT',
+             text: w => 'Expect compression + mean reversion between the walls. Fade edges toward the magnet ' + fmtGexPrice(w.gammaMagnet) + '. Last-hour drift toward heavy call strikes when above the magnet.' },
+    TREND: { icon: '⇉', color: 'var(--bear)', title: 'TREND — DEALERS SHORT GAMMA AT SPOT',
+             text: () => 'Moves extend — do NOT fade. With-trend only, runner mandatory.' },
+    BREAK: { icon: '⚠', color: 'var(--warn)', title: 'BREAK — SPOT OUTSIDE THE WALL BRACKET',
+             text: () => 'Hedging support thins out here. Treat as TREND until a new bracket forms.' },
+    MIXED: { icon: '◇', color: 'var(--text-muted)', title: 'MIXED — NO DOMINANT LOCAL GAMMA',
+             text: () => 'Default to the structural playbook; half size.' },
+};
+
+function grxRenderBanner() {
+    const bar = document.getElementById('gexRegimeBar');
+    if (!bar) return;
+    const gex = gexSub.levels;
+    if (!gex) { bar.style.display = 'none'; return; }
+    bar.style.display = 'block';
+
+    const read = GRX.ticker === gexSub.ticker ? GRX.read : null;
+    const chip = (txt, color) =>
+        '<span style="font-size:0.62rem;font-weight:600;padding:1px 8px;border-radius:999px;border:1px solid ' + (color || 'var(--border-strong)') + ';color:' + (color || 'var(--text-muted)') + ';margin-right:0.4rem;white-space:nowrap">' + txt + '</span>';
+    const flipCtx = gex.gammaFlip != null && grxSpot()
+        ? 'cumulative flip ' + fmtGexPrice(gex.gammaFlip) + ' (' + (((gex.gammaFlip - grxSpot()) / grxSpot()) * 100).toFixed(1) + '% away — context only, no longer sets the regime)'
+        : 'no cumulative flip on the board';
+
+    if (!read || !(read.boardMax > 0)) {
+        bar.style.borderLeftColor = 'var(--text-faint)';
+        bar.innerHTML = '<span style="color:var(--text-muted)">◇ DAY-TYPE UNCLASSIFIED</span> ' +
+            '<span style="color:var(--text-muted);font-weight:400">— no per-strike GEX available yet (strike profile, then chain fallback). ' + flipCtx + '.</span>';
+        return;
+    }
+
+    const isSpy = gexSub.ticker === 'SPY';
+    const effR = isSpy ? (grxEffectiveRegime() || read.regime) : read.regime;
+    const B = GRX_BANNERS[effR] || GRX_BANNERS.MIXED;
+    const pctOf = read.localFrac != null ? Math.round(read.localFrac * 100) : null;
+    let manual = false;
+    try { manual = isSpy && typeof SL_STATE !== 'undefined' && !!SL_STATE.gammaOverride; } catch (e) {}
+
+    let chips = '';
+    if (isSpy) {
+        const today = grxEtNow().date;
+        if (manual) chips += chip('MANUAL OVERRIDE — classifier says ' + ((GRX.confirm && GRX.confirm.date === today && GRX.confirm.regime) || read.regime), 'var(--warn)');
+        if (GRX.preOpen && GRX.preOpen.date === today) chips += chip('pre-open: ' + GRX.preOpen.regime);
+        if (GRX.straddle && GRX.straddle.date === today) chips += chip('implied move (09:35 straddle): ' + GRX.straddle.value.toFixed(2) + (GRX.straddle.late ? ' · late capture' : ''));
+        if (GRX.confirm && GRX.confirm.date === today) chips += chip('11:00: ' + GRX.confirm.regime + (GRX.confirm.ratio != null ? ' · ' + GRX.confirm.ratio + '× implied' : ''), GRX.confirm.regime === 'TREND' ? 'var(--bear)' : 'var(--bull)');
+        else chips += chip('11:00 re-confirm pending — OI-derived read is a HYPOTHESIS until the tape votes');
+        if (GRX.breakInvalidated) chips += chip('WALL BREAK — pre-open read invalidated live', 'var(--bear)');
+        const n = grxLog().length;
+        chips += '<a onclick="grxToggleScorecard()" style="font-size:0.62rem;color:var(--accent);cursor:pointer;text-decoration:underline">scorecard (' + n + ')</a>';
+    }
+
+    bar.style.borderLeftColor = B.color;
+    bar.innerHTML =
+        '<span style="color:' + B.color + '">' + B.icon + ' ' + B.title + '</span> ' +
+        '<span style="color:var(--text-muted);font-weight:400">— ' + B.text(read.walls) + '</span>' +
+        '<div style="font-weight:400;font-size:0.68rem;color:var(--text-faint);margin-top:0.4rem">' +
+            'local GEX Σ(±1%) ' + gexFmtB(read.localGEX) +
+            (pctOf != null ? ' = ' + pctOf + '% of board max ' + gexFmtB(read.boardMax) : '') +
+            ' · ' + (GRX.source || '') + (GRX.asOf ? ' · as of ' + GRX.asOf : '') +
+            ' · ' + flipCtx +
+        '</div>' +
+        (chips ? '<div style="margin-top:0.4rem;display:flex;align-items:center;flex-wrap:wrap;gap:0.25rem 0">' + chips + '</div>' : '');
+}
+
+function grxToggleScorecard() {
+    GRX.scorecardOpen = !GRX.scorecardOpen;
+    grxRenderScorecard();
+}
+
+// The confusion matrix that earns (or revokes) the classifier's authority.
+// ~20 scored sessions is the review threshold for the §2.2 constants.
+function grxRenderScorecard() {
+    const el = document.getElementById('gexRegimeScorecard');
+    if (!el) return;
+    const rows = grxLog();
+    if (!GRX.scorecardOpen || !rows.length) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    const scored = rows.filter(r => r.preOpenRegime && r.confirmRegime);
+    const hits = scored.filter(r => r.preOpenRegime === r.confirmRegime).length;
+    const td = 'padding:4px 8px;border-bottom:1px solid var(--border);font-size:0.7rem;font-family:var(--font-mono)';
+    const th = 'padding:4px 8px;border-bottom:2px solid var(--accent);color:var(--accent);font-size:0.62rem;text-transform:uppercase;text-align:left';
+    el.innerHTML =
+        '<div style="font-size:0.66rem;color:var(--text-faint);margin-bottom:0.3rem">Classifier scorecard — ' +
+        scored.length + ' scored session' + (scored.length === 1 ? '' : 's') + ', ' + hits + ' hit' + (hits === 1 ? '' : 's') +
+        (scored.length ? ' (' + Math.round(hits / scored.length * 100) + '%)' : '') +
+        ' · review the §2.2 thresholds at ~20 sessions</div>' +
+        '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr>' +
+        '<th style="' + th + '">Date</th><th style="' + th + '">Pre-open</th><th style="' + th + '">11:00</th>' +
+        '<th style="' + th + '">Range/Straddle</th><th style="' + th + '">Hit</th><th style="' + th + '">Notes</th>' +
+        '</tr></thead><tbody>' +
+        rows.slice().reverse().map(r => {
+            const hit = r.preOpenRegime && r.confirmRegime ? (r.preOpenRegime === r.confirmRegime ? '✓' : '✗') : '—';
+            const hitC = hit === '✓' ? 'var(--bull)' : hit === '✗' ? 'var(--bear)' : 'var(--text-faint)';
+            const notes = [r.wallBreakAt ? 'wall break' : null, r.override ? 'manual ' + r.override : null,
+                           r.straddleLate ? 'late straddle' : null].filter(Boolean).join(' · ');
+            return '<tr><td style="' + td + '">' + (r.date || '—') + '</td>' +
+                '<td style="' + td + '">' + (r.preOpenRegime || '—') + '</td>' +
+                '<td style="' + td + '">' + (r.confirmRegime || 'pending') + '</td>' +
+                '<td style="' + td + '">' + (r.ratio1100 != null ? r.ratio1100 + '×' : '—') +
+                (r.range1100 != null ? ' (' + r.range1100 + ' / ' + (r.straddle != null ? r.straddle : '?') + ')' : '') + '</td>' +
+                '<td style="' + td + ';color:' + hitC + ';font-weight:700">' + hit + '</td>' +
+                '<td style="' + td + ';color:var(--text-faint)">' + (notes || '') + '</td></tr>';
+        }).join('') +
+        '</tbody></table></div>';
+}
+
+// ── Module C glue: SPY Logic panel sync + gate overlay ──────────────────────
+
+function grxSyncSpyPanel() {
+    if (GRX.ticker !== 'SPY') return;
+    try { if (typeof slRenderInputs === 'function') slRenderInputs(); } catch (e) {}      // AUTO label tracks the classifier
+    try { if (typeof slRenderLocalRead === 'function') slRenderLocalRead(); } catch (e) {}
+}
+
+function grxSetOverride(v) {
+    try {
+        SL_STATE.gammaOverride = v === 'auto' ? null : v;
+        if (SL_STATE.gammaOverride) {
+            grxLogUpsert({ date: grxEtNow().date, override: SL_STATE.gammaOverride, overrideAt: new Date().toISOString() });
+        }
+    } catch (e) { console.warn('[GRX] override failed:', e.message); }
+    try { slRenderLocalRead(); } catch (e) {}
+    grxRenderBanner();
+}
+
+// Post-gate overlay. DOWNWARD ONLY — same doctrine as slApplyPlan: this can
+// worsen the gate and append reasons; it can never upgrade a verdict, grant a
+// runner, or add a target. It deliberately does NOT touch slRunGate, which is
+// the byte-parity surface shared with nexus and trading-hashira.
+function grxApplyToGate(r) {
+    const regime = grxEffectiveRegime();
+    if (!regime || !r) return r;
+    const rank = { 'GO': 0, 'CAUTION': 1, 'NO-GO': 2 };
+    const worsen = g => { if (rank[g] > rank[r.gate]) r.gate = g; };
+    let manual = false;
+    try { manual = typeof SL_STATE !== 'undefined' && !!SL_STATE.gammaOverride; } catch (e) {}
+    const w = (GRX.read && GRX.read.walls) || {};
+    const wallsKnown = isFinite(w.putWall) && isFinite(w.callWall);
+    let thesis = null;
+    try {
+        const sc = typeof SL_READS !== 'undefined' && r.scenario ? SL_READS.find(s => s.id === r.scenario.id) : null;
+        thesis = sc && sc.plan ? sc.plan.thesis : null;
+    } catch (e) {}
+    const dir = r.bias && r.bias.dir;
+
+    if (regime === 'PIN') {
+        if (wallsKnown) {
+            r.reasons.push('PIN REGIME — dealers long gamma at spot. Strike selection capped at the walls: no calls above ' +
+                w.callWall.toFixed(2) + ', no puts below ' + w.putWall.toFixed(2) + ' (lottery-strike block). Mean-reversion scalps sanctioned at the bracket edges; target = magnet ' +
+                (w.gammaMagnet != null ? w.gammaMagnet.toFixed(2) : '—') + '.');
+        } else {
+            r.reasons.push('PIN REGIME — dealers long gamma at spot: compression + mean reversion. Fade edges toward the magnet; ATM strikes only.');
+        }
+        if (dir !== 'NEUTRAL' && thesis === 'continuation') {
+            worsen('CAUTION');
+            r.reasons.push('PIN REGIME — continuation presses inside the bracket fade. Do not press breakouts or breakdowns between the walls.');
+        }
+    } else if (regime === 'TREND' || regime === 'BREAK') {
+        if (dir !== 'NEUTRAL' && thesis === 'terminus') {
+            worsen('NO-GO');
+            r.reasons.push(regime + ' REGIME — dealers short gamma at spot: moves EXTEND. Fade setups are NO-GO. With-trend only, runner mandatory on the trend leg.');
+        } else if (dir !== 'NEUTRAL') {
+            r.reasons.push(regime + ' REGIME — with-trend read sanctioned; runner mandatory on the trend leg (never granted here if the governor already revoked it).');
+        }
+        if (regime === 'BREAK') {
+            worsen('CAUTION');
+            r.reasons.push('BREAK REGIME — spot outside the wall bracket; dealer hedging support thins. Treat as TREND until a new bracket forms. Half size.');
+        }
+    } else if (regime === 'MIXED') {
+        r.reasons.push('MIXED REGIME — no dominant local gamma. Structural playbook decides; half size.');
+    }
+
+    r.gammaRegime = {
+        regime: regime,
+        source: manual ? 'MANUAL' : 'AUTO',
+        rule: GRX.read ? GRX.read.rule : null,
+        localFracPct: GRX.read && GRX.read.localFrac != null ? Math.round(GRX.read.localFrac * 100) : null,
+        walls: wallsKnown ? { putWall: w.putWall, callWall: w.callWall, magnet: w.gammaMagnet != null ? w.gammaMagnet : null } : null,
+        confirmed: !!(GRX.confirm && GRX.confirm.date === grxEtNow().date),
+        confirmWhy: GRX.confirm && GRX.confirm.date === grxEtNow().date ? GRX.confirm.why : null,
+        invalidated: GRX.breakInvalidated,
+    };
+    return r;
+}
+
+// Regime tag for the journal — what lets the monthly analytics split P&L by
+// alignment instead of inferring day-type from charts after the fact.
+function grxActiveRegimeTag() {
+    try { return grxEffectiveRegime(); } catch (e) { return null; }
+}
+
+grxStartTimer();
+if (/[?&]grxtest=1/.test(location.search)) {
+    const st = grxSelfTest();
+    console.log('[GRX] self-test ' + (st.pass ? 'PASS' : 'FAIL'), st.results);
 }
 
 // ============ GREEKS SUITE (UW greek-exposure / spot-exposures / greek-flow via /api/greeks) ============
@@ -4533,6 +5179,9 @@ async function gexFetch(view) {
         gexSub.data[view] = data;
         statusEl.textContent = '';
         requestAnimationFrame(() => gexRender(view));
+        // Fresher per-strike GEX just landed — the day-type classifier tracks it.
+        // (grxClassifyNow reads gexSub.data — it never refetches — so no loop.)
+        if (view === 'strike' || view === 'spotStrike') grxClassifyNow(view);
     } catch (err) {
         if (seq !== gexSub.seq) return;
         statusEl.textContent = `✗ ${err.message}`;
@@ -5326,9 +5975,22 @@ async function gatherIndexContext(ticker) {
                 putWall: gexData.putWall,
                 gammaMagnet: gexData.gammaMagnet,
                 gammaFlip: gexData.gammaFlip,
+                // flip-vs-spot read kept under its original key — the backend
+                // prompt builder may reference it by name, so this stays
+                // ADDITIVE — but it is cumulative context, not the day's regime
                 regime: (gexData.gammaFlip != null && gexSpot)
                     ? (gexSpot >= gexData.gammaFlip ? 'POSITIVE_GAMMA' : 'NEGATIVE_GAMMA')
                     : null,
+                regimeNote: 'cumulative flip-vs-spot only — dayType below is the local-GEX read that governs the tape',
+                // the day-type that actually governs the tape: LOCAL GEX at spot
+                dayType: (typeof GRX !== 'undefined' && GRX.read && GRX.ticker === ticker) ? {
+                    regime: ticker === 'SPY' ? (grxEffectiveRegime() || GRX.read.regime) : GRX.read.regime,
+                    rule: GRX.read.rule,
+                    localGexPctOfBoardMax: GRX.read.localFrac != null ? Math.round(GRX.read.localFrac * 100) : null,
+                    source: GRX.source,
+                    confirmed1100: !!(GRX.confirm && GRX.confirm.date === grxEtNow().date),
+                    flipIsContextOnly: true,
+                } : null,
             };
         }
 
@@ -5606,6 +6268,11 @@ document.getElementById('aiTickerInput').addEventListener('keydown', (e) => {
 
 const SL_STATE = {
     inputs: { opening: 'below', vwap: 'lost', internals: 'weak', retest: 'lowerhigh', ribbon: 'fannedup', ivp: 50, hviv: 'inline', window: 'auto' },
+    // Gamma day-type override (#spy-gamma). DELIBERATELY outside `inputs`:
+    // slRunGate(inputs) is the byte-parity surface vs nexus/hashira and the
+    // 108-combo harness enumerates `inputs` — the regime rides on top via
+    // grxApplyToGate, downward-only. null = AUTO (classifier decides).
+    gammaOverride: null,
     live: null,
     liveFetched: false,
     liveLoading: false,
@@ -6157,8 +6824,9 @@ function slMdToHtml(md) {
 // ── Structural context for the AI providers ────────────────
 function slStructureContext() {
     const S = slStructure();
-    const r = slRunGate(SL_STATE.inputs, S);
+    const r = grxApplyToGate(slRunGate(SL_STATE.inputs, S));   // providers see the regime-gated read
     return {
+        gamma_regime: r.gammaRegime || null,   // PIN/TREND/BREAK/MIXED day-type + walls; additive field
         verified: S.verified,
         missing: S.missing,
         tag: S.tag,
@@ -6370,6 +7038,19 @@ function slRenderInputs() {
         '<div style="font-size:0.62rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem">IV Percentile (0-100)</div>' +
         '<input type="number" min="0" max="100" value="' + slEsc(SL_STATE.inputs.ivp) + '" onchange="slSetInput(\'ivp\', this.value)" oninput="slSetInput(\'ivp\', this.value)" style="width:100%;padding:0.45rem 0.5rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.25rem;font-size:0.78rem;font-family:inherit;box-sizing:border-box">' +
     '</div>';
+    // Gamma day-type gate input (#spy-gamma). Rides beside IVP, outside
+    // SL_INPUTS_DEF — see the gammaOverride note on SL_STATE. AUTO shows the
+    // classifier's current call so a glance says what the override would undo.
+    const grxAuto = (typeof grxEffectiveRegime === 'function' && !SL_STATE.gammaOverride && grxEffectiveRegime()) || null;
+    const grxSel = SL_STATE.gammaOverride || 'auto';
+    const grxOpts = [['auto', 'AUTO — classifier' + (grxAuto ? ': ' + grxAuto : ' (load SPY chain)')],
+                     ['PIN', 'PIN — force pin playbook'], ['TREND', 'TREND — force trend playbook'], ['MIXED', 'MIXED — force half size']];
+    html += '<div>' +
+        '<div style="font-size:0.62rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem">Gamma Regime (Day Type)</div>' +
+        '<select id="spy-gamma" onchange="grxSetOverride(this.value)" style="width:100%;padding:0.45rem 0.5rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.25rem;font-size:0.78rem;font-family:inherit">' +
+        grxOpts.map(o => '<option value="' + o[0] + '"' + (grxSel === o[0] ? ' selected' : '') + '>' + slEsc(o[1]) + '</option>').join('') +
+        '</select>' +
+    '</div>';
     el.innerHTML = html;
 }
 
@@ -6381,7 +7062,9 @@ function slSetInput(key, value) {
 function slRenderLocalRead() {
     const el = document.getElementById('slGateOut');
     if (!el) return;
-    const r = slRunGate(SL_STATE.inputs);
+    // Gate first (untouched parity surface), then the gamma-regime overlay —
+    // downward only. See grxApplyToGate.
+    const r = grxApplyToGate(slRunGate(SL_STATE.inputs));
     const gateC = r.gate === 'GO' ? SL_COLORS.green : r.gate === 'CAUTION' ? SL_COLORS.amber : SL_COLORS.red;
     const dirC = r.bias.dir === 'LONG' ? SL_COLORS.green : r.bias.dir === 'SHORT' ? SL_COLORS.red : SL_COLORS.amber;
     const govC = SL_COLORS[r.governor.color] || SL_COLORS.amber;
@@ -6402,6 +7085,18 @@ function slRenderLocalRead() {
                 '<span id="slStopCalcOut" style="font-size:0.68rem"></span>' +
             '</div>' +
         '</div>';
+    const gr = r.gammaRegime;
+    const grC = gr ? ({ PIN: SL_COLORS.green, TREND: SL_COLORS.red, BREAK: SL_COLORS.red, MIXED: SL_COLORS.amber })[gr.regime] : null;
+    const grTip = gr ? ('rule ' + (gr.rule == null ? '—' : gr.rule) + (gr.localFracPct != null ? ' · local GEX ' + gr.localFracPct + '% of board max' : '') +
+                        (gr.confirmed ? ' · 11:00 ' + (gr.confirmWhy || 'confirmed') : ' · pre-open hypothesis, 11:00 pending') +
+                        (gr.invalidated ? ' · WALL BREAK invalidated the pin' : '')) : null;
+    const grWalls = gr && gr.walls
+        ? '<div style="font-size:0.68rem;color:var(--text-faint);margin-bottom:0.6rem">GEX key levels (auto from the Options board): ' +
+          'PUT WALL <span style="color:var(--bear)">' + gr.walls.putWall.toFixed(2) + '</span> · ' +
+          'MAGNET <span style="color:var(--accent)">' + (gr.walls.magnet != null ? gr.walls.magnet.toFixed(2) : '—') + '</span> · ' +
+          'CALL WALL <span style="color:var(--bull)">' + gr.walls.callWall.toFixed(2) + '</span>' +
+          (gr.confirmed ? ' · 11:00 confirmed' : ' · pre-open hypothesis') + '</div>'
+        : '';
     el.innerHTML =
         '<div style="display:flex;gap:0.6rem;flex-wrap:wrap;margin-bottom:0.7rem">' +
             badge('Gate', r.gate, gateC) +
@@ -6411,7 +7106,10 @@ function slRenderLocalRead() {
                   r.governor.note + ((r.stops.plan && r.stops.plan.degradedBy && r.stops.plan.degradedBy.length)
                       ? ' · plan degraded: ' + r.stops.plan.degradedBy.join(', ') : '')) +
             badge('Structure', r.structure, null) +
+            (gr ? badge('Gamma Regime', gr.regime + (gr.source === 'MANUAL' ? ' (manual)' : ''), grC, grTip)
+                : badge('Gamma Regime', 'UNCLASSIFIED', null, 'Load the SPY chain in Options — the day-type classifier reads the GEX board')) +
         '</div>' +
+        grWalls +
         '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem">' + r.bias.note + '</div>' +
         '<div style="background:var(--surface-2);border-left:3px solid ' + gateC.fg + ';border-radius:0.25rem;padding:0.6rem 0.8rem;margin-bottom:0.7rem">' +
             r.reasons.map(x => '<div style="font-size:0.74rem;color:var(--text);margin:0.2rem 0">· ' + x + '</div>').join('') +
