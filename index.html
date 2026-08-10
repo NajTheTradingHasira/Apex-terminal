@@ -6472,7 +6472,13 @@ function slPivot(p) {
         level:  level,
         kind:   typeof p.kind   === 'string' ? p.kind   : 'completed_week_low',
         asOf:   typeof p.asOf   === 'string' ? p.asOf   : null,
-        origin: typeof p.origin === 'string' ? p.origin : ''
+        origin: typeof p.origin === 'string' ? p.origin : '',
+        // Defaulted to the backend's own default (_validate_pivot, and the
+        // PivotModel Field), NOT to ''. An absent policy still means the level
+        // updates on completed weekly bars -- that IS the policy. Defaulting to
+        // empty would let a terminal render a pivot with no update rule next to
+        // a backend that says it has one.
+        policy: typeof p.policy === 'string' ? p.policy : 'completed_weekly_bar_only'
     };
 }
 
@@ -7033,7 +7039,22 @@ async function slFetchStructure() {
         SL_STRUCTURE = {
             asOf: d.asOf, reclaim: d.reclaim, support: d.support, flip: d.flip,
             staleDays: d.staleDays, vixFragile: d.vixFragile, source: d.source,
-            pivot: slPivot(d.pivot)
+            pivot: slPivot(d.pivot),
+            // Provenance -- the same failure as `degraded` below, one release
+            // later. The backend stopped dropping these at its response model
+            // and the client went on dropping them here, so the fix reached the
+            // wire and no further. Carried, not rendered: nothing reads them
+            // yet, but a read site can now say WHICH review produced the levels
+            // on screen instead of inferring it from `source` prose.
+            //
+            // calculatedAsOf is not asOf. asOf is the anchor date -- the close
+            // of the completed week a level comes from. calculatedAsOf is when
+            // the numbers were derived. On a carried level the two legitimately
+            // differ, which is why both are served.
+            derivationVersion: d.derivationVersion || null,
+            dataSource:        d.dataSource        || null,
+            originReview:      d.originReview      || null,
+            calculatedAsOf:    d.calculatedAsOf    || null
         };
         // degraded is a state to display, not an error to retry.
         SL_STRUCTURE_SOURCE = d.degraded
