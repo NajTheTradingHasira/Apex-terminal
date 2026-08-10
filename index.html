@@ -6414,7 +6414,11 @@ const SL_PROVIDERS = {
 const SL_COLORS = {
     red:   { fg: 'var(--bear)', bg: 'var(--bear-dim)' },
     green: { fg: 'var(--bull)', bg: 'var(--bull-dim)' },
-    amber: { fg: 'var(--warn)', bg: 'var(--warn-dim)' }
+    amber: { fg: 'var(--warn)', bg: 'var(--warn-dim)' },
+    // Not part of the green/amber/red ladder. Those three encode position in
+    // the ordered triple; the near-term pivot has no position in it, so it gets
+    // a hue that is not on that scale at all.
+    blue:  { fg: 'var(--accent)', bg: 'var(--accent-dim)' }
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -6436,13 +6440,41 @@ let SL_STRUCTURE = {
     flip:       722.54,   // spot below  → structural tag flips bearish (Stage 3/4)
     staleDays:  10,       // nudge to re-anchor after this many days
     vixFragile: 25,       // VIX at/above this downgrades a confirmed tag
-    source:     'Weekly 30-wk SMA rising; levels from the 07/24 review.'
+    source:     'Weekly 30-wk SMA rising; levels from the 07/24 review.',
+    // Near-term pivot: OUTSIDE the ordered triple, and null in the bake because
+    // the fallback has no business inventing one. See slPivot() below.
+    pivot:      null
 };
 
 // Provenance of whatever is currently in SL_STRUCTURE. Anything other than
 // 'live' renders in the warn colour, so a glance at the bar always says
 // whether the levels on screen came from the endpoint or the fallback.
 let SL_STRUCTURE_SOURCE = { kind: 'baked', label: 'BAKED', detail: 'endpoint not consulted yet' };
+
+// The near-term pivot, normalised. Returns null for anything unusable.
+//
+// Deliberately NOT part of slValidStructure(): a malformed pivot must never
+// reject the triple. The backend enforces the same asymmetry (_validate_pivot
+// cannot raise) and this mirrors it, because the two validators drifting apart
+// is how a level ends up rendered in one terminal and not another.
+//
+// There is NO ordering check against reclaim/support/flip. A pivot above
+// reclaim is the normal state on a markup week and is the entire reason this
+// field exists — the 08/03 week low printed 748.80 against a reclaim of 745.73.
+function slPivot(p) {
+    if (!p || typeof p !== 'object') return null;
+    // ?? and not ||, so a level of 0 is REJECTED by the range test below rather
+    // than silently collapsing into "absent". The distinction stops mattering
+    // for prices and starts mattering the moment orHigh/orLow arrive.
+    const level = Number(p.level ?? NaN);
+    if (!isFinite(level) || level <= 0) return null;
+    return {
+        level:  level,
+        kind:   typeof p.kind   === 'string' ? p.kind   : 'completed_week_low',
+        asOf:   typeof p.asOf   === 'string' ? p.asOf   : null,
+        origin: typeof p.origin === 'string' ? p.origin : ''
+    };
+}
 
 // Last line of defence before a bad triple silently inverts the structural
 // tag. The endpoint validates server-side too; this is deliberate belt-and-
@@ -7000,7 +7032,8 @@ async function slFetchStructure() {
         }
         SL_STRUCTURE = {
             asOf: d.asOf, reclaim: d.reclaim, support: d.support, flip: d.flip,
-            staleDays: d.staleDays, vixFragile: d.vixFragile, source: d.source
+            staleDays: d.staleDays, vixFragile: d.vixFragile, source: d.source,
+            pivot: slPivot(d.pivot)
         };
         // degraded is a state to display, not an error to retry.
         SL_STRUCTURE_SOURCE = d.degraded
@@ -7021,22 +7054,45 @@ function slRenderStructure() {
     const S = slStructure();
     const c = SL_COLORS[S.color] || SL_COLORS.amber;
 
+    // The ordered triple stays contiguous and in order. The pivot is appended
+    // last, in a hue that is not on the green/amber/red scale, so the eye reads
+    // "different kind of thing" before it reads the number. Absent renders
+    // NOTHING — no empty row, no em-dash placeholder; a slot that is usually
+    // blank trains you to skip it.
+    const P = SL_STRUCTURE.pivot;
+    // Per-level freshness. `pivot` is the fastest-moving value in the block and
+    // the one where a single block-level asOf misleads most. Informational only
+    // — it never feeds S.stale, which stays a property of the block.
+    const pivotAge = (P && P.asOf && /^\d{4}-\d{2}-\d{2}$/.test(P.asOf))
+        ? Math.max(0, Math.floor((Date.now() - Date.parse(P.asOf + 'T00:00:00Z')) / 86400000))
+        : null;
     const rows = [
         ['RECLAIM', SL_STRUCTURE.reclaim, 'Stage 2 confirmed above', 'green'],
         ['SUPPORT', SL_STRUCTURE.support, 'Stage 2 pressured below', 'amber'],
         ['FLIP',    SL_STRUCTURE.flip,    'Tag flips bearish below',  'red']
-    ].map(row => {
+    ].concat(P ? [['PIVOT', P.level, P.origin || 'near-term pivot', 'blue']] : []
+    ).map(row => {
         const lc = SL_COLORS[row[3]];
         const d = (S.spot == null) ? null : S.spot - row[1];
         const dist = d == null ? '—' : (d >= 0 ? '+' : '−') + Math.abs(d).toFixed(2) + ' (' + (d >= 0 ? '+' : '−') + Math.abs(d / row[1] * 100).toFixed(2) + '%)';
         const side = S.spot == null ? '—' : (S.spot >= row[1] ? 'ABOVE' : 'BELOW');
         const sideC = S.spot == null ? SL_COLORS.amber : (S.spot >= row[1] ? SL_COLORS.green : SL_COLORS.red);
-        return '<div style="display:flex;align-items:center;gap:0.6rem;padding:0.35rem 0.55rem;border-left:3px solid ' + lc.fg + ';background:var(--surface-2);border-radius:0.2rem;margin-bottom:0.3rem">' +
+        // A hairline above the pivot row only — the visual break that says the
+        // ordered triple ended here.
+        const sep = row[0] === 'PIVOT' ? 'margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);' : '';
+        return '<div style="' + sep + 'display:flex;align-items:center;gap:0.6rem;padding:0.35rem 0.55rem;border-left:3px solid ' + lc.fg + ';background:var(--surface-2);border-radius:0.2rem;margin-bottom:0.3rem">' +
             '<span style="font-size:0.6rem;font-weight:700;letter-spacing:0.07em;color:' + lc.fg + ';min-width:62px">' + row[0] + '</span>' +
             '<span style="font-size:0.82rem;font-weight:700;color:var(--text);min-width:70px">' + row[1].toFixed(2) + '</span>' +
             '<span style="font-size:0.58rem;font-weight:700;padding:1px 7px;border-radius:999px;background:' + sideC.bg + ';color:' + sideC.fg + '">' + side + '</span>' +
             '<span style="font-size:0.7rem;color:var(--text-muted)">' + dist + '</span>' +
-            '<span style="margin-left:auto;font-size:0.66rem;color:var(--text-faint);text-align:right">' + row[2] + '</span>' +
+            // slEsc() is new here and load-bearing. The first three tails are
+            // static prose, but PIVOT's is `origin` straight off the API, and
+            // this string goes into innerHTML.
+            '<span style="margin-left:auto;font-size:0.66rem;color:var(--text-faint);text-align:right">' + slEsc(row[2]) +
+                (row[0] === 'PIVOT' && pivotAge != null && pivotAge > SL_STRUCTURE.staleDays
+                    ? '<span style="margin-left:0.4rem;font-size:0.58rem;font-weight:700;padding:1px 7px;border-radius:999px;background:' + SL_COLORS.amber.bg + ';color:' + SL_COLORS.amber.fg + '">PIVOT ' + pivotAge + 'D OLD</span>'
+                    : '') +
+            '</span>' +
         '</div>';
     }).join('');
 
