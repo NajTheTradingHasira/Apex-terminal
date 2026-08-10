@@ -7071,7 +7071,20 @@ async function slFetchStructure() {
             derivationVersion: d.derivationVersion || null,
             dataSource:        d.dataSource        || null,
             originReview:      d.originReview      || null,
-            calculatedAsOf:    d.calculatedAsOf    || null
+            calculatedAsOf:    d.calculatedAsOf    || null,
+            // Anchored VWAPs and event blackout windows, for the scenario state
+            // machine. Same posture as the provenance fields above: carried,
+            // not rendered.
+            //
+            // Default null, NOT []. An empty array is a claim -- "the backend
+            // told us there are no blackouts today" -- and absence is not that
+            // claim. A state machine that cannot tell "no event windows" from
+            // "no event data" will trade through an FOMC print on an array that
+            // was empty for the wrong reason. Array.isArray and not a
+            // truthiness test, so a served [] survives as [] and stays
+            // distinguishable from absent.
+            avwaps:         Array.isArray(d.avwaps)         ? d.avwaps         : null,
+            eventBlackouts: Array.isArray(d.eventBlackouts) ? d.eventBlackouts : null
         };
         // degraded is a state to display, not an error to retry.
         SL_STRUCTURE_SOURCE = d.degraded
