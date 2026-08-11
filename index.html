@@ -6632,9 +6632,20 @@ function slResolveTarget(key, struct) {
     const KEY = String(key).toUpperCase();
     const absent = lab => ({ key: key, label: lab || (KEY + ' (no level)'), price: null,
                              state: 'absent', resolved: false, stale: false, ageDays: null });
-    if (key === 'vwap') return absent('VWAP (no level)');   // no live VWAP feed; say so
+    // NO PER-KEY SPECIAL CASES. `if (key === 'vwap') return absent('VWAP (no level)')`
+    // was here and is deleted, not extended: intraday ladders emit keys that are
+    // legitimately absent-capable and a hardcoded list grows by one line per key
+    // forever, silently resolving any key nobody remembered to add.
+    //
+    // Behaviour-preserving for 'vwap' and provably so: neither `levels` nor
+    // SL_STRUCTURE has a `vwap` member, so the lookup yields undefined, the
+    // guard below fails, and absent() defaults its label to KEY + ' (no level)'
+    // — the exact string the special case passed explicitly.
     const L = (struct && struct.levels) || SL_STRUCTURE;
     const v = L && L[key];
+    // The generic finite-guard. Until the line above was deleted this had never
+    // executed on a production input: every key any ladder emitted was either a
+    // real member of `levels` or 'vwap', and 'vwap' was short-circuited above it.
     if (!(Number.isFinite(v) && v > 0)) return absent();
     const stale = !!(struct && struct.stale);
     const ageDays = (struct && Number.isFinite(struct.ageDays)) ? struct.ageDays : null;
