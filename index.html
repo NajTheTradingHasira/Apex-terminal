@@ -274,6 +274,9 @@
         .wl-stage.s2 { color: var(--bull); background: var(--bull-dim); }
         .wl-stage.s3 { color: var(--warn); background: var(--warn-dim); }
         .wl-stage.s4 { color: var(--bear); background: var(--bear-dim); }
+        /* No stage claimed: unparsed or absent. Deliberately not colored like
+           a verified stage — a dashed outline marks it as needing a decision. */
+        .wl-stage.unknown { color: var(--text-muted); background: transparent; border: 1px dashed rgba(148,163,184,0.45); }
         .wl-rs { font-weight: 700; font-size: 0.8rem; font-family: var(--font-mono); }
         .wl-notes { color: var(--text-faint); font-size: 0.75rem; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .wl-empty { padding: 2rem; text-align: center; color: var(--text-faint); font-size: 0.8rem; }
@@ -1946,13 +1949,26 @@ const WL_STAGES = [
     'Stage 4', 'Stage 4A', 'Stage 4B',
 ];
 
+// Attribute-safe escape. escapeHtml() leaves quotes intact, which is unsafe
+// inside a double-quoted option value.
+function wlAttrEsc(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 // Build the option markup for one stage selector.
 // `selected` accepts any dialect: 's2', 'Stage 2A', '2a', or a legacy label.
+// An unrecognized value is preserved as a leading option and stays selected,
+// so it round trips to the backend unchanged until someone picks a real stage.
 function wlStageOptionsHtml(selected) {
-    const want = stageInfo(selected).label;
-    return WL_STAGES
-        .map(v => `<option value="${v}"${v === want ? ' selected' : ''}>${v}</option>`)
-        .join('');
+    const st = stageInfo(selected);
+    const opts = WL_STAGES.map(v =>
+        `<option value="${v}"${st.known && v === st.label ? ' selected' : ''}>${v}</option>`);
+    if (!st.known && st.label) {
+        opts.unshift(`<option value="${wlAttrEsc(st.label)}" selected>`
+                   + `${wlAttrEsc(st.label)} — unrecognized</option>`);
+    }
+    return opts.join('');
 }
 
 // Fill every selector that carries the .wl-stage-select class.
@@ -1963,9 +1979,10 @@ function populateStageSelects() {
     });
 }
 
+// Display helper only. Never write its output back to the backend:
+// an absent stage renders as an em dash, it does not become one.
 function stageLabel(s) {
-    if (s === undefined || s === null || String(s).trim() === '') return '—';
-    return stageInfo(s).label;
+    return stageInfo(s).label || '—';
 }
 
 function rsColor(rs) {
@@ -1988,16 +2005,25 @@ function rsColor(rs) {
 // and legacy descriptor labels such as 'Stage 2A — Breakout'.
 function stageInfo(stage) {
     const s = (stage === undefined || stage === null) ? '' : String(stage).trim();
-    if (!s) return { code: 's1', label: 'Stage 1' };
+    if (!s) return { code: '', label: '', known: false };
     const build = (num, sub) => ({
         code: 's' + num,
         label: 'Stage ' + num + (sub ? sub.toUpperCase() : ''),
+        known: true,
     });
-    const codeMatch = s.match(/^s\s*([1-4])\s*([ab])?$/i);
+    // Whole-string code or bare number: 's2', 's2a', '2', '2A'.
+    const codeMatch = s.match(/^s?\s*([1-4])\s*([ab])?$/i);
     if (codeMatch) return build(codeMatch[1], codeMatch[2]);
-    const numMatch = s.match(/([1-4])\s*([ab])\b/i) || s.match(/([1-4])/);
-    if (numMatch) return build(numMatch[1], numMatch[2]);
-    return { code: 's1', label: 'Stage 1' };
+    // Anchored on the word 'stage': 'Stage 2A', 'Early Stage 2',
+    // 'Stage 2A — Breakout', 'stage2'. The digit must follow the word, so a
+    // loose 1-4 elsewhere in free text no longer counts as a stage claim.
+    const wordMatch = s.match(/stage\s*([1-4])\s*([ab])?\b/i);
+    if (wordMatch) return build(wordMatch[1], wordMatch[2]);
+    // Unrecognized. Keep the text exactly as it arrived and claim no stage.
+    // Never invent 'Stage 1' here: this field round trips through the Postgres
+    // backend shared with trading-hashira, and a dialect this regex does not
+    // cover must not come back relabelled as a stage nobody verified.
+    return { code: '', label: s, known: false };
 }
 
 function normalizeWlItem(raw) {
@@ -2033,7 +2059,7 @@ function buildRow(item, listKey) {
     tr.dataset.list       = listKey;
     tr.dataset.company    = item.company    || '';
     tr.dataset.sector     = item.sector     || '';
-    tr.dataset.stage      = item.stage      || 's1';
+    tr.dataset.stage      = item.stage      || '';
     tr.dataset.rs         = item.rs         || 0;
     tr.dataset.ema        = item.ema        || '';
     tr.dataset.above50    = item.above50    || '';
@@ -2051,7 +2077,7 @@ function buildRow(item, listKey) {
         <td class="right"><span class="wl-chg ${chgClass(item.week)}">${chgLabel(item.week)}</span></td>
         <td class="right"><span class="wl-chg ${chgClass(item.month)}">${chgLabel(item.month)}</span></td>
         <td class="wl-editable" data-field="stage" title="Click to change stage">
-            <span class="wl-stage ${item.stage}">${item.stageLabel || stageLabel(item.stage)}</span>
+            <span class="wl-stage ${item.stage || 'unknown'}">${item.stageLabel || '—'}</span>
         </td>
         <td class="right wl-editable" data-field="rs" title="Click to edit RS">
             <span class="wl-rs" style="color:${rsColor(item.rs)}">${item.rs}</span>
@@ -2087,7 +2113,7 @@ function startInlineEdit(e, td, tr) {
             const st = stageInfo(sel.value);
             tr.dataset.stage = st.code;
             tr.dataset.stageLabel = st.label;
-            td.innerHTML = `<span class="wl-stage ${st.code}">${st.label}</span>`;
+            td.innerHTML = `<span class="wl-stage ${st.code || 'unknown'}">${st.label || '—'}</span>`;
             td.addEventListener('click', ev => startInlineEdit(ev, td, tr));
             saveWatchlistToStorage();
         };
@@ -2193,7 +2219,9 @@ function saveWatchlistToStorage() {
                 dayPct: parseFloat(dayV) || 0,
                 weekPct: parseFloat(weekV) || 0,
                 monthPct: parseFloat(monthV) || 0,
-                stage: d.stageLabel || stageLabel(d.stage || 's1'),
+                // Write the stored label verbatim, or an empty string. Never
+                // stageLabel() — its em-dash placeholder is for display only.
+                stage: d.stageLabel || '',
                 rs: parseInt(d.rs) || 0,
                 setup: d.weeklySetup || '',
                 notes: d.notes || '',
@@ -2367,7 +2395,9 @@ function openEditModal(tr) {
     document.getElementById('editCompany').value      = d.company    || '';
     document.getElementById('editSector').value       = d.sector     || '';
     document.getElementById('editListKey').value      = d.list       || 'daily';
-    document.getElementById('editStage').value        = stageInfo(d.stageLabel || d.stage).label;
+    // Rebuild per row: an unrecognized stored value needs its own option,
+    // otherwise the select would silently fall back to the first entry.
+    document.getElementById('editStage').innerHTML    = wlStageOptionsHtml(d.stageLabel || d.stage);
     document.getElementById('editRS').value           = d.rs         || '';
     document.getElementById('editEma').value          = d.ema        || '';
     document.getElementById('editAbove50').value      = d.above50    || '';
@@ -2419,8 +2449,8 @@ function saveEditModal() {
 
     // Update visible cells
     tr.querySelector('.wl-sym').textContent = sym;
-    tr.querySelector('.wl-stage').className = `wl-stage ${stageMeta.code}`;
-    tr.querySelector('.wl-stage').textContent = stageMeta.label;
+    tr.querySelector('.wl-stage').className = `wl-stage ${stageMeta.code || 'unknown'}`;
+    tr.querySelector('.wl-stage').textContent = stageMeta.label || '—';
     tr.querySelector('.wl-rs').style.color = rsColor(rs);
     tr.querySelector('.wl-rs').textContent = rs;
     const notesCell = tr.querySelector('.wl-notes');
@@ -5955,10 +5985,14 @@ async function gatherIndexContext(ticker) {
     const allRows = document.querySelectorAll('#watchlist tbody tr[data-sym]');
 
     if (allRows.length) {
-        const dist = { s1: 0, s2: 0, s3: 0, s4: 0, total: allRows.length };
+        // `unknown` holds rows whose stage text this app could not parse.
+        // They are reported, never folded into s1, so the four stage counts
+        // plus unknown always reconcile to total.
+        const dist = { s1: 0, s2: 0, s3: 0, s4: 0, unknown: 0, total: allRows.length };
         allRows.forEach(tr => {
             const stage = tr.dataset.stage || '';
-            if (dist.hasOwnProperty(stage)) dist[stage]++;
+            if (stage && dist.hasOwnProperty(stage)) dist[stage]++;
+            else dist.unknown++;
         });
         dist.pctStage2 = ((dist.s2 / dist.total) * 100).toFixed(1);
         dist.pctStage4 = ((dist.s4 / dist.total) * 100).toFixed(1);
