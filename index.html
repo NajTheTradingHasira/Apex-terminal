@@ -8348,9 +8348,28 @@ const MARKET_MOVING_KEYWORDS = [
     'vix','volatility spike','flight to safety','risk-off','emergency meeting'
 ];
 
+// Word-boundary keyword test. Substring matching produced false hits:
+// 'war' in "software", 'rate' in "corporate", 'iv' in "Riverside".
+// A keyword must start at a word boundary; a plural/past-tense tail
+// (s/es/d/ed) is allowed so 'rate' still hits "rates" and 'downgrade'
+// still hits "downgraded". 'geopolit' stays a pure prefix so it keeps
+// matching "geopolitics" and "geopolitical".
+const _KW_PREFIX = new Set(['geopolit']);
+const _kwRegexCache = {};
+function textHasKeyword(text, kw) {
+    let re = _kwRegexCache[kw];
+    if (!re) {
+        const esc = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        re = _kwRegexCache[kw] = _KW_PREFIX.has(kw)
+            ? new RegExp(`(^|\\W)${esc}`, 'i')
+            : new RegExp(`(^|\\W)${esc}(?:s|es|d|ed)?(?:\\W|$)`, 'i');
+    }
+    return re.test(text);
+}
+
 function isMarketMoving(article) {
     const text = ((article.title || '') + ' ' + (article.summary || article.description || '')).toLowerCase();
-    return MARKET_MOVING_KEYWORDS.some(kw => text.includes(kw));
+    return MARKET_MOVING_KEYWORDS.some(kw => textHasKeyword(text, kw));
 }
 
 // Keyword buckets for filtering
@@ -8366,7 +8385,7 @@ function classifyArticle(title, summary) {
     const text = ((title || '') + ' ' + (summary || '')).toLowerCase();
     const cats = [];
     for (const [cat, keywords] of Object.entries(NEWS_FILTER_KEYWORDS)) {
-        if (keywords.some(kw => text.includes(kw))) cats.push(cat);
+        if (keywords.some(kw => textHasKeyword(text, kw))) cats.push(cat);
     }
     return cats.length ? cats : ['general'];
 }
@@ -8418,6 +8437,15 @@ function normalizePolygonArticle(a) {
     };
 }
 
+// UW flags a lot of PR-wire fluff as is_major. Press-release wires never
+// pin into ⚡ Market Moving on the strength of is_major alone — they can
+// still pin on a real keyword hit (an FOMC or halt headline stays pinned).
+const PR_WIRE_SOURCES = ['pr newswire', 'prnewswire', 'business wire', 'businesswire', 'globe newswire', 'globenewswire', 'accesswire', 'newsfile', 'prweb', 'pr web'];
+function isPRWireSource(source) {
+    const s = (source || '').toLowerCase();
+    return PR_WIRE_SOURCES.some(w => s.includes(w));
+}
+
 // UW /api/uw/news headlines — shape differs from Polygon articles:
 // headline (not title), created_at ISO string (not epoch ts),
 // sentiment positive/negative (not bullish/bearish), is_major flag.
@@ -8444,7 +8472,7 @@ function normalizeUWHeadline(a) {
         _ts: Number.isFinite(parsed) ? parsed : 0,
         _moving: false
     };
-    art._moving = a.is_major === true || isMarketMoving(art);
+    art._moving = (a.is_major === true && !isPRWireSource(a.source)) || isMarketMoving(art);
     return art;
 }
 
@@ -8774,13 +8802,21 @@ function updateWatchlistMentions() {
         return;
     }
 
-    // Find articles that mention watchlist tickers
+    // Find articles that mention watchlist tickers. Title matching is
+    // word-boundary only — GE must not match "aGEncy", VAL must not
+    // match "VALidating", NET must not match "NETwork". A leading $ is
+    // accepted ($NVDA style).
+    const symRe = {};
+    wlTickers.forEach(sym => {
+        const esc = sym.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        symRe[sym] = new RegExp(`(^|[^A-Z0-9])\\$?${esc}([^A-Z0-9]|$)`);
+    });
     const mentions = {};
     NEWS_CACHE.forEach(article => {
         const relTickers = article.relatedTickers || [];
         const titleText = (article.title || '').toUpperCase();
         wlTickers.forEach(sym => {
-            if (relTickers.includes(sym) || titleText.includes(sym)) {
+            if (relTickers.includes(sym) || symRe[sym].test(titleText)) {
                 if (!mentions[sym]) mentions[sym] = [];
                 mentions[sym].push(article);
             }
