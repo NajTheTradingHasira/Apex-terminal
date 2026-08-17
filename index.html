@@ -8789,6 +8789,10 @@ function updateNewsStats() {
     document.getElementById('nsLastRefresh').textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Tickers that are English words — title prose matches are noise.
+// These only count when the source tags the ticker explicitly.
+const WORD_TICKERS = new Set(['NET','ALL','COP','KEY','SO','IT','ON','ARE','FOR','NOW','GOOD','PLAY','CASH','LOVE','BIG','FAST','OPEN','REAL','SEE','TECH','WELL']);
+
 function updateWatchlistMentions() {
     const container = document.getElementById('newsWatchlistMentions');
     if (!container) return;
@@ -8816,7 +8820,7 @@ function updateWatchlistMentions() {
         const relTickers = article.relatedTickers || [];
         const titleText = (article.title || '').toUpperCase();
         wlTickers.forEach(sym => {
-            if (relTickers.includes(sym) || symRe[sym].test(titleText)) {
+            if (relTickers.includes(sym) || (!WORD_TICKERS.has(sym) && symRe[sym].test(titleText))) {
                 if (!mentions[sym]) mentions[sym] = [];
                 mentions[sym].push(article);
             }
