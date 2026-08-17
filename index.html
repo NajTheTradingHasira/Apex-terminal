@@ -8313,11 +8313,14 @@ async function fetchMacroData() {
 // NEWS ENGINE v2 — Polygon market stream via Nexus backend
 //   GET /api/polygon/news            → market-wide stream (default mode)
 //   GET /api/polygon/news?tickers=   → targeted search mode
+//   GET /api/uw/news[?tickers=]      → Unusual Whales headlines, merged in
 // Auto-loads on boot + News tab open, re-polls every 3 minutes while the
 // page is visible, pins market-moving headlines, and auto-flags watchlist
-// mentions. The Polygon API key lives on the backend (Railway env var) —
-// the browser never sees it. If the backend route isn't deployed yet,
-// falls back to the legacy /api/news/{ticker} feeds and says so.
+// mentions. Both API keys live on the backend (Railway env vars) —
+// the browser never sees them. If the Polygon route isn't deployed yet,
+// falls back to the legacy /api/news/{ticker} feeds and says so. If the
+// UW route isn't deployed, UW merge is skipped for the session — the
+// Polygon stream is never affected by a UW failure.
 // ══════════════════════════════════════════════════════════════
 
 let NEWS_CACHE = []; // all fetched articles
@@ -8327,6 +8330,7 @@ let NEWS_SEARCH_TICKERS = [];      // active tickers when in search mode
 let NEWS_TIMER = null;             // 3-min poll handle
 let NEWS_STARTED = false;          // stream initialized?
 let NEWS_POLYGON_DOWN = false;     // backend route missing → legacy fallback
+let NEWS_UW_DOWN = false;          // /api/uw/news missing → skip UW merge
 const NEWS_REFRESH_MS = 3 * 60 * 1000;
 const NEWS_MAX_ARTICLES = 300;
 
@@ -8414,6 +8418,55 @@ function normalizePolygonArticle(a) {
     };
 }
 
+// UW /api/uw/news headlines — shape differs from Polygon articles:
+// headline (not title), created_at ISO string (not epoch ts),
+// sentiment positive/negative (not bullish/bearish), is_major flag.
+function normalizeUWHeadline(a) {
+    const tickers = Array.isArray(a.tickers) ? a.tickers
+        : Array.isArray(a.meta?.tickers) ? a.meta.tickers : [];
+    const sent = (a.sentiment === 'positive' || a.sentiment === 'bullish') ? 'bullish'
+        : (a.sentiment === 'negative' || a.sentiment === 'bearish') ? 'bearish'
+        : 'neutral';
+    const parsed = a.created_at ? Date.parse(a.created_at) / 1000 : 0;
+    const art = {
+        title: a.headline || a.title || '',
+        summary: '',
+        url: a.url || a.link || '',
+        link: a.url || a.link || '',
+        publisher: a.source || 'Unusual Whales',
+        tickers,
+        relatedTickers: tickers,
+        _ticker: tickers[0] || '',
+        _source: 'UW',
+        _categories: classifyArticle(a.headline || a.title || '', ''),
+        _sentiment: sent,
+        _sentimentWhy: '',
+        _ts: Number.isFinite(parsed) ? parsed : 0,
+        _moving: false
+    };
+    art._moving = a.is_major === true || isMarketMoving(art);
+    return art;
+}
+
+// UW headlines fetch. Returns [] when the route is missing (404 flags the
+// session) so a UW outage can never take down the Polygon stream.
+async function fetchUWHeadlines(tickers) {
+    if (NEWS_UW_DOWN) return [];
+    const qs = tickers.length
+        ? `?tickers=${encodeURIComponent(tickers.join(','))}&limit=50`
+        : '?limit=50';
+    const r = await fetch(`${NEXUS_API}/api/uw/news${qs}`, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
+    if (r.status === 404) {
+        NEWS_UW_DOWN = true;
+        console.warn('[APEX News] /api/uw/news not deployed — UW headlines disabled this session');
+        return [];
+    }
+    if (!r.ok) throw new Error(`UW API ${r.status}`);
+    const data = await r.json();
+    const items = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+    return items.map(normalizeUWHeadline);
+}
+
 // Legacy fallback (backend /api/polygon/news not deployed yet) — old
 // per-ticker yfinance route, Polygon-era fields absent but feed stays alive.
 async function legacyFetchNewsForTicker(ticker) {
@@ -8475,6 +8528,9 @@ async function fetchNewsStream(opts = {}) {
     let usedLegacy = false;
 
     try {
+        // UW headlines load in parallel with the Polygon call
+        const uwPromise = fetchUWHeadlines(tickers);
+
         if (!NEWS_POLYGON_DOWN) {
             const qs = tickers.length ? `?tickers=${encodeURIComponent(tickers.join(','))}&limit=150` : '?limit=100';
             const r = await fetch(`${NEXUS_API}/api/polygon/news${qs}`, { headers: { 'Accept': 'application/json' }, cache: 'no-store' });
@@ -8496,6 +8552,13 @@ async function fetchNewsStream(opts = {}) {
             const legacyTickers = tickers.length ? tickers : ['SPY', 'QQQ', 'IWM'];
             const results = await Promise.allSettled(legacyTickers.map(t => legacyFetchNewsForTicker(t)));
             incoming = results.flatMap(res => res.status === 'fulfilled' ? res.value : []);
+        }
+
+        // UW merge — a UW failure only logs, it never breaks the stream
+        try {
+            incoming = incoming.concat(await uwPromise);
+        } catch (uwErr) {
+            console.warn('[APEX News] UW headlines fetch failed:', uwErr.message);
         }
 
         // Merge (market mode) or replace (search mode), dedupe by URL/title
@@ -8662,7 +8725,7 @@ function renderNews() {
             ${summary ? `<div class="news-summary">${escapeHtml(summary.substring(0, 200))}${summary.length > 200 ? '…' : ''}</div>` : ''}
             <div class="news-meta" style="margin-top:0.5rem">
                 <span class="news-source">${escapeHtml(source)}</span>
-                ${article._source ? `<span style="font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:0.2rem;font-weight:600;letter-spacing:0.03em;${article._source === 'Legacy' ? 'background:rgba(148,163,184,0.12);color:var(--text-muted)' : 'background:rgba(0,212,255,0.12);color:var(--accent)'}">${article._source}</span>` : ''}
+                ${article._source ? `<span style="font-size:0.6rem;padding:0.1rem 0.4rem;border-radius:0.2rem;font-weight:600;letter-spacing:0.03em;${article._source === 'Legacy' ? 'background:rgba(148,163,184,0.12);color:var(--text-muted)' : article._source === 'UW' ? 'background:rgba(168,85,247,0.14);color:#c084fc' : 'background:rgba(0,212,255,0.12);color:var(--accent)'}">${article._source === 'UW' ? '🐋 UW' : article._source}</span>` : ''}
                 ${relatedTickers.map(t => `<span class="news-ticker-tag">${escapeHtml(t)}</span>`).join('')}
                 ${sentLabel ? `<span class="news-sentiment ${sentiment}"${sentTitle}>${sentLabel}</span>` : ''}
                 ${article._categories.filter(c => c !== 'general').map(c =>
