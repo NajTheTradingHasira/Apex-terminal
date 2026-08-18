@@ -16,4 +16,4 @@ API: hard-refresh the GitHub Pages site and confirm a marker symbol from the new
 commit exists in the console.
 
 The Vercel MCP and the "push isn't a deploy" SHA-confirmation rule apply to
-**nexus-terminal and trading-hashira only** — not here.
+**nexus-terminal and trading-hashira only** — not Apex-terminal.
