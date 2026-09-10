@@ -1564,6 +1564,8 @@
             <!-- Inputs → local rules engine -->
             <div class="section-title">Tape Inputs → Local Read (free · instant)</div>
             <div id="slInputs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:0.6rem;margin-bottom:1rem"></div>
+            <div class="section-title">Intraday Setup Confirmation · 0DTE</div>
+            <div id="slSetupInputs" style="margin-bottom:1rem"></div>
             <div id="slGateOut" style="margin-bottom:1.25rem"></div>
 
             <!-- Key zones -->
@@ -7139,8 +7141,9 @@ function slMdToHtml(md) {
 // ── Structural context for the AI providers ────────────────
 function slStructureContext() {
     const S = slStructure();
-    const r = grxApplyToGate(slRunGate(SL_STATE.inputs, S));   // providers see the regime-gated read
+    const r = slApplySetup(grxApplyToGate(slRunGate(SL_STATE.inputs, S)));   // providers see the regime-gated read
     return {
+        intraday_setup: r.setup,
         gamma_regime: r.gammaRegime || null,   // PIN/TREND/BREAK/MIXED day-type + walls; additive field
         verified: S.verified,
         missing: S.missing,
@@ -7163,6 +7166,128 @@ function slStructureContext() {
             'Position size caps at 3 lots; sizing is no longer the leak — stops are.'
         ]
     };
+}
+
+// Snapshot-assisted setup checks. No candles, volume or option quotes are inferred.
+// Thresholds are reviewable heuristics, not calibrated probabilities.
+const SL_INTRADAY_VERSION = '1.0.0';
+const SL_EXEC = { setup: 'vwap', trigger: '', stop: '', target: '', orHigh: '', orLow: '', bid: '', ask: '', expiry: '', confirmedAt: null };
+
+function slEtDate(ms) {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(ms));
+}
+
+function slEvaluateSetup(r, live, e, now = Date.now()) {
+    const out = { status: 'WAIT', name: e.setup === 'orb' ? '15-minute OR break + retest' : 'VWAP reclaim / rejection', reasons: [], rr: null, spreadPct: null };
+    const n = v => typeof v === 'number' || (typeof v === 'string' && v.trim()) ? Number(v) : NaN;
+    const positive = v => Number.isFinite(v) && v > 0;
+    const wait = s => out.reasons.push(s);
+    const win = slTimeWindow(new Date(now));
+    if (['pre', 'open', 'close', 'after', 'closed'].includes(win)) wait('No new setups in this actual ET time window; manual window selection does not override it.');
+    if (r.gate === 'NO-GO') wait('The bias / gamma gate blocks this trade.');
+    const dir = r.bias.dir === 'LONG' ? 1 : r.bias.dir === 'SHORT' ? -1 : 0;
+    if (!dir) wait('Wait for a directional bias.');
+    const p = n(live && live.price), vwap = n(live && live.vwap);
+    const stamp = live && typeof live.timestamp === 'string' ? Date.parse(live.timestamp) : NaN;
+    if (!positive(p) || !positive(vwap) || !Number.isFinite(stamp) || now - stamp > 120000 || stamp > now + 30000 || slEtDate(stamp) !== slEtDate(now)) {
+        wait('Need a valid SPY snapshot with a source timestamp no more than 2 minutes old.');
+    }
+    if (!Number.isFinite(e.confirmedAt) || now - e.confirmedAt >= 300000 || now < e.confirmedAt || slEtDate(e.confirmedAt) !== slEtDate(now)) {
+        wait('Confirm a completed retest candle, tape inputs and option quotes from your live chart (expires after 5 minutes).');
+    }
+    if (dir && !(dir * (p - vwap) > 0)) wait('SPY must be on the matching side of VWAP.');
+    const inp = r.tapeInputs || {};
+    if (dir && inp.retest !== (dir > 0 ? 'higherlow' : 'lowerhigh')) wait('Need a higher-low retest for longs or lower-high retest for shorts.');
+    if (dir && inp.ribbon !== (dir > 0 ? 'fannedup' : 'fanneddown')) wait('EMA ribbon must align with the setup.');
+    if (dir && inp.internals !== (dir > 0 ? 'strong' : 'weak')) wait('Internals must confirm the direction.');
+    const entry = n(e.trigger), stop = n(e.stop), target = n(e.target);
+    const risk = dir * (entry - stop), reward = dir * (target - entry);
+    if (![entry, stop, target].every(positive) || !dir || !(risk > 0 && reward > 0)) {
+        wait('Enter ordered SPY levels: stop < trigger < target for longs; target < trigger < stop for shorts.');
+    } else {
+        // Check the worse of the trigger and current price: do not overstate R:R after entry moves away.
+        const execution = dir > 0 ? Math.max(entry, p) : Math.min(entry, p);
+        out.rr = dir * (target - execution) / (dir * (execution - stop));
+        if (!(out.rr >= 1.5)) wait('Less than 1.5R remaining to target at the current price.');
+        if (dir * (p - entry) < 0) wait('Trigger has not been reached.');
+        if (dir * (p - entry) > risk * 0.5) wait('Extended more than 0.5R beyond trigger — wait for another retest.');
+        if (dir * (p - stop) <= 0) wait('Setup invalidation has been breached.');
+        if (e.setup === 'vwap' && !(dir * (entry - vwap) > 0 && dir * (vwap - stop) > 0)) wait('VWAP must sit between the trigger and invalidation level.');
+    }
+    if (e.setup === 'orb') {
+        const hi = n(e.orHigh), lo = n(e.orLow);
+        if (!positive(hi) || !positive(lo) || hi <= lo) wait('Enter the completed 09:30–09:45 ET range from your chart.');
+        else {
+            const edge = dir > 0 ? hi : lo;
+            if (!(dir * (entry - edge) >= 0 && dir * (p - edge) > 0)) wait('Trigger and current price must be beyond the opening-range boundary.');
+            if (!(dir * (edge - stop) > 0)) wait('ORB invalidation must be back inside the broken boundary.');
+        }
+    } else if (e.setup !== 'vwap') wait('Select a supported setup.');
+    const bid = n(e.bid), ask = n(e.ask);
+    if (!positive(bid) || !positive(ask) || ask < bid) wait('Enter valid bid / ask quotes for the selected option contract.');
+    else {
+        out.spreadPct = (ask - bid) / ((ask + bid) / 2) * 100;
+        if (out.spreadPct > 10) wait('Option spread exceeds 10% of midpoint.');
+    }
+    if (e.expiry !== slEtDate(now)) wait('Selected contract must expire today (ET) for a 0DTE setup.');
+    if (!out.reasons.length) out.status = r.gate === 'GO' && win !== 'lunch' ? 'READY' : 'CAUTION';
+    return out;
+}
+
+function slApplySetup(r) {
+    const out = { ...r, reasons: [...r.reasons], stops: { ...r.stops } };
+    out.setup = slEvaluateSetup({ ...r, tapeInputs: SL_STATE.inputs }, SL_STATE.live, SL_EXEC);
+    if (out.setup.status === 'WAIT') {
+        out.gate = 'NO-GO';
+        out.stops.runner = false;
+        out.stops.target = 'No new entry — setup evidence incomplete or blocked';
+        out.stops.time = 'No new entry';
+        out.stops.maxHoldMin = 0;
+        out.stops.targets = [];
+        if (out.stops.plan) out.stops.plan = { ...out.stops.plan, runnerEligible: false, maxHoldMin: 0, targets: [] };
+        out.reasons.push('SETUP WAIT — resolve the confirmation checks above before a new entry.');
+    } else if (out.setup.status === 'CAUTION' && out.gate === 'GO') {
+        out.gate = 'CAUTION';
+        out.reasons.push('Actual ET lunch window — manual time selection cannot remove lunch caution.');
+    }
+    return out;
+}
+
+function slEditSetup(key, value) {
+    if (!Object.prototype.hasOwnProperty.call(SL_EXEC, key) || key === 'confirmedAt') return;
+    SL_EXEC[key] = value;
+    slInvalidateSetup();
+    slRenderLocalRead();
+}
+
+function slInvalidateSetup() {
+    SL_EXEC.confirmedAt = null;
+    const box = document.getElementById('slSetupConfirmed');
+    if (box) box.checked = false;
+}
+
+function slConfirmSetup(checked) {
+    SL_EXEC.confirmedAt = checked ? Date.now() : null;
+    slRenderLocalRead();
+}
+
+function slRenderSetupInputs() {
+    const el = document.getElementById('slSetupInputs');
+    if (!el) return;
+    const style = 'width:100%;box-sizing:border-box;padding:0.5rem;background:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:4px';
+    const fields = [['trigger', 'SPY trigger'], ['stop', 'SPY invalidation'], ['target', 'SPY target'], ['orHigh', '09:30–09:45 high (ORB)'], ['orLow', '09:30–09:45 low (ORB)'], ['bid', 'Option bid'], ['ask', 'Option ask'], ['expiry', 'Contract expiry (ET)']];
+    el.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.7rem">Snapshot-assisted checks. Confirm the retest on a live chart; this feed does not contain candles, opening-range bars, volume or option quotes. Thresholds: ≥1.5R remaining, ≤0.5R chase, ≤10% spread. These rules have not been backtested.</div>' +
+        '<label style="display:block;margin-bottom:0.7rem">Setup <select id="slSetupKind" style="' + style + '" onchange="slEditSetup(\'setup\',this.value)"><option value="vwap">VWAP reclaim / rejection + retest</option><option value="orb">15-minute opening-range break + retest</option></select></label>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:0.6rem">' + fields.map(([key, label]) => '<label style="font-size:0.7rem;color:var(--text-muted)">' + label + '<input id="slSetup_' + key + '" type="' + (key === 'expiry' ? 'date' : 'number') + '" ' + (key === 'expiry' ? '' : 'min="0.01" step="0.01"') + ' style="' + style + '" oninput="slEditSetup(\'' + key + '\',this.value)"></label>').join('') + '</div>' +
+        '<label style="display:block;font-size:0.75rem;margin:0.8rem 0"><input id="slSetupConfirmed" type="checkbox" onchange="slConfirmSetup(this.checked)"> I checked a completed retest candle, current tape inputs, levels and option quotes. Reconfirm after edits or 5 minutes.</label>';
+}
+
+function slSetupHtml(s) {
+    const color = s.status === 'READY' ? 'var(--bull)' : 'var(--warn)';
+    return '<div id="slSetupResult" aria-live="polite" style="padding:0.75rem;border:1px solid ' + color + ';border-radius:6px;margin-bottom:0.8rem">' +
+        '<strong style="color:' + color + '">' + slEsc(s.status + ' · ' + s.name) + '</strong>' +
+        '<div style="font-size:0.72rem;margin-top:0.4rem">Remaining R:R ' + (Number.isFinite(s.rr) ? s.rr.toFixed(2) + 'R' : '—') + ' · Option spread ' + (s.spreadPct == null ? '—' : s.spreadPct.toFixed(1) + '%') + '</div>' +
+        (s.reasons.length ? s.reasons.map(x => '<div style="font-size:0.72rem;margin-top:0.3rem">· ' + slEsc(x) + '</div>').join('') : '<div style="font-size:0.72rem;margin-top:0.3rem">Manual evidence checks passed; existing gate and position limits still apply. Underlying R:R does not predict option returns.</div>') + '</div>';
 }
 
 // ── Renderers ─────────────────────────────────────────
@@ -7423,15 +7548,17 @@ function slRenderInputs() {
 
 function slSetInput(key, value) {
     SL_STATE.inputs[key] = value;
+    slInvalidateSetup();
     slRenderLocalRead();
 }
 
 function slRenderLocalRead() {
     const el = document.getElementById('slGateOut');
     if (!el) return;
+    if (SL_EXEC.confirmedAt != null && (Date.now() - SL_EXEC.confirmedAt >= 300000 || Date.now() < SL_EXEC.confirmedAt)) slInvalidateSetup();
     // Gate first (untouched parity surface), then the gamma-regime overlay —
     // downward only. See grxApplyToGate.
-    const r = grxApplyToGate(slRunGate(SL_STATE.inputs));
+    const r = slApplySetup(grxApplyToGate(slRunGate(SL_STATE.inputs)));
     const gateC = r.gate === 'GO' ? SL_COLORS.green : r.gate === 'CAUTION' ? SL_COLORS.amber : SL_COLORS.red;
     const dirC = r.bias.dir === 'LONG' ? SL_COLORS.green : r.bias.dir === 'SHORT' ? SL_COLORS.red : SL_COLORS.amber;
     const govC = SL_COLORS[r.governor.color] || SL_COLORS.amber;
@@ -7476,6 +7603,7 @@ function slRenderLocalRead() {
             (gr ? badge('Gamma Regime', gr.regime + (gr.source === 'MANUAL' ? ' (manual)' : ''), grC, grTip)
                 : badge('Gamma Regime', 'UNCLASSIFIED', null, 'Load the SPY chain in Options — the day-type classifier reads the GEX board')) +
         '</div>' +
+        slSetupHtml(r.setup) +
         grWalls +
         '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.6rem">' + r.bias.note + '</div>' +
         '<div style="background:var(--surface-2);border-left:3px solid ' + gateC.fg + ';border-radius:0.25rem;padding:0.6rem 0.8rem;margin-bottom:0.7rem">' +
@@ -7617,6 +7745,7 @@ async function slFetchLive(force) {
         SL_STATE.live = d;
         SL_STATE.liveAt = Date.now();   // freshness stamp, see slSpotAt()
         SL_STATE.liveFetched = true;
+        slInvalidateSetup();
         // Auto-derive opening context + VWAP state (same rules as NEXUS)
         SL_STATE.inputs.opening = d.price > d.recent_5d_high ? 'above' : d.price < d.recent_5d_low ? 'gapdown' : 'below';
         SL_STATE.inputs.vwap = (d.above_vwap && d.vwap_distance > 1) ? 'holding' : (!d.above_vwap && d.vwap_distance > 1) ? 'lost' : 'chop';
@@ -7714,6 +7843,7 @@ function slToggle() {
 // ── Init (guarded — must never break the rest of the terminal) ──
 try {
     slRenderCards();
+    slRenderSetupInputs();
     slRenderInputs();
     slRenderZones(null);
     slRenderStructure();
@@ -7744,6 +7874,7 @@ try {
             // Age is part of what the bar renders, so it belongs in the
             // signature — otherwise the age text would freeze between crosses.
             const sig = [S.verified, S.tag, S.spot, S.vix, S.spotAgeLabel, S.vixAgeLabel].join('|');
+            slRenderLocalRead(); // expiry, real session window and source freshness change without a new price
             if (sig === slStructSig) return;
             slStructSig = sig;
             slRenderStructure();
