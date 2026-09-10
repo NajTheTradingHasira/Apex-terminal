@@ -5750,6 +5750,74 @@ window.addEventListener('resize', () => {
     if (has) gexRender(gexSub.active);
 });
 
+// ══ Unusual Whales status ════════════════════════════════
+//
+// The line under the Whale Flow button is a claim about the data on screen, so
+// it is DERIVED from the four results, never printed unconditionally at the end
+// of the handler. Guarded by uw-status-fixtures.mjs.
+const UW_STATUS_COLORS = { ok: '#E040FB', partial: 'var(--warn)', fail: 'var(--bear)' };
+
+// Resolves, never rejects. Every outcome comes back as a value so the HTTP
+// status survives to the status line, instead of collapsing to null the way
+// `.then(r => r.ok ? r.json() : null)` did — which made a 401 and a genuinely
+// empty result indistinguishable.
+async function uwFetch(url) {
+    let res;
+    try {
+        res = await fetch(url);
+    } catch (e) {
+        return { ok: false, status: 0, error: (e && e.message) || String(e) };
+    }
+    if (!res.ok) return { ok: false, status: res.status, error: 'HTTP ' + res.status };
+    try {
+        return { ok: true, status: res.status, body: await res.json() };
+    } catch (e) {
+        return { ok: false, status: 0, error: (e && e.message) || String(e) };
+    }
+}
+
+// How one failed part reads in the status line. status 0 means the request
+// never reached a server — 'HTTP 0' would send the operator hunting for a
+// server-side status that does not exist.
+function uwPartReason(part) {
+    const err = part && typeof part.error === 'string' ? part.error : '';
+    if (err.indexOf('render:') === 0) return 'render error';
+    if (!part || !part.status) return 'network error';
+    return 'HTTP ' + part.status;
+}
+
+// PURE. parts = [{ name, ok, status, error? }] → { level, text }.
+// '✓' iff every part succeeded. That biconditional is the whole point.
+function uwStatusSummary(ticker, parts) {
+    const list = Array.isArray(parts) ? parts : [];
+    const failed = list.filter(p => !(p && p.ok));
+    if (!failed.length) return { level: 'ok', text: `✓ Unusual Whales data loaded for ${ticker}` };
+
+    const hint = failed.some(p => p.status === 401 || p.status === 403)
+        ? ' · check UNUSUAL_WHALES_API_KEY on Railway' : '';
+    const detail = failed.slice()
+        .sort((a, b) => String(a.name).toLowerCase().localeCompare(String(b.name).toLowerCase()))
+        .map(p => `${p.name} ${uwPartReason(p)}`)
+        .join(', ');
+
+    if (failed.length < list.length) {
+        return { level: 'partial', text: `⚠ Unusual Whales partial for ${ticker} — ${detail}${hint}` };
+    }
+
+    // Total outage. One shared reason reads better than four copies of it, but
+    // mixed reasons must still be listed — never flattened to a single status.
+    const first = uwPartReason(failed[0]);
+    const uniform = failed.every(p => uwPartReason(p) === first);
+    const body = uniform
+        ? `${first} on all ${list.length} route${list.length === 1 ? '' : 's'}`
+        : detail;
+    return { level: 'fail', text: `✗ Unusual Whales unavailable for ${ticker} — ${body}${hint}` };
+}
+
+function uwTableNote(cols, text) {
+    return `<tr><td colspan="${cols}" style="text-align:center;color:var(--text-faint);padding:1.5rem">${text}</td></tr>`;
+}
+
 async function fetchUWData() {
     const ticker = (document.getElementById('optionsTickerInput').value.trim().toUpperCase()) || 'SPY';
     const btn = document.getElementById('uwFetchBtn');
@@ -5758,19 +5826,50 @@ async function fetchUWData() {
     btn.textContent = '⏳ Loading...';
     btn.disabled = true;
     statusEl.textContent = `Fetching Unusual Whales data for ${ticker}...`;
-    statusEl.style.color = '#E040FB';
+    statusEl.style.color = UW_STATUS_COLORS.ok;
 
-    // Fetch all UW data in parallel
-    const [flowRes, dpRes, ivRes, tideRes] = await Promise.allSettled([
-        fetch(`${NEXUS_API}/api/uw/flow-alerts?ticker=${ticker}&limit=20`).then(r => r.ok ? r.json() : null),
-        fetch(`${NEXUS_API}/api/uw/darkpool/${ticker}`).then(r => r.ok ? r.json() : null),
-        fetch(`${NEXUS_API}/api/uw/iv/${ticker}`).then(r => r.ok ? r.json() : null),
-        fetch(`${NEXUS_API}/api/uw/market-tide`).then(r => r.ok ? r.json() : null),
+    try {
+        await uwRenderAll(ticker, statusEl);
+    } finally {
+        // Whatever happened above, the button goes back. It must never strand
+        // on '⏳ Loading...'.
+        btn.textContent = '🐋 Whale Flow';
+        btn.disabled = false;
+    }
+}
+
+// The body of fetchUWData, split out only so the button lifecycle above stays
+// readable. Runs inside that try/finally.
+async function uwRenderAll(ticker, statusEl) {
+    // Fetch all UW data in parallel. uwFetch never rejects, so each entry is a
+    // result object carrying its own HTTP status.
+    const [flowRes, dpRes, ivRes, tideRes] = await Promise.all([
+        uwFetch(`${NEXUS_API}/api/uw/flow-alerts?ticker=${ticker}&limit=20`),
+        uwFetch(`${NEXUS_API}/api/uw/darkpool/${ticker}`),
+        uwFetch(`${NEXUS_API}/api/uw/iv/${ticker}`),
+        uwFetch(`${NEXUS_API}/api/uw/market-tide`),
     ]);
+
+    const asPart = (name, res) => ({ name, ok: res.ok, status: res.status, error: res.error });
+    const parts = {
+        flow: asPart('flow', flowRes),
+        dp: asPart('dark pool', dpRes),
+        iv: asPart('IV', ivRes),
+        tide: asPart('market tide', tideRes),
+    };
+
+    // A card the browser could not render is a failed part, whatever the route
+    // returned. A bare `catch {}` here is what let a crashed card sit quietly
+    // under a green check mark.
+    const renderFailed = (p, e) => {
+        console.warn(`[UW] ${p.name} render failed`, e);
+        p.ok = false;
+        p.error = 'render: ' + ((e && e.message) || String(e));
+    };
 
     // Market Tide
     try {
-        const tide = tideRes.status === 'fulfilled' ? tideRes.value : null;
+        const tide = tideRes.ok ? tideRes.body : null;
         const tideCard = document.getElementById('uwMarketTideCard');
         const tideText = document.getElementById('uwMarketTideText');
         if (tide?.data && Array.isArray(tide.data) && tide.data.length > 0) {
@@ -5790,11 +5889,14 @@ async function fetchUWData() {
             const fmtPrem = (v) => { const a = Math.abs(v); return a >= 1e9 ? `$${(a/1e9).toFixed(1)}B` : a >= 1e6 ? `$${(a/1e6).toFixed(0)}M` : `$${(a/1e3).toFixed(0)}K`; };
             tideText.innerHTML = `<span style="color:${callDom ? 'var(--bull)' : 'var(--bear)'}">${callDom ? '▲ CALL DOMINANT' : '▼ PUT DOMINANT'}</span> · Net Calls: ${fmtPrem(netCall)} · Net Puts: ${fmtPrem(netPut)}`;
         } else { tideCard.style.display = 'none'; }
-    } catch { document.getElementById('uwMarketTideCard').style.display = 'none'; }
+    } catch (e) {
+        renderFailed(parts.tide, e);
+        document.getElementById('uwMarketTideCard').style.display = 'none';
+    }
 
     // IV Context
     try {
-        const iv = ivRes.status === 'fulfilled' ? ivRes.value : null;
+        const iv = ivRes.ok ? ivRes.body : null;
         const ivCard = document.getElementById('uwIVCard');
         const ivGrid = document.getElementById('uwIVGrid');
         if (iv) {
@@ -5830,18 +5932,25 @@ async function fetchUWData() {
                 ivGrid.innerHTML = '<div class="metric-card" style="grid-column:1/-1"><div class="metric-label">IV Context</div><div class="metric-value" style="font-size:1rem;color:var(--text-faint)">N/A — IV data unavailable for this ticker</div></div>';
             }
         } else { ivCard.style.display = 'none'; }
-    } catch { document.getElementById('uwIVCard').style.display = 'none'; }
+    } catch (e) {
+        renderFailed(parts.iv, e);
+        document.getElementById('uwIVCard').style.display = 'none';
+    }
 
     // Flow Alerts
     try {
-        const flow = flowRes.status === 'fulfilled' ? flowRes.value : null;
         const flowSection = document.getElementById('uwFlowSection');
         const flowBody = document.getElementById('uwFlowBody');
         document.getElementById('uwFlowTicker').textContent = ticker;
-        const flowData = flow?.data || [];
+        flowSection.style.display = 'block';
+        const flowData = flowRes.ok ? (flowRes.body?.data || []) : [];
         const flowArr = Array.isArray(flowData) ? flowData : (flowData.data || []);
-        if (flowArr.length > 0) {
-            flowSection.style.display = 'block';
+        // A 200 with no rows is not an outage. Only a failed route names a reason.
+        if (!flowRes.ok) {
+            flowBody.innerHTML = uwTableNote(8, `Flow unavailable — ${uwPartReason(parts.flow)}`);
+        } else if (flowArr.length === 0) {
+            flowBody.innerHTML = uwTableNote(8, `No flow alerts for ${ticker}`);
+        } else {
             flowBody.innerHTML = flowArr.slice(0, 20).map(f => {
                 // Type: use "type" field directly
                 const typeRaw = (f.type || '').toUpperCase();
@@ -5891,24 +6000,27 @@ async function fetchUWData() {
                     <td><span style="font-size:0.75rem;font-weight:700;padding:0.1rem 0.4rem;border-radius:0.2rem;background:${sentColor}18;color:${sentColor}">${sent}</span></td>
                 </tr>`;
             }).join('');
-        } else {
-            flowSection.style.display = 'block';
-            flowBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:1.5rem">Unusual Whales flow data unavailable</td></tr>';
         }
-    } catch {
+    } catch (e) {
+        renderFailed(parts.flow, e);
         document.getElementById('uwFlowSection').style.display = 'block';
-        document.getElementById('uwFlowBody').innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-faint);padding:1.5rem">Unusual Whales data unavailable</td></tr>';
+        document.getElementById('uwFlowBody').innerHTML = uwTableNote(8, `Flow unavailable — ${uwPartReason(parts.flow)}`);
     }
 
     // Dark Pool Prints
     try {
-        const dp = dpRes.status === 'fulfilled' ? dpRes.value : null;
         const dpSection = document.getElementById('uwDPSection');
         const dpBody = document.getElementById('uwDPBody');
         document.getElementById('uwDPTicker').textContent = ticker;
-        if (dp?.data && Array.isArray(dp.data) && dp.data.length > 0) {
-            dpSection.style.display = 'block';
-            dpBody.innerHTML = dp.data.slice(0, 20).map(t => {
+        dpSection.style.display = 'block';
+        const dpArr = dpRes.ok && Array.isArray(dpRes.body?.data) ? dpRes.body.data : [];
+        // A 200 with no prints is not an outage. Only a failed route names a reason.
+        if (!dpRes.ok) {
+            dpBody.innerHTML = uwTableNote(5, `Dark pool unavailable — ${uwPartReason(parts.dp)}`);
+        } else if (dpArr.length === 0) {
+            dpBody.innerHTML = uwTableNote(5, `No dark pool prints for ${ticker}`);
+        } else {
+            dpBody.innerHTML = dpArr.slice(0, 20).map(t => {
                 const price = parseFloat(t.price || 0);
                 const shares = t.size || t.volume || 0;
                 const notional = price * shares;
@@ -5927,19 +6039,18 @@ async function fetchUWData() {
                     <td><span style="font-size:0.75rem;font-weight:700;color:${isBuy ? 'var(--bull)' : 'var(--bear)'}">${isBuy ? '▲ BUY' : '▼ SELL'}</span></td>
                 </tr>`;
             }).join('');
-        } else {
-            dpSection.style.display = 'block';
-            dpBody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:1.5rem">Dark pool data unavailable for this ticker</td></tr>';
         }
-    } catch {
+    } catch (e) {
+        renderFailed(parts.dp, e);
         document.getElementById('uwDPSection').style.display = 'block';
-        document.getElementById('uwDPBody').innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-faint);padding:1.5rem">Unusual Whales data unavailable</td></tr>';
+        document.getElementById('uwDPBody').innerHTML = uwTableNote(5, `Dark pool unavailable — ${uwPartReason(parts.dp)}`);
     }
 
-    btn.textContent = '🐋 Whale Flow';
-    btn.disabled = false;
-    statusEl.textContent = `✓ Unusual Whales data loaded for ${ticker}`;
-    statusEl.style.color = '#E040FB';
+    // The status line is a claim about what is on screen, so derive it from
+    // what actually rendered. The old unconditional '✓' was the defect.
+    const summary = uwStatusSummary(ticker, [parts.flow, parts.dp, parts.iv, parts.tide]);
+    statusEl.textContent = summary.text;
+    statusEl.style.color = UW_STATUS_COLORS[summary.level];
 }
 
 // ══════════════════════════════════════════════════════════════
