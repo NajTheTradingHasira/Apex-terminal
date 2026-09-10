@@ -7141,9 +7141,10 @@ function slMdToHtml(md) {
 // ── Structural context for the AI providers ────────────────
 function slStructureContext() {
     const S = slStructure();
-    const r = slApplySetup(grxApplyToGate(slRunGate(SL_STATE.inputs, S)));   // providers see the regime-gated read
+    const r = slApplySetup(grxApplyToGate(slRunGate(slTapeInputs(), S)));   // providers see the regime-gated read
     return {
         intraday_setup: r.setup,
+        candle_detection: SL_CANDLE.mode === 'auto' ? slCandleSummary() : null,
         gamma_regime: r.gammaRegime || null,   // PIN/TREND/BREAK/MIXED day-type + walls; additive field
         verified: S.verified,
         missing: S.missing,
@@ -7170,7 +7171,7 @@ function slStructureContext() {
 
 // Snapshot-assisted setup checks. No candles, volume or option quotes are inferred.
 // Thresholds are reviewable heuristics, not calibrated probabilities.
-const SL_INTRADAY_VERSION = '1.0.0';
+const SL_INTRADAY_VERSION = '2.0.0';
 const SL_EXEC = { setup: 'vwap', trigger: '', stop: '', target: '', orHigh: '', orLow: '', bid: '', ask: '', expiry: '', confirmedAt: null };
 
 function slEtDate(ms) {
@@ -7193,7 +7194,7 @@ function slEvaluateSetup(r, live, e, now = Date.now()) {
         wait('Need a valid SPY snapshot with a source timestamp no more than 2 minutes old.');
     }
     if (!Number.isFinite(e.confirmedAt) || now - e.confirmedAt >= 300000 || now < e.confirmedAt || slEtDate(e.confirmedAt) !== slEtDate(now)) {
-        wait('Confirm a completed retest candle, tape inputs and option quotes from your live chart (expires after 5 minutes).');
+        wait('Confirm the evidence listed above and current option quotes (expires after 5 minutes).');
     }
     if (dir && !(dir * (p - vwap) > 0)) wait('SPY must be on the matching side of VWAP.');
     const inp = r.tapeInputs || {};
@@ -7236,7 +7237,11 @@ function slEvaluateSetup(r, live, e, now = Date.now()) {
 
 function slApplySetup(r) {
     const out = { ...r, reasons: [...r.reasons], stops: { ...r.stops } };
-    out.setup = slEvaluateSetup({ ...r, tapeInputs: SL_STATE.inputs }, SL_STATE.live, SL_EXEC);
+    if (SL_CANDLE.mode === 'auto') {
+        const c = slCandleCandidate(slCandleRead()), id = c ? [c.id,c.trigger,c.stop,c.target].join(':') : null;
+        if (id !== SL_CANDLE.evidenceId) { slInvalidateSetup(); SL_CANDLE.evidenceId = id; }
+    }
+    out.setup = SL_CANDLE.mode === 'auto' ? slAutoSetup(r) : slEvaluateSetup({ ...r, tapeInputs: SL_STATE.inputs }, SL_STATE.live, SL_EXEC);
     if (out.setup.status === 'WAIT') {
         out.gate = 'NO-GO';
         out.stops.runner = false;
@@ -7276,10 +7281,11 @@ function slRenderSetupInputs() {
     if (!el) return;
     const style = 'width:100%;box-sizing:border-box;padding:0.5rem;background:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:4px';
     const fields = [['trigger', 'SPY trigger'], ['stop', 'SPY invalidation'], ['target', 'SPY target'], ['orHigh', '09:30–09:45 high (ORB)'], ['orLow', '09:30–09:45 low (ORB)'], ['bid', 'Option bid'], ['ask', 'Option ask'], ['expiry', 'Contract expiry (ET)']];
-    el.innerHTML = '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.7rem">Snapshot-assisted checks. Confirm the retest on a live chart; this feed does not contain candles, opening-range bars, volume or option quotes. Thresholds: ≥1.5R remaining, ≤0.5R chase, ≤10% spread. These rules have not been backtested.</div>' +
+    el.innerHTML = '<div style="display:flex;gap:0.6rem;align-items:center;margin-bottom:0.7rem"><label>Detection <select id="slDetectionMode" onchange="slCandleMode(this.value)" style="'+style+'"><option value="auto">Automatic · completed 1-minute candles</option><option value="manual">Manual chart confirmation</option></select></label><button class="api-btn" onclick="slFetchCandles(true)" style="margin:0">Refresh candles</button></div><div id="slCandleOut"></div>' +
+        '<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.7rem">Automatic mode detects completed candle patterns and fills SPY levels. Market internals and contract quotes require your confirmation. Manual mode uses your chart inputs. Thresholds: ≥1.5R remaining, ≤0.5R chase, ≤10% spread. These rules have not been backtested.</div>' +
         '<label style="display:block;margin-bottom:0.7rem">Setup <select id="slSetupKind" style="' + style + '" onchange="slEditSetup(\'setup\',this.value)"><option value="vwap">VWAP reclaim / rejection + retest</option><option value="orb">15-minute opening-range break + retest</option></select></label>' +
         '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:0.6rem">' + fields.map(([key, label]) => '<label style="font-size:0.7rem;color:var(--text-muted)">' + label + '<input id="slSetup_' + key + '" type="' + (key === 'expiry' ? 'date' : 'number') + '" ' + (key === 'expiry' ? '' : 'min="0.01" step="0.01"') + ' style="' + style + '" oninput="slEditSetup(\'' + key + '\',this.value)"></label>').join('') + '</div>' +
-        '<label style="display:block;font-size:0.75rem;margin:0.8rem 0"><input id="slSetupConfirmed" type="checkbox" onchange="slConfirmSetup(this.checked)"> I checked a completed retest candle, current tape inputs, levels and option quotes. Reconfirm after edits or 5 minutes.</label>';
+        '<label style="display:block;font-size:0.75rem;margin:0.8rem 0"><input id="slSetupConfirmed" type="checkbox" onchange="slConfirmSetup(this.checked)"><span id="slConfirmLabel"> I checked current internals and option quotes.</span></label>';
 }
 
 function slSetupHtml(s) {
@@ -7288,6 +7294,179 @@ function slSetupHtml(s) {
         '<strong style="color:' + color + '">' + slEsc(s.status + ' · ' + s.name) + '</strong>' +
         '<div style="font-size:0.72rem;margin-top:0.4rem">Remaining R:R ' + (Number.isFinite(s.rr) ? s.rr.toFixed(2) + 'R' : '—') + ' · Option spread ' + (s.spreadPct == null ? '—' : s.spreadPct.toFixed(1) + '%') + '</div>' +
         (s.reasons.length ? s.reasons.map(x => '<div style="font-size:0.72rem;margin-top:0.3rem">· ' + slEsc(x) + '</div>').join('') : '<div style="font-size:0.72rem;margin-top:0.3rem">Manual evidence checks passed; existing gate and position limits still apply. Underlying R:R does not predict option returns.</div>') + '</div>';
+}
+
+// Completed 1-minute candles only. Yahoo timestamps describe the bar OPEN.
+const SL_CANDLE_VERSION = '1.0.0';
+const SL_CANDLE = { mode: 'auto', payload: null, loading: false, error: '', attemptedAt: 0 };
+
+function slCandleScan(payload, now = Date.now()) {
+    const out = { valid: false, reason: '', bars: [], candidates: [], metrics: null };
+    const fail = reason => ({ ...out, reason });
+    if (!payload || payload.ticker !== 'SPY' || payload.interval !== '1m' || !Array.isArray(payload.data)) return fail('Waiting for SPY one-minute candles.');
+    const today = slEtDate(now), seen = new Map();
+    const timeFormat = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    for (const raw of payload.data) {
+        if (!raw || typeof raw.date !== 'string' || !/(Z|[+-]\d{2}:\d{2})$/.test(raw.date)) return fail('Candle timestamps must include a timezone.');
+        const t = Date.parse(raw.date);
+        if (!Number.isFinite(t) || t % 60000 !== 0) return fail('Invalid one-minute candle timestamp.');
+        if (slEtDate(t) !== today) continue;
+        const parts = Object.fromEntries(timeFormat.formatToParts(t).map(p => [p.type, p.value]));
+        const minute = Number(parts.hour) * 60 + Number(parts.minute);
+        if (minute < 570 || minute >= 960) continue;
+        if (t > now) return fail('Feed contains a future candle.');
+        if (t + 60000 > now - 5000) continue; // close + 5-second publication grace
+        const b = { t, minute, o: raw.open, h: raw.high, l: raw.low, c: raw.close, v: raw.volume };
+        if (![b.o,b.h,b.l,b.c,b.v].every(v => typeof v === 'number' && Number.isFinite(v) && v > 0) || b.h < Math.max(b.o,b.c,b.l) || b.l > Math.min(b.o,b.c)) return fail('Invalid OHLCV candle; automatic detection paused.');
+        if (seen.has(t) && JSON.stringify(seen.get(t)) !== JSON.stringify(b)) return fail('Conflicting duplicate candles; automatic detection paused.');
+        seen.set(t, b);
+    }
+    const bars = [...seen.values()].sort((a,b) => a.t - b.t);
+    out.bars = bars;
+    if (!bars.length) return fail('No completed candles from today’s regular session.');
+    if (bars[0].minute !== 570 || bars.some((b,i) => i && b.t - bars[i-1].t !== 60000)) return fail('Missing session candles; opening range and VWAP cannot be verified.');
+    let volume = 0, weighted = 0;
+    const ema = {5: bars[0].c, 10: bars[0].c, 20: bars[0].c};
+    bars.forEach((b,i) => {
+        volume += b.v; weighted += (b.h+b.l+b.c)/3*b.v; b.vwap = weighted/volume;
+        for (const p of [5,10,20]) { ema[p] += 2/(p+1)*(b.c-ema[p]); b['ema'+p] = ema[p]; }
+        b.tr = i ? Math.max(b.h-b.l, Math.abs(b.h-bars[i-1].c), Math.abs(b.l-bars[i-1].c)) : b.h-b.l;
+        b.atr = bars.slice(Math.max(0,i-13),i+1).reduce((s,x) => s+x.tr,0)/Math.min(i+1,14);
+        b.relvol = i >= 20 ? b.v/(bars.slice(i-20,i).reduce((s,x) => s+x.v,0)/20) : null;
+    });
+    const last = bars[bars.length-1];
+    const opening = bars.filter(b => b.minute < 585);
+    const orHigh = opening.length === 15 ? Math.max(...opening.map(b => b.h)) : null;
+    const orLow = opening.length === 15 ? Math.min(...opening.map(b => b.l)) : null;
+    let crosses = 0;
+    for (let i=Math.max(1,bars.length-10); i<bars.length; i++) if ((bars[i].c-bars[i].vwap)*(bars[i-1].c-bars[i-1].vwap) < 0) crosses++;
+    out.metrics = { price:last.c, vwap:last.vwap, ema5:last.ema5, ema10:last.ema10, ema20:last.ema20, atr:last.atr, relvol:last.relvol, orHigh, orLow, crosses, lastCloseAt:last.t+60000, ageMs:now-last.t-60000 };
+    if (now-last.t-60000 > 120000) return fail('Latest completed candle is over 2 minutes old; delayed data cannot enable a setup.');
+    if (bars.length < 25) return fail('Warming up: need 25 complete session candles for EMA and volume checks.');
+    if (!(last.atr > 0)) return fail('No measurable candle range.');
+    out.valid = true;
+    if (crosses >= 4) { out.reason = 'VWAP chop: four or more crosses in the last ten minutes.'; return out; }
+    const round = v => Math.round(v*100)/100;
+    for (const setup of ['vwap','orb']) for (const sign of [1,-1]) {
+        const level = b => setup === 'vwap' ? b.vwap : sign > 0 ? orHigh : orLow;
+        // A breakout, a separate retest within five bars, then a later CLOSE
+        // through the retest extreme. No high/low-only triggers or same-bar guesses.
+        for (let j=Math.max(20,bars.length-9); j<bars.length-2; j++) {
+            const breakout = bars[j], before = bars[j-1];
+            if (breakout.minute < 585 || !(sign*(before.c-level(before)) <= 0 && sign*(breakout.c-level(breakout)) > 0.05*breakout.atr)) continue;
+            for (let k=j+1; k<=Math.min(j+5,bars.length-2); k++) {
+                const retest=bars[k], edge=level(retest), tol=0.15*retest.atr;
+                if (bars.slice(j+1,k).some(b => sign*(b.c-level(b)) <= 0)) break;
+                const touches = sign>0 ? retest.l <= edge+tol : retest.h >= edge-tol;
+                if (!touches || !(sign*(retest.c-edge)>0 && sign*(retest.c-retest.o)>0)) continue;
+                const priorSwing = sign>0 ? Math.min(...bars.slice(j-5,j).map(b=>b.l)) : Math.max(...bars.slice(j-5,j).map(b=>b.h));
+                if (!(sign*((sign>0?retest.l:retest.h)-priorSwing)>0)) continue;
+                const trigger=round(sign>0 ? Math.max(retest.h,edge)+0.01 : Math.min(retest.l,edge)-0.01);
+                const stop=round(sign>0 ? Math.min(retest.l,edge)-0.01 : Math.max(retest.h,edge)+0.01);
+                const risk=sign*(trigger-stop);
+                if (!(risk>0)) continue;
+                const after=bars.slice(k+1);
+                const confirmation=after.find(b => sign*(b.c-trigger)>=0);
+                if (!confirmation || now-confirmation.t-60000>180000) continue;
+                if (after.some(b => sign*((sign>0?b.l:b.h)-stop)<=0)) continue;
+                if (after.some(b => sign*(b.c-level(b))<=0)) continue;
+                if (!(sign*(last.ema5-last.ema10)>0 && sign*(last.ema10-last.ema20)>0 && sign*(last.c-last.vwap)>0)) continue;
+                if (!(confirmation.relvol>=1.2)) continue;
+                // A 2R projection capped at a known pre-breakout session extreme.
+                const obstacles=bars.slice(0,j).map(b => sign>0?b.h:b.l).filter(p => sign*(p-trigger)>0);
+                let target=trigger+sign*2*risk, targetKind='2R projection';
+                if (obstacles.length) {
+                    const wall=sign>0?Math.max(...obstacles):Math.min(...obstacles);
+                    if (sign*(wall-target)<0) { target=wall; targetKind='earlier session extreme'; }
+                }
+                target=round(target);
+                if (after.some(b=>sign*((sign>0?b.h:b.l)-target)>=0)) continue; // opportunity already completed
+                const execution=sign>0?Math.max(trigger,last.c):Math.min(trigger,last.c);
+                const rr=sign*(target-execution)/(sign*(execution-stop));
+                if (sign*(last.c-trigger)<0 || sign*(last.c-trigger)>0.5*risk || rr<1.5) continue;
+                const candidate={ id:setup+':'+sign+':'+retest.t, setup, dir:sign>0?'LONG':'SHORT', trigger, stop, target, targetKind, rr, orHigh, orLow, breakoutAt:breakout.t+60000, retestAt:retest.t+60000, confirmedAt:confirmation.t+60000, relvol:confirmation.relvol };
+                if (!out.candidates.some(c=>c.id===candidate.id)) out.candidates.push(candidate);
+                break;
+            }
+        }
+    }
+    out.candidates.sort((a,b)=>b.confirmedAt-a.confirmedAt || a.id.localeCompare(b.id));
+    out.reason = out.candidates.length ? 'Completed candle setup detected. Contract and internals checks still apply.' : 'Watching for a break → retest → confirming close with EMA alignment, ≥1.2× volume and enough room to target.';
+    return out;
+}
+
+function slCandleRead() {
+    if (SL_CANDLE.error) return {valid:false,reason:SL_CANDLE.error,candidates:[],metrics:null};
+    const tick = Math.floor(Date.now()/1000);
+    if (SL_CANDLE.scanTick !== tick || SL_CANDLE.scanPayload !== SL_CANDLE.payload) {
+        SL_CANDLE.scan = slCandleScan(SL_CANDLE.payload);
+        SL_CANDLE.scanTick = tick; SL_CANDLE.scanPayload = SL_CANDLE.payload;
+    }
+    return SL_CANDLE.scan;
+}
+function slCandleSummary() { const {valid,reason,metrics,candidates} = slCandleRead(); return {valid,reason,metrics,candidates}; }
+function slCandleCandidate(scan) { return scan.valid ? scan.candidates.find(c=>c.setup===SL_EXEC.setup) || null : null; }
+function slTapeInputs() {
+    if (SL_CANDLE.mode !== 'auto') return SL_STATE.inputs;
+    const scan=slCandleRead(), c=slCandleCandidate(scan), m=scan.metrics;
+    return { ...SL_STATE.inputs,
+        vwap:scan.valid && scan.metrics.crosses<4 ? (m.price>m.vwap?'holding':'lost') : 'chop',
+        ribbon:scan.valid && m.ema5>m.ema10 && m.ema10>m.ema20 ? 'fannedup' : scan.valid && m.ema5<m.ema10 && m.ema10<m.ema20 ? 'fanneddown' : 'pinched',
+        retest:c ? (c.dir==='LONG'?'higherlow':'lowerhigh') : 'none' };
+}
+
+function slAutoSetup(r) {
+    const scan=slCandleRead(), c=slCandleCandidate(scan);
+    if (!c) return {status:'WAIT',name:'Automatic '+(SL_EXEC.setup==='orb'?'opening-range retest':'VWAP retest'),reasons:[scan.candidates.length ? 'No confirmed setup for the selected playbook; a different playbook has a candidate.' : scan.reason || 'No confirmed setup for the selected playbook.'],rr:null,spreadPct:null};
+    const live={price:scan.metrics.price,vwap:scan.metrics.vwap,timestamp:new Date(scan.metrics.lastCloseAt).toISOString()};
+    const e={...SL_EXEC,...c,confirmedAt:SL_EXEC.confirmedAt}; // manual quote confirmation is never fabricated
+    const out=slEvaluateSetup({...r,tapeInputs:slTapeInputs()},live,e);
+    out.name='AUTO '+c.dir+' · '+out.name;
+    out.candle=c;
+    if (c.dir!==r.bias.dir) { out.status='WAIT'; out.reasons.push('Candle direction conflicts with the existing bias gate.'); }
+    return out;
+}
+
+function slCandleMode(mode) {
+    SL_CANDLE.mode=mode==='manual'?'manual':'auto';
+    slInvalidateSetup(); slRenderInputs(); slRenderLocalRead();
+    if (SL_CANDLE.mode==='auto') slFetchCandles(true);
+}
+
+async function slFetchCandles(force=false) {
+    if (SL_CANDLE.loading || SL_CANDLE.mode!=='auto' || (!force && Date.now()-SL_CANDLE.attemptedAt<30000)) return;
+    SL_CANDLE.loading=true; SL_CANDLE.attemptedAt=Date.now();
+    let timeout;
+    try {
+        const controller=new AbortController(); timeout=setTimeout(()=>controller.abort(),12000);
+        const resp=await fetch(NEXUS_API+'/api/stock/SPY/intraday?interval=1m',{cache:'no-store',signal:controller.signal});
+        if (!resp.ok) throw new Error('Candle feed HTTP '+resp.status);
+        const payload=await resp.json();
+        if (!payload || payload.ticker!=='SPY' || payload.interval!=='1m' || !Array.isArray(payload.data)) throw new Error('Candle feed returned an invalid response.');
+        SL_CANDLE.payload=payload; SL_CANDLE.error='';
+    } catch (e) {
+        SL_CANDLE.error=e.name==='AbortError'?'Candle feed timed out; automatic detection paused.':'Candle feed unavailable; automatic detection paused.';
+        slInvalidateSetup();
+    } finally {
+        clearTimeout(timeout); SL_CANDLE.loading=false;
+        if (SL_CANDLE.mode==='auto') { slRenderInputs(); slRenderLocalRead(); }
+    }
+}
+
+function slRenderCandlePanel() {
+    const el=document.getElementById('slCandleOut'); if (!el) return;
+    const auto=SL_CANDLE.mode==='auto', scan=slCandleRead(), m=scan.metrics, c=slCandleCandidate(scan);
+    const format=n=>Number.isFinite(n)?n.toFixed(2):'—';
+    el.innerHTML=auto ? '<div style="padding:0.8rem;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:6px;margin-bottom:0.8rem"><strong style="color:var(--accent)">1-MIN CANDLE DETECTOR · '+(scan.valid?(c?'DETECTED':'WATCHING'):'WAIT')+'</strong>'+
+        '<div style="font-size:0.72rem;margin-top:0.4rem">'+slEsc(scan.reason)+'</div>'+
+        (m?'<div style="font-size:0.72rem;margin-top:0.5rem">OR high / low '+format(m.orHigh)+' / '+format(m.orLow)+' · Bar VWAP estimate '+format(m.vwap)+' · EMA 5/10/20 '+[m.ema5,m.ema10,m.ema20].map(format).join(' / ')+'<br>Last candle close '+slEsc(new Date(m.lastCloseAt).toLocaleTimeString('en-US',{timeZone:'America/New_York'}))+' ET · age '+Math.max(0,Math.floor(m.ageMs/1000))+'s · Yahoo via Nexus</div>':'')+
+        (c?'<div style="font-size:0.72rem;color:var(--accent);margin-top:0.5rem">'+slEsc(c.dir)+' · Confirmed '+slEsc(new Date(c.confirmedAt).toLocaleTimeString('en-US',{timeZone:'America/New_York'}))+' ET · Volume '+c.relvol.toFixed(2)+'× preceding 20 bars · Target: '+slEsc(c.targetKind)+'</div>':'')+'</div>' : '';
+    for (const key of ['trigger','stop','target','orHigh','orLow']) {
+        const input=document.getElementById('slSetup_'+key); if (!input) continue;
+        input.disabled=auto; input.value=auto?(c?Number(c[key]).toFixed(2):''):SL_EXEC[key];
+    }
+    const label=document.getElementById('slConfirmLabel');
+    if(label) label.textContent=auto?' I checked current market internals and the selected contract’s bid, ask and expiry. Reconfirm after edits or 5 minutes.':' I checked a completed retest candle, current tape inputs, levels and option quotes. Reconfirm after edits or 5 minutes.';
 }
 
 // ── Renderers ─────────────────────────────────────────
@@ -7517,13 +7696,14 @@ function slRenderCards() {
 function slRenderInputs() {
     const el = document.getElementById('slInputs');
     if (!el) return;
+    const effective = slTapeInputs();
     let html = SL_INPUTS_DEF.map(def => {
         const key = def[0], label = def[1], opts = def[2];
         const options = opts.map(o =>
-            '<option value="' + o[0] + '"' + (SL_STATE.inputs[key] === o[0] ? ' selected' : '') + '>' + slEsc(o[1]) + '</option>').join('');
+            '<option value="' + o[0] + '"' + (effective[key] === o[0] ? ' selected' : '') + '>' + slEsc(o[1]) + '</option>').join('');
         return '<div>' +
-            '<div style="font-size:0.62rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem">' + label + '</div>' +
-            '<select onchange="slSetInput(\'' + key + '\', this.value)" style="width:100%;padding:0.45rem 0.5rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.25rem;font-size:0.78rem;font-family:inherit">' + options + '</select>' +
+            '<div style="font-size:0.62rem;color:var(--text-faint);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.25rem">' + label + (SL_CANDLE.mode === 'auto' && ['vwap','ribbon','retest'].includes(key) ? ' · AUTO' : '') + '</div>' +
+            '<select ' + (SL_CANDLE.mode === 'auto' && ['vwap','ribbon','retest'].includes(key) ? 'disabled ' : '') + 'onchange="slSetInput(\'' + key + '\', this.value)" style="width:100%;padding:0.45rem 0.5rem;background-color:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:0.25rem;font-size:0.78rem;font-family:inherit">' + options + '</select>' +
         '</div>';
     }).join('');
     html += '<div>' +
@@ -7555,10 +7735,14 @@ function slSetInput(key, value) {
 function slRenderLocalRead() {
     const el = document.getElementById('slGateOut');
     if (!el) return;
+    if (SL_CANDLE.mode === 'auto') {
+        const inp = slTapeInputs(), sig = [inp.vwap,inp.ribbon,inp.retest].join(':');
+        if (sig !== SL_CANDLE.tapeSig) { SL_CANDLE.tapeSig = sig; slRenderInputs(); }
+    }
     if (SL_EXEC.confirmedAt != null && (Date.now() - SL_EXEC.confirmedAt >= 300000 || Date.now() < SL_EXEC.confirmedAt)) slInvalidateSetup();
     // Gate first (untouched parity surface), then the gamma-regime overlay —
     // downward only. See grxApplyToGate.
-    const r = slApplySetup(grxApplyToGate(slRunGate(SL_STATE.inputs)));
+    const r = slApplySetup(grxApplyToGate(slRunGate(slTapeInputs())));
     const gateC = r.gate === 'GO' ? SL_COLORS.green : r.gate === 'CAUTION' ? SL_COLORS.amber : SL_COLORS.red;
     const dirC = r.bias.dir === 'LONG' ? SL_COLORS.green : r.bias.dir === 'SHORT' ? SL_COLORS.red : SL_COLORS.amber;
     const govC = SL_COLORS[r.governor.color] || SL_COLORS.amber;
@@ -7616,6 +7800,7 @@ function slRenderLocalRead() {
         '</div>' +
         '<div style="margin-top:0.7rem;font-size:0.65rem;color:var(--text-faint)">Logic is a framework, not a signal service. Final entry quality depends on tape, spread, option liquidity, and whether price is trading into a real inflection.</div>';
     slStopCalc();
+    slRenderCandlePanel();
 }
 
 function slRenderZones(values) {
@@ -7837,7 +8022,7 @@ function slToggle() {
     body.style.display = open ? 'block' : 'none';
     if (chev) chev.textContent = open ? '▾' : '▸';
     try { localStorage.setItem('apex_spylogic_open', open ? '1' : '0'); } catch (e) {}
-    if (open) slFetchLive(false);
+    if (open) { slFetchLive(false); slFetchCandles(true); }
 }
 
 // ── Init (guarded — must never break the rest of the terminal) ──
@@ -7866,6 +8051,8 @@ try {
     setInterval(() => {
         try {
             const S = slStructure();
+            const body = document.getElementById('slBody');
+            if (body && body.style.display !== 'none' && S.rth) slFetchCandles();
             // Refetch spot once it crosses the soft threshold, so it never
             // reaches the hard one during RTH. Reuses this timer rather than
             // adding another; slRefreshSpot() guards against overlap itself.
