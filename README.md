@@ -1,31 +1,45 @@
 # Apex-terminal
 
-## SPY intraday setup checks
+## SPY automatic candle detection
 
-In **AI Analysis → SPY Logic**, select a VWAP reclaim/rejection or a
-15-minute opening-range break/retest. Set the tape inputs and enter SPY
-trigger, invalidation and target levels, plus the selected option's bid,
-ask and expiration. ORB also needs the completed 09:30–09:45 ET range.
-Confirm the completed retest candle and current inputs on your live chart.
+In **AI Analysis → SPY Logic**, Automatic mode polls the existing
+`/api/stock/SPY/intraday?interval=1m` endpoint every 30 seconds while the
+panel is open during regular hours. Choose the VWAP or opening-range playbook.
+The detector fills SPY trigger, invalidation, target and opening-range levels,
+and derives VWAP state, the 5/10/20 EMA ribbon and the retest input. Switch to
+Manual mode to use chart-entered levels instead.
 
-The setup layer can restrict the existing bias/gamma gate, never promote it.
-WAIT prevents new-entry eligibility; CAUTION preserves existing restrictions;
-READY means the entered evidence passes the checks, not an order or a
-probability of success. Editing tape inputs or setup fields clears confirmation;
-confirmation expires in five minutes and is not persisted across reloads.
+Automatic confirmation requires a breakout/reclaim close, a separate retest
+within five bars, then a later candle CLOSE beyond the retest extreme. Both
+long and short directions require EMA alignment, a higher low/lower high,
+confirmation volume at least 1.2× the preceding 20 bars, at least 1.5R remaining,
+and no more than 0.5R chase. A later stop breach or close back across the level
+invalidates the candidate. Candidates expire three minutes after confirmation.
+The target is a labelled 2R projection, capped at the pre-breakout session
+extreme where relevant; it is not an option profit forecast.
 
-Reviewable, unbacktested defaults: at least 1.5R remaining at the worse of
-trigger/current price, no more than 0.5R chase, and option spread no wider than
-10% of midpoint. These are underlying-price calculations, not option-return
-projections. Existing premium stops, structure and gamma controls still apply.
+Only completed one-minute bars (plus five seconds publication grace) count.
+The first 25 session bars are warmup. Missing session bars, conflicting
+duplicates, bad OHLCV, prior-day data or a latest candle close over two minutes
+old block detection. Four or more VWAP crosses in ten bars suppress setups.
+VWAP is estimated from volume-weighted typical candle prices; EMA is seeded
+from the session's first close. No future or forming bar contributes.
 
-The existing API supplies snapshots, not candle or volume history or contract
-quotes. Retests, opening range and contract quotes therefore require manual
-confirmation. The freshness check uses the backend timestamp (maximum two
-minutes); it does not independently establish the exchange quote time or data
-delay. Session checks use weekday/ET hours, not an exchange holiday/early-close
-calendar. Verify market hours and feed latency before use.
+Contract bid, ask, expiry and market internals still require confirmation.
+The selected contract must expire today and its spread must be at most 10%
+of midpoint. Confirmation expires after five minutes; edits, a changed
+candidate or feed failure clear it. Automatic detection never promotes an
+existing NO-GO/CAUTION bias or gamma gate, and it must agree with that bias.
+Underlying R:R does not predict option returns. These rules are unbacktested
+heuristics, not probabilities of success or order execution.
 
-Run regression checks with `node sl-intraday-fixtures.mjs`,
+The feed is Yahoo via Nexus; plan/provider delays can prevent current signals.
+The backend companion change gives intraday data its own 30-second cache
+instead of the daily five-minute cache. Frontend freshness checks work with
+either backend version and always use candle timestamps. Weekday/ET window
+checks are not an exchange holiday/early-close calendar. In manual mode,
+freshness still uses the summary API timestamp, not an exchange quote timestamp.
+
+Run `node sl-candle-fixtures.mjs`, `node sl-intraday-fixtures.mjs`,
 `node sl-pivot-fixtures.mjs`, `node gex-regime-fixtures.mjs`,
 `node uw-status-fixtures.mjs`, and `node wl-stage-fixtures.mjs`.
