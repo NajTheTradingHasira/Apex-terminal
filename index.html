@@ -5766,13 +5766,18 @@ async function uwFetch(url) {
     try {
         res = await fetch(url);
     } catch (e) {
+        // fetch() itself rejected: DNS, CORS, offline, blocked by the browser.
+        // status 0 is reserved for exactly this — no server was reached.
         return { ok: false, status: 0, error: (e && e.message) || String(e) };
     }
     if (!res.ok) return { ok: false, status: res.status, error: 'HTTP ' + res.status };
     try {
         return { ok: true, status: res.status, body: await res.json() };
     } catch (e) {
-        return { ok: false, status: 0, error: (e && e.message) || String(e) };
+        // The server answered, so its status stands — the BODY is what failed.
+        // Reporting this as status 0 would blame the network for a backend that
+        // returned 200 and an HTML error page.
+        return { ok: false, status: res.status, error: 'parse: ' + ((e && e.message) || String(e)) };
     }
 }
 
@@ -5781,8 +5786,9 @@ async function uwFetch(url) {
 // server-side status that does not exist.
 function uwPartReason(part) {
     const err = part && typeof part.error === 'string' ? part.error : '';
-    if (err.indexOf('render:') === 0) return 'render error';
-    if (!part || !part.status) return 'network error';
+    if (err.indexOf('render:') === 0) return 'render error';   // we broke it
+    if (err.indexOf('parse:') === 0) return 'bad response';    // the backend did
+    if (!part || !part.status) return 'network error';         // nothing answered
     return 'HTTP ' + part.status;
 }
 
@@ -5830,6 +5836,13 @@ async function fetchUWData() {
 
     try {
         await uwRenderAll(ticker, statusEl);
+    } catch (e) {
+        // A throw outside any per-part try. The button is about to re-enable,
+        // so the status line must not be left reading 'Fetching...' next to a
+        // live button — that is the same false-success shape as the old '✓'.
+        console.warn('[UW] fetchUWData failed', e);
+        statusEl.textContent = `✗ Unusual Whales render failed for ${ticker}`;
+        statusEl.style.color = UW_STATUS_COLORS.fail;
     } finally {
         // Whatever happened above, the button goes back. It must never strand
         // on '⏳ Loading...'.

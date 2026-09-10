@@ -99,11 +99,15 @@ if (typeOf('uwStatusSummary') !== 'function') {
 }
 
 const summary = (ticker, parts) => run(`uwStatusSummary(${json(ticker)}, ${json(parts)})`);
+const reason = (p) => run(`uwPartReason(${json(p)})`);
 
 const OK = (name) => ({ name, ok: true, status: 200 });
 const HTTP = (name, status) => ({ name, ok: false, status, error: 'HTTP ' + status });
 const NET = (name, msg) => ({ name, ok: false, status: 0, error: msg || 'Failed to fetch' });
 const RENDER = (name, msg) => ({ name, ok: false, status: 200, error: 'render: ' + (msg || 'x') });
+// HTTP 200 carrying something that is not JSON — a proxy error page, a
+// truncated body. A server DID answer, so this is not status 0.
+const PARSE = (name, msg) => ({ name, ok: false, status: 200, error: 'parse: ' + (msg || 'Unexpected token < in JSON at position 0') });
 
 const NAMES = ['flow', 'dark pool', 'IV', 'market tide'];
 const KEY_HINT = 'check UNUSUAL_WHALES_API_KEY on Railway';
@@ -180,6 +184,38 @@ const rendAll = summary('SPY', NAMES.map(n => RENDER(n)));
 eq('every part failing to render → level fail', rendAll.level, 'fail');
 t('  still no check mark', !rendAll.text.startsWith('✓'), rendAll.text);
 
+// ── 6b. a bad body is the backend's fault, not the network's ─────────────
+// HTTP 200 with an HTML error page inside it. A server answered, so status 0
+// would blame a network that worked fine; 'HTTP 200' would report a failure
+// using the number that means success. Neither is true, neither is actionable.
+const parse1 = summary('SPY', [PARSE('flow'), OK('dark pool'), OK('IV'), OK('market tide')]);
+eq('a parse failure on a 200 → level partial', parse1.level, 'partial');
+t('  reads bad response', /flow bad response/.test(parse1.text), parse1.text);
+t('  never blames the network', !/network error/.test(parse1.text), parse1.text);
+t('  never reports the failure as HTTP 200', !/HTTP 200/.test(parse1.text), parse1.text);
+t('  a bad body is not a key problem', !parse1.text.includes(KEY_HINT), parse1.text);
+
+const parseAll = summary('SPY', NAMES.map(n => PARSE(n)));
+eq('every route returning a bad body → level fail', parseAll.level, 'fail');
+eq('  text is the shipped bad-body line', parseAll.text,
+   '✗ Unusual Whales unavailable for SPY — bad response on all 4 routes');
+t('  never blames the network', !/network error/.test(parseAll.text), parseAll.text);
+
+// The failure kinds have to stay tellable apart. If two of them collapse to one
+// string the operator cannot tell whose bug it is: ours, the backend's, or the
+// network's. Each one sends them somewhere different.
+const KINDS = {
+    parse: reason(PARSE('flow')),
+    render: reason(RENDER('flow')),
+    net: reason(NET('flow')),
+    http: reason(HTTP('flow', 500)),
+};
+eq('a bad body reads bad response', KINDS.parse, 'bad response');
+eq('a crashed card reads render error', KINDS.render, 'render error');
+t('a bad body and a crashed card are different strings', KINDS.parse !== KINDS.render, json(KINDS));
+t('a bad body and a dead socket are different strings', KINDS.parse !== KINDS.net, json(KINDS));
+t('all four failure kinds are distinct', new Set(Object.values(KINDS)).size === 4, json(KINDS));
+
 // ── 7. NEGATIVE: the check mark, over every combination ──────────────────
 // This is the assertion the whole file exists for. Sixteen mixed states of
 // four parts; '✓' must appear if and only if all four succeeded. One '✓' on a
@@ -216,11 +252,69 @@ eq('fail is the bear colour', COLORS.fail, 'var(--bear)');
 t('a failed status is never painted as a success', COLORS.fail !== COLORS.ok, json(COLORS));
 
 // ── 10. uwPartReason on its own ──────────────────────────────────────────
-const reason = (p) => run(`uwPartReason(${json(p)})`);
 eq('401 → HTTP 401', reason(HTTP('flow', 401)), 'HTTP 401');
 eq('500 → HTTP 500', reason(HTTP('flow', 500)), 'HTTP 500');
 eq('status 0 → network error', reason(NET('flow')), 'network error');
 eq('render: prefix → render error', reason(RENDER('flow')), 'render error');
+eq('parse: prefix → bad response', reason(PARSE('flow')), 'bad response');
+
+// ── 11. uwFetch: the boundary where the HTTP status is kept or lost ──────
+// This is where the original defect lived. `.then(r => r.ok ? r.json() : null)`
+// threw the status away before anything downstream could report it.
+const fakeRes = (status, jsonImpl) => ({ ok: status >= 200 && status < 300, status, json: jsonImpl });
+const withFetch = async (impl) => {
+    const prev = sandbox.fetch;
+    sandbox.fetch = impl;
+    try { return await run(`uwFetch('/api/uw/test')`); }
+    finally { sandbox.fetch = prev; }
+};
+
+const f200 = await withFetch(() => Promise.resolve(fakeRes(200, () => Promise.resolve({ data: [1] }))));
+eq('200 with a good body → ok', f200.ok, true);
+eq('  keeps the status', f200.status, 200);
+
+const f401 = await withFetch(() => Promise.resolve(fakeRes(401, () => Promise.resolve({}))));
+eq('401 → not ok', f401.ok, false);
+eq('  the status survives instead of collapsing to null', f401.status, 401);
+eq('  error names the status', f401.error, 'HTTP 401');
+
+const fParse = await withFetch(() => Promise.resolve(fakeRes(200, () => Promise.reject(new Error('Unexpected token <')))));
+eq('200 with an unparseable body → not ok', fParse.ok, false);
+eq('  the server answered, so its status stands', fParse.status, 200);
+t('  error carries the parse: prefix', /^parse: /.test(String(fParse.error)), json(fParse));
+eq('  and reads bad response, not network error', reason(fParse), 'bad response');
+
+const fNet = await withFetch(() => Promise.reject(new Error('Failed to fetch')));
+eq('fetch() rejecting → not ok', fNet.ok, false);
+eq('  status 0 is reserved for a request that reached no server', fNet.status, 0);
+eq('  and reads network error', reason(fNet), 'network error');
+t('uwFetch resolved in all four cases — it never rejects',
+  [f200, f401, fParse, fNet].every(r => r && typeof r.ok === 'boolean'), '');
+
+// ── 12. a throw outside every per-part try ───────────────────────────────
+// The button re-enables in a `finally`. If the status line still reads
+// 'Fetching...' at that moment, the UI claims work is in flight next to a live
+// button — the same false claim as the old unconditional '✓', in other clothes.
+//
+// Drives the real fetchUWData() with uwRenderAll() replaced by a throw. Needs a
+// document that returns the SAME element for an id twice, so the assertions can
+// read what the handler wrote; the module-level stub hands out a fresh object
+// per call, which would make every check below pass vacuously.
+const els = {};
+const realGetElementById = sandbox.document.getElementById;
+sandbox.document.getElementById = (id) => (els[id] || (els[id] = stub()));
+run('uwRenderAll = async function () { throw new Error("boom"); };');
+await run('fetchUWData()');
+sandbox.document.getElementById = realGetElementById;
+
+const st = els.optionsStatus || { style: {} };
+const bt = els.uwFetchBtn || {};
+eq('a top-level throw sets the failure line', st.textContent, '✗ Unusual Whales render failed for SPY');
+t('  the status never stays on Fetching', !/Fetching/.test(String(st.textContent)), String(st.textContent));
+t('  and never claims loaded', !/loaded/.test(String(st.textContent)), String(st.textContent));
+eq('  painted with the fail colour', st.style.color, COLORS.fail);
+eq('  the button is reset in the finally', bt.textContent, '🐋 Whale Flow');
+eq('  and re-enabled', bt.disabled, false);
 
 // ── report ──────────────────────────────────────────────────────────────
 let failed = 0;
