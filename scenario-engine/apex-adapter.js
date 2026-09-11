@@ -142,8 +142,9 @@ async function loadDaily() {
 
 export function update(read,scan) {
   if(scan?.bars?.length){loadDaily();loadFeeds();}
-  coverage=calendar.read(iso(Date.now()));
-  const card=runtime.update(scan,daily,Date.now(),{...coverage,assets});
+  const now=Date.now();
+  coverage=calendar.read(iso(now));
+  const card=runtime.update(scan,daily,now,{...coverage,assets});
   const gated=applyScenarioGate(read,card,required);
   const spot=scan?.valid?scan.bars?.at(-1)?.c:null;
   if(spot)loadContracts(spot);
