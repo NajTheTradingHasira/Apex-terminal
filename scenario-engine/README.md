@@ -60,3 +60,11 @@ Live verification on 2026-09-10: deployed official calendar transport parsed 45 
 The contract endpoint now uses the existing UNUSUAL_WHALES_API_KEY and UW `/api/stock/SPY/option-contracts`, replacing the Polygon path described above. It requests today’s expiry with up to two 500-row pages and filters strikes within $10 of supplied spot. It never substitutes another expiry or provider.
 
 UW bid/ask, delta, volume and OI support a REVIEW shortlist. Last tape time is trade activity, not a quote timestamp. Quote timestamps, sizes and deliverables are absent in the observed UW response, so the adapter leaves them null. REVIEW contracts require broker confirmation and never become fully verified candidates or grant entry permission. The UI displays provider status even after hours.
+
+## UW positioning (adapter 1.3.0)
+
+The existing `/api/greeks/SPY/spot-strike?date=YYYY-MM-DD` route supplies the current Eastern date's all-expiry profile. No new subscription or backend credential is needed. The adapter refreshes once per minute independently of candles. It requires source timestamps within ten minutes and receipt within two minutes, rejects malformed/duplicate rows and potentially truncated 500-row profiles, and excludes entirely zero-exposure rows from freshness. Nonzero call/put contributions that offset still require fresh timestamps.
+
+The explicit model sums `callGammaOi - abs(putGammaOi)` and supplies its sign plus the five largest absolute net strike concentrations. This assumes positive call and negative put contributions; it is not observed dealer inventory. These are positioning references, not a calibrated gamma flip or standalone entry signals. Existing price, session, candle freshness and entry gates still apply. Checkpoints include the evidence and its actual receipt time.
+
+Live source verification on 2026-09-10 returned 483 strike rows. After-hours observations correctly remain stale and contribute no evidence. Value-profile levels and intraday breadth remain unavailable. Earlier sections above describe historical rollout states; scoped calendar coverage and UW options are now connected.
