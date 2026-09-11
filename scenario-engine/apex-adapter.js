@@ -101,8 +101,8 @@ const calendar=new CalendarEvidence();
 let feedLoading=false,feedAttempt=0,calendarAttempt=0,assets={},coverage=null;
 let required=false,daily=null,loading=false,lastAttempt=0;
 const BASE='https://nexus-terminal-production-9d34.up.railway.app';
-async function getJSON(path) {
-  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),15000);
+async function getJSON(path,timeout=15000) {
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
   try {const r=await fetch(BASE+path,{signal:controller.signal});if(!r.ok)throw Error('HTTP '+r.status);return await r.json();}
   finally{clearTimeout(timer);}
 }
@@ -122,7 +122,7 @@ async function loadFeeds() {
   });
   if(Date.now()-calendarAttempt>=300000) {
     calendarAttempt=Date.now();
-    jobs.push((async()=>{try{calendar.receive(await getJSON('/api/scenario/calendars'),Date.now());}catch{calendar.receive(null,Date.now());}})());
+    jobs.push((async()=>{try{calendar.receive(await getJSON('/api/scenario/calendars',45000),Date.now());}catch{calendar.receive(null,Date.now());calendarAttempt=Date.now()-240000;}})());
   }
   await Promise.allSettled(jobs);feedLoading=false;window.slRenderLocalRead?.();
 }
