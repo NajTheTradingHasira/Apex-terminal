@@ -9612,7 +9612,7 @@ console.log('[APEX Live] Data engine initialized. Prices refresh every 5 min. CO
 </div>
 
 <script type="module">
-import('./scenario-engine/apex-adapter.js').then(scenarios => {
+import('./scenario-engine/apex-adapter.js?v=1.1.1').then(scenarios => {
     window.ApexScenarios = scenarios;
     slRenderLocalRead();
 }).catch(() => {
