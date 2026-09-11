@@ -8,7 +8,7 @@ import {screenContracts} from './contracts.js?v=1.2.0';
 
 const iso=t=>new Date(t).toISOString();
 const positive=n=>typeof n==='number'&&Number.isFinite(n)&&n>0;
-export const ADAPTER_VERSION='1.2.0';
+export const ADAPTER_VERSION='1.2.1';
 
 /** One-minute bars are already validated by Apex. Recheck the boundaries here. */
 export function aggregateFive(scan, session, receivedAt, receipts=new Map()) {
@@ -109,8 +109,8 @@ async function getJSON(path,timeout=15000) {
 async function loadContracts(spot) {
   if(contractLoading||Date.now()-contractAttempt<30000)return;
   contractLoading=true;contractAttempt=Date.now();
-  try{contractPayload=await getJSON('/api/scenario/spy-contracts?spot='+encodeURIComponent(spot),30000);}
-  catch{contractPayload=null;}
+  try{contractPayload=await getJSON('/api/scenario/spy-contracts'+(positive(spot)?'?spot='+encodeURIComponent(spot):''),30000);}
+  catch{contractPayload={source:'Unusual Whales',status:'unavailable',results:[],reason:'UW request failed or timed out; retrying on the next refresh'};}
   finally{contractLoading=false;window.slRenderLocalRead?.();}
 }
 async function loadFeeds() {
@@ -141,14 +141,14 @@ async function loadDaily() {
 }
 
 export function update(read,scan) {
-  if(scan?.bars?.length){loadDaily();loadFeeds();}
+  loadDaily();loadFeeds();
   const now=Date.now();
   coverage=calendar.read(iso(now));
   const card=runtime.update(scan,daily,now,{...coverage,assets});
   const gated=applyScenarioGate(read,card,required);
   const spot=scan?.valid?scan.bars?.at(-1)?.c:null;
   const fetchSpot=scan?.bars?.at(-1)?.c;
-  if(fetchSpot)loadContracts(fetchSpot);
+  loadContracts(fetchSpot);
   contractScreen=screenContracts(contractPayload,gated,spot);
   if(card&&runtime.dataset)history.capture({at:card.timestamp,dataset:runtime.dataset,before:runtime.before,config:runtime.engine.config,card,entry:{gate:gated.gate,setup:read.setup?.status||null},contracts:contractScreen});
   render(card);
