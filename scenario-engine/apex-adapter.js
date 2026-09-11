@@ -4,11 +4,11 @@ import {sessionFor} from './calendar.js';
 import {eastern} from './time.js';
 import {CalendarEvidence,crossAsset} from './feeds.js';
 import {SessionHistory,engineState} from './history.js';
-import {screenContracts} from './contracts.js';
+import {screenContracts} from './contracts.js?v=1.2.0';
 
 const iso=t=>new Date(t).toISOString();
 const positive=n=>typeof n==='number'&&Number.isFinite(n)&&n>0;
-export const ADAPTER_VERSION='1.1.1';
+export const ADAPTER_VERSION='1.2.0';
 
 /** One-minute bars are already validated by Apex. Recheck the boundaries here. */
 export function aggregateFive(scan, session, receivedAt, receipts=new Map()) {
@@ -109,7 +109,7 @@ async function getJSON(path,timeout=15000) {
 async function loadContracts(spot) {
   if(contractLoading||Date.now()-contractAttempt<30000)return;
   contractLoading=true;contractAttempt=Date.now();
-  try{contractPayload=await getJSON('/api/scenario/spy-contracts?spot='+encodeURIComponent(spot));}
+  try{contractPayload=await getJSON('/api/scenario/spy-contracts?spot='+encodeURIComponent(spot),30000);}
   catch{contractPayload=null;}
   finally{contractLoading=false;window.slRenderLocalRead?.();}
 }
@@ -147,7 +147,8 @@ export function update(read,scan) {
   const card=runtime.update(scan,daily,now,{...coverage,assets});
   const gated=applyScenarioGate(read,card,required);
   const spot=scan?.valid?scan.bars?.at(-1)?.c:null;
-  if(spot)loadContracts(spot);
+  const fetchSpot=scan?.bars?.at(-1)?.c;
+  if(fetchSpot)loadContracts(fetchSpot);
   contractScreen=screenContracts(contractPayload,gated,spot);
   if(card&&runtime.dataset)history.capture({at:card.timestamp,dataset:runtime.dataset,before:runtime.before,config:runtime.engine.config,card,entry:{gate:gated.gate,setup:read.setup?.status||null},contracts:contractScreen});
   render(card);
@@ -168,7 +169,7 @@ export function render(card) {
     '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem">'+(loading?'Loading prior-day levels…':daily?'Prior-day OHLC and daily ATR connected.':'Prior-day levels unavailable.')+' Value profile, intraday breadth and positioning remain unavailable. Missing data never counts as confirmation.</div>'+
     '<div style="font-size:0.72rem;margin-top:0.6rem"><b>Scheduled events:</b> '+esc(coverage?.check.passed?'Verified within stated scope':coverage?.check.reasons.join(' · ')||'Loading official calendars')+'<br>'+esc(coverage?.check.exclusions||'')+'<br><b>Cross-asset:</b> '+esc(['QQQ','IWM'].map(s=>s+': '+(card?.context?.metrics?.[s.toLowerCase()+'ReturnPct']!==undefined?'connected':'unavailable')).join(' · '))+'</div>'+
     (card&&!closed?'<div style="font-size:0.72rem;margin-top:0.7rem"><b>Expected path:</b> '+card.expected_path.map(esc).join(' → ')+'<br><b>Invalidation:</b> '+card.invalidation.map(x=>esc(x.description)).join(' · ')+'<br><b>Next state:</b> '+esc(card.next_state_if_invalidated.scenario_id)+'</div>':'')+
-    '<details data-id="contracts" '+(expanded.has('contracts')?'open':'')+' style="margin-top:0.8rem"><summary>0DTE contract screen · '+esc(contractScreen?.status||'WAIT')+'</summary><div style="font-size:0.72rem;padding:0.5rem 0">'+esc(contractScreen?.reason||'Waiting for current SPY candles')+(contractLoading?' · Refreshing…':'')+'<br>Same-day standard contracts · real-time quote ≤30s · spread ≤10% · |delta| 0.35–0.65 · volume/OI ≥100. Sorted by spread, distance from 0.50 delta, then volume. Premium is ask ×100; entry checks still apply.'+(contractScreen?.partial?'<br>Partial provider result; ranking covers received contracts only.':'')+'<br>'+(contractScreen?.candidates||[]).map(c=>esc(c.symbol)+' · Bid/ask '+c.bid.toFixed(2)+' / '+c.ask.toFixed(2)+' · '+c.spreadPct.toFixed(1)+'% spread · Δ '+c.delta.toFixed(2)+' · Ask premium $'+c.premium.toFixed(0)+' · Quote '+esc(c.quoteAt)).join('<br>')+'<br>'+Object.entries(contractScreen?.rejected||{}).map(([reason,n])=>esc(reason)+': '+n).join(' · ')+'</div></details>'+
+    '<details data-id="contracts" '+(expanded.has('contracts')?'open':'')+' style="margin-top:0.8rem"><summary>0DTE contract screen · '+esc(contractScreen?.status||'WAIT')+'</summary><div style="font-size:0.72rem;padding:0.5rem 0">'+esc('Provider: '+(contractPayload?.source||'Unusual Whales')+' · '+(contractPayload?.status||'waiting')+' · '+(contractPayload?.results?.length||0)+' contracts')+'<br>'+esc(contractPayload?.reason||contractScreen?.reason||'Waiting for current SPY candles')+(contractLoading?' · Refreshing…':'')+'<br>UW review shortlist requires broker confirmation of current quotes, sizes and deliverables. Fully verified screening requires same-day standard contracts · real-time quote ≤30s · spread ≤10% · |delta| 0.35–0.65 · volume/OI ≥100. Sorted by spread, distance from 0.50 delta, then volume. Estimated premium assumes 100 shares: ask ×100; entry checks still apply.'+(contractScreen?.partial?'<br>Partial provider result; ranking covers received contracts only.':'')+'<br>'+[...(contractScreen?.candidates||[]),...(contractScreen?.reviewCandidates||[])].map(c=>esc(c.symbol)+' · Bid/ask '+c.bid.toFixed(2)+' / '+c.ask.toFixed(2)+' · '+c.spreadPct.toFixed(1)+'% spread · Δ '+c.delta.toFixed(2)+' · Ask premium $'+c.premium.toFixed(0)+' · Quote '+esc(c.quoteAt||'timestamp unavailable — confirm with broker')).join('<br>')+'<br>'+Object.entries(contractScreen?.rejected||{}).map(([reason,n])=>esc(reason)+': '+n).join(' · ')+'</div></details>'+
     '<details data-id="history" '+(expanded.has('history')?'open':'')+' style="margin-top:0.8rem"><summary>Session history · '+history.rows.length+' checkpoints</summary><div style="font-size:0.72rem;padding:0.5rem 0">'+esc(history.status)+'. One checkpoint per minute while this panel receives data; up to 500 retained. Replay checks rule reproducibility, not trading performance.<br><button class="api-btn" style="margin:0.5rem 0" id="slReplayHistory">Verify replay</button> <button class="api-btn" style="margin:0.5rem 0" id="slExportHistory">Export inputs</button> '+esc(replayStatus)+'<br>'+history.rows.slice(-10).reverse().map(r=>esc(new Date(r.at).toLocaleTimeString('en-US',{timeZone:'America/New_York'}))+' ET · '+esc(r.card.active_scenario)+' · '+esc(r.card.decision)+' · Entry '+esc(r.entry.gate)).join('<br>')+'</div></details>'+
     '<details data-id="library" '+(expanded.has('library')?'open':'')+' style="margin-top:0.8rem"><summary style="cursor:pointer">Scenario library · 18 templates</summary>'+libraryRows(card).map(({rule,checks,status})=>
       '<details data-id="'+rule.id+'" '+(expanded.has(rule.id)?'open':'')+' style="border-top:1px solid var(--border-strong);padding:0.65rem 0"><summary style="cursor:pointer;font-size:0.8rem">'+esc(rule.scenario)+' · '+(rule.direction==='both'?'bullish / bearish':'neutral')+' <span style="font-size:0.6rem;color:var(--text-muted)">'+status+'</span></summary><div style="font-size:0.72rem;line-height:1.6;padding:0.5rem">'+

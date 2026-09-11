@@ -48,6 +48,18 @@ test('saved checkpoint reproduces from its original pre-evaluation state',()=>{
 });
 const payload=()=>({status:'received',expiry:'2026-09-10',receivedAt:at,results:[{details:{ticker:'O:SPY260910C00760000',contract_type:'call',shares_per_contract:100,strike_price:760,expiration_date:'2026-09-10'},last_quote:{bid:1,ask:1.05,bid_size:10,ask_size:10,last_updated:(now-1000)*1e6,timeframe:'REAL-TIME'},greeks:{delta:0.5},day:{volume:500},open_interest:1000}]});
 const read={bias:{dir:'LONG'},gate:'NO-GO'};
+test('UW snapshot creates a review shortlist without fabricating quote approval',()=>{
+ const p=payload();p.source='Unusual Whales';
+ p.results[0].details.shares_per_contract=null;
+ p.results[0].last_quote={bid:1,ask:1.05,last_updated:null,timeframe:'UNVERIFIED'};
+ p.results[0].lastTapeTime=at;
+ const out=screenContracts(p,read,760,now);
+ assert.equal(out.status,'REVIEW');assert.equal(out.reviewCandidates.length,1);
+ assert.equal(out.candidates.length,0);assert.equal(out.reviewCandidates[0].quoteAt,null);
+ assert.equal(read.gate,'NO-GO');
+ p.results[0].last_quote.ask=2;
+ assert.equal(screenContracts(p,read,760,now).reviewCandidates.length,0);
+});
 test('coverage and adapter evaluate at exactly the same checkpoint',()=>{
  const adapter=new ApexScenarioAdapter();
  const coverage=scheduledCoverage(feeds(),at).coverage;

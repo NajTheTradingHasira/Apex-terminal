@@ -53,3 +53,10 @@ claims of predictive accuracy.
 Validation: `node --test scenario-engine/test/*.test.js`; existing candle/setup and original Apex fixture scripts. Backend: `python -m pytest api/test_scenario_feeds.py data/test_intraday_cache.py utils/test_cache.py -q`.
 
 Live verification on 2026-09-10: deployed official calendar transport parsed 45 entries and passed the scoped coverage check. Browser saved checkpoints and replay reproduced 3/3. The deployed options snapshot endpoint returned unavailable; live contract qualification could not be validated with the current provider response. Automated fixtures verify quote-age, delay, spread, liquidity, direction and expiry rejection. Full intraday breadth/value-profile/positioning integration still requires suitable source data.
+
+
+## UW correction (adapter 1.2.0)
+
+The contract endpoint now uses the existing UNUSUAL_WHALES_API_KEY and UW `/api/stock/SPY/option-contracts`, replacing the Polygon path described above. It requests today’s expiry with up to two 500-row pages and filters strikes within $10 of supplied spot. It never substitutes another expiry or provider.
+
+UW bid/ask, delta, volume and OI support a REVIEW shortlist. Last tape time is trade activity, not a quote timestamp. Quote timestamps, sizes and deliverables are absent in the observed UW response, so the adapter leaves them null. REVIEW contracts require broker confirmation and never become fully verified candidates or grant entry permission. The UI displays provider status even after hours.
