@@ -68,3 +68,11 @@ The existing `/api/greeks/SPY/spot-strike?date=YYYY-MM-DD` route supplies the cu
 The explicit model sums `callGammaOi - abs(putGammaOi)` and supplies its sign plus the five largest absolute net strike concentrations. This assumes positive call and negative put contributions; it is not observed dealer inventory. These are positioning references, not a calibrated gamma flip or standalone entry signals. Existing price, session, candle freshness and entry gates still apply. Checkpoints include the evidence and its actual receipt time.
 
 Live source verification on 2026-09-10 returned 483 strike rows. After-hours observations correctly remain stale and contribute no evidence. Value-profile levels and intraday breadth remain unavailable. Earlier sections above describe historical rollout states; scoped calendar coverage and UW options are now connected.
+
+## Manual SPY value profile (adapter 1.4.0)
+
+The scenario panel accepts chart-transcribed VAL, POC and VAH from the previous completed SPY regular trading session, with a 70% value area. Enter both profile and target session dates, chart source and row settings. POC maps to the engine's VPOC. These inputs are explicitly manual and not independently verified; they do not replace candle or entry confirmation.
+
+Only the immediately previous trading session is accepted, using the exchange holiday/early-close calendar. Require positive VAL ≤ POC ≤ VAH and distinct boundaries. Source close must precede receipt; receipt must precede evaluation. Levels expire at target session close. Tomorrow's profile can be saved after today's close; it remains inactive until the target date. Local storage holds one profile, and reload rebases its receipt to the current time. Clearing removes it from subsequent evaluations. Exact evidence is retained in checkpoint datasets for replay. Form drafts and focus survive live panel refreshes.
+
+UW's stock-volume-price-levels endpoint documents Nasdaq-operated exchange volume and FINRA off-exchange volume, not a complete consolidated regular-session profile. It is therefore not substituted for chart VAH/VAL/POC: https://api.unusualwhales.com/docs/operations/PublicApi.TickerController.stock_volume_price_level
