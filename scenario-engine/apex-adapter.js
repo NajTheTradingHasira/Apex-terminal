@@ -5,11 +5,12 @@ import {eastern} from './time.js';
 import {CalendarEvidence,crossAsset} from './feeds.js';
 import {SessionHistory,engineState} from './history.js';
 import {screenContracts} from './contracts.js?v=1.2.0';
+import {profileEvidence,loadProfile,storeProfile,profileForm} from './value-profile.js';
 import {positioningEvidence} from './positioning.js';
 
 const iso=t=>new Date(t).toISOString();
 const positive=n=>typeof n==='number'&&Number.isFinite(n)&&n>0;
-export const ADAPTER_VERSION='1.3.0';
+export const ADAPTER_VERSION='1.4.0';
 
 /** One-minute bars are already validated by Apex. Recheck the boundaries here. */
 export function aggregateFive(scan, session, receivedAt, receipts=new Map()) {
@@ -70,7 +71,10 @@ export class ApexScenarioAdapter {
       const supplied=daily?.receivedAt?dailyLevels(daily.payload,this.session,daily.receivedAt):[];
       const extra=Object.entries(supplement.assets||{}).flatMap(([symbol,p])=>crossAsset(p.payload,symbol,this.session,p.receivedAt));
       this.positioning=positioningEvidence(supplement.positioning,this.session,now);
-      const dataset={symbol:'SPY',session:this.session,bars:data.bars,levels:[...data.levels,...supplied,...this.positioning.levels],observations:[...data.observations,...extra,...this.positioning.observations],events:supplement.events||[],eventCoverage:supplement.eventCoverage||[]};
+      this.valueProfile=profileEvidence(supplement.valueProfile,this.session,now);
+      const profileSignature=JSON.stringify(this.valueProfile.levels);
+      if(this.profileSignature!==profileSignature){this.engine=new ScenarioEngine({allowProvisionalWithoutEventCoverage:true});this.profileSignature=profileSignature;}
+      const dataset={symbol:'SPY',session:this.session,bars:data.bars,levels:[...data.levels,...supplied,...this.positioning.levels,...this.valueProfile.levels],observations:[...data.observations,...extra,...this.positioning.observations],events:supplement.events||[],eventCoverage:supplement.eventCoverage||[]};
       this.dataset=dataset;
       this.before=engineState(this.engine);
       this.card=this.engine.evaluate(dataset,at);this.error='';return this.card;
@@ -102,6 +106,8 @@ let contractPayload=null,contractLoading=false,contractAttempt=0,contractScreen=
 const calendar=new CalendarEvidence();
 let feedLoading=false,feedAttempt=0,calendarAttempt=0,assets={},coverage=null;
 let positioning=null,positioningError='';
+let valueProfile=null,profileNode=null,profileMessage='';
+try{valueProfile=loadProfile(localStorage);}catch{}
 let required=false,daily=null,loading=false,lastAttempt=0;
 const BASE='https://nexus-terminal-production-9d34.up.railway.app';
 async function getJSON(path,timeout=15000) {
@@ -152,7 +158,7 @@ export function update(read,scan) {
   loadDaily();loadFeeds();
   const now=Date.now();
   coverage=calendar.read(iso(now));
-  const card=runtime.update(scan,daily,now,{...coverage,assets,positioning});
+  const card=runtime.update(scan,daily,now,{...coverage,assets,positioning,valueProfile});
   const gated=applyScenarioGate(read,card,required);
   const spot=scan?.valid?scan.bars?.at(-1)?.c:null;
   const fetchSpot=scan?.bars?.at(-1)?.c;
@@ -162,11 +168,13 @@ export function update(read,scan) {
   render(card);
   return gated;
 }
-export function summary(){const c=runtime.card;return c?{scenario:c.active_scenario,direction:c.directional_bias,provisional:c.provisional,decision:c.decision,decision_reasons:c.decision_reasons,expected_path:c.expected_path,target_ladder:c.target_ladder,invalidation:c.invalidation,next_state:c.next_state_if_invalidated,required_for_entry:required,scheduled_coverage:coverage?.check||null,contract_screen:contractScreen,positioning:runtime.positioning}:null;}
+export function summary(){const c=runtime.card;return c?{scenario:c.active_scenario,direction:c.directional_bias,provisional:c.provisional,decision:c.decision,decision_reasons:c.decision_reasons,expected_path:c.expected_path,target_ladder:c.target_ladder,invalidation:c.invalidation,next_state:c.next_state_if_invalidated,required_for_entry:required,scheduled_coverage:coverage?.check||null,contract_screen:contractScreen,positioning:runtime.positioning,value_profile:runtime.valueProfile}:null;}
 export function fail(read,message){runtime.card=null;runtime.error=message;render(null);return applyScenarioGate(read,null,required);}
 
 export function render(card) {
   const el=document.getElementById('slScenarioLibrary');if(!el)return;
+  const focused=profileNode?.contains(document.activeElement)?document.activeElement:null;
+  const selection=focused&&focused.type==='text'?[focused.selectionStart,focused.selectionEnd]:null;
   const expanded=new Set([...el.querySelectorAll('details[open]')].map(x=>x.dataset.id));
   const closed=card?.checkpoint==='closed';
   el.innerHTML='<div style="padding:1rem;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:6px">'+
@@ -174,9 +182,10 @@ export function render(card) {
     '<div style="font-size:0.72rem;color:var(--text-muted)">Original five-minute scenario rules from your scenario engine. The one-minute entry detector remains separate. Levels become eligible only after Apex receives them; opening the panel mid-session does not invent earlier observations.</div>'+
     '<div style="margin:0.5rem 0;font-size:0.72rem;color:var(--warn)">Scenario permission: '+esc(card?.decision||'Unavailable')+'. '+esc(card?.decision_reasons?.join(' · ')||runtime.error)+'</div>'+
     '<label style="font-size:0.72rem"><input id="slRequireScenario" type="checkbox" '+(required?'checked':'')+'> Require scenario approval for new entries</label>'+
-    '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem">'+(loading?'Loading prior-day levels…':daily?'Prior-day OHLC and daily ATR connected.':'Prior-day levels unavailable.')+' Value profile and intraday breadth remain unavailable. Missing data never counts as confirmation.</div>'+
+    '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem">'+(loading?'Loading prior-day levels…':daily?'Prior-day OHLC and daily ATR connected.':'Prior-day levels unavailable.')+' Intraday breadth remains unavailable. Missing data never counts as confirmation.</div>'+
     '<div style="font-size:0.72rem;margin-top:0.6rem"><b>Scheduled events:</b> '+esc(coverage?.check.passed?'Verified within stated scope':coverage?.check.reasons.join(' · ')||'Loading official calendars')+'<br>'+esc(coverage?.check.exclusions||'')+'<br><b>Cross-asset:</b> '+esc(['QQQ','IWM'].map(s=>s+': '+(card?.context?.metrics?.[s.toLowerCase()+'ReturnPct']!==undefined?'connected':'unavailable')).join(' · '))+'</div>'+
     '<div style="font-size:0.72rem;margin-top:0.6rem"><b>UW positioning:</b> '+esc(runtime.positioning?.status||'Unavailable')+' · '+esc(positioningError||runtime.positioning?.reason||'Loading')+'<br>'+esc(runtime.positioning?.count||0)+' strike rows · oldest source time '+esc(runtime.positioning?.asOf||'unavailable')+'<br>'+esc(runtime.positioning?.model||'')+'</div>'+
+    '<div id="slValueProfileMount"></div>'+
     (card&&!closed?'<div style="font-size:0.72rem;margin-top:0.7rem"><b>Expected path:</b> '+card.expected_path.map(esc).join(' → ')+'<br><b>Invalidation:</b> '+card.invalidation.map(x=>esc(x.description)).join(' · ')+'<br><b>Next state:</b> '+esc(card.next_state_if_invalidated.scenario_id)+'</div>':'')+
     '<details data-id="contracts" '+(expanded.has('contracts')?'open':'')+' style="margin-top:0.8rem"><summary>0DTE contract screen · '+esc(contractScreen?.status||'WAIT')+'</summary><div style="font-size:0.72rem;padding:0.5rem 0">'+esc('Provider: '+(contractPayload?.source||'Unusual Whales')+' · '+(contractPayload?.status||'waiting')+' · '+(contractPayload?.results?.length||0)+' contracts')+'<br>'+esc(contractPayload?.reason||contractScreen?.reason||'Waiting for current SPY candles')+(contractLoading?' · Refreshing…':'')+'<br>UW review shortlist requires broker confirmation of current quotes, sizes and deliverables. Fully verified screening requires same-day standard contracts · real-time quote ≤30s · spread ≤10% · |delta| 0.35–0.65 · volume/OI ≥100. Sorted by spread, distance from 0.50 delta, then volume. Estimated premium assumes 100 shares: ask ×100; entry checks still apply.'+(contractScreen?.partial?'<br>Partial provider result; ranking covers received contracts only.':'')+'<br>'+[...(contractScreen?.candidates||[]),...(contractScreen?.reviewCandidates||[])].map(c=>esc(c.symbol)+' · Bid/ask '+c.bid.toFixed(2)+' / '+c.ask.toFixed(2)+' · '+c.spreadPct.toFixed(1)+'% spread · Δ '+c.delta.toFixed(2)+' · Ask premium $'+c.premium.toFixed(0)+' · Quote '+esc(c.quoteAt||'timestamp unavailable — confirm with broker')).join('<br>')+'<br>'+Object.entries(contractScreen?.rejected||{}).map(([reason,n])=>esc(reason)+': '+n).join(' · ')+'</div></details>'+
     '<details data-id="history" '+(expanded.has('history')?'open':'')+' style="margin-top:0.8rem"><summary>Session history · '+history.rows.length+' checkpoints</summary><div style="font-size:0.72rem;padding:0.5rem 0">'+esc(history.status)+'. One checkpoint per minute while this panel receives data; up to 500 retained. Replay checks rule reproducibility, not trading performance.<br><button class="api-btn" style="margin:0.5rem 0" id="slReplayHistory">Verify replay</button> <button class="api-btn" style="margin:0.5rem 0" id="slExportHistory">Export inputs</button> '+esc(replayStatus)+'<br>'+history.rows.slice(-10).reverse().map(r=>esc(new Date(r.at).toLocaleTimeString('en-US',{timeZone:'America/New_York'}))+' ET · '+esc(r.card.active_scenario)+' · '+esc(r.card.decision)+' · Entry '+esc(r.entry.gate)).join('<br>')+'</div></details>'+
@@ -184,6 +193,17 @@ export function render(card) {
       '<details data-id="'+rule.id+'" '+(expanded.has(rule.id)?'open':'')+' style="border-top:1px solid var(--border-strong);padding:0.65rem 0"><summary style="cursor:pointer;font-size:0.8rem">'+esc(rule.scenario)+' · '+(rule.direction==='both'?'bullish / bearish':'neutral')+' <span style="font-size:0.6rem;color:var(--text-muted)">'+status+'</span></summary><div style="font-size:0.72rem;line-height:1.6;padding:0.5rem">'+
       '<b>Window:</b> '+rule.windows.map(esc).join(', ')+'<br><b>Path:</b> '+rule.expected_path.map(esc).join(' → ')+'<br><b>Expires:</b> '+rule.time_expiry.minutes+' minutes or phase end<br><b>Next state:</b> '+esc(rule.next_state_if_invalidated)+'<br>'+
       (checks.length?checks.map(c=>'<b>'+esc(c.direction)+'</b>: '+c.checks.map(x=>(x.pass?'✓ ':x.unavailable?'Missing: ':'Waiting: ')+esc(x.reason)).join(' · ')+(c.reference_price?'<br>Reference $'+c.reference_price.toFixed(2):'')).join('<br>'):'No live evaluation in the current time window.')+'</div></details>').join('')+'</details></div>';
+  if(!profileNode)profileNode=profileForm(valueProfile,p=>{
+    try {
+      const evidence=profileEvidence(p,sessionFor(p.target,p.receivedAt));
+      if(!evidence.levels.length)throw new Error(evidence.reason);
+      storeProfile(localStorage,p);valueProfile=p;profileMessage='Saved for '+p.target;
+      window.slRenderLocalRead?.();
+    }catch(e){profileMessage=e.message;render(runtime.card);}
+  },()=>{try{storeProfile(localStorage,null);valueProfile=null;profileMessage='Profile cleared';window.slRenderLocalRead?.();}catch{profileMessage='Unable to clear browser storage';render(runtime.card);}});
+  document.getElementById('slValueProfileMount').replaceWith(profileNode);
+  if(focused){focused.focus({preventScroll:true});if(selection)focused.setSelectionRange(...selection);}
+  profileNode.querySelector('[data-status]').textContent=(profileMessage?profileMessage+' · ':'')+(runtime.valueProfile?.reason||'No saved profile');
   document.getElementById('slReplayHistory').onclick=async()=>{try{const r=await history.verify();replayStatus=r.checked?r.matched+'/'+r.checked+' checkpoints reproduced':'No saved checkpoints yet';}catch{replayStatus='Replay failed: saved inputs could not be verified';}render(runtime.card);};
   document.getElementById('slExportHistory').onclick=()=>history.download().catch(()=>{replayStatus='Export failed';render(runtime.card);});
   document.getElementById('slRequireScenario').onchange=e=>{required=e.target.checked;window.slRenderLocalRead?.();};
