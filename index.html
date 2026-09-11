@@ -1566,6 +1566,7 @@
             <div id="slInputs" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:0.6rem;margin-bottom:1rem"></div>
             <div class="section-title">Intraday Setup Confirmation · 0DTE</div>
             <div id="slSetupInputs" style="margin-bottom:1rem"></div>
+            <div id="slScenarioLibrary" style="margin-bottom:1rem"></div>
             <div id="slGateOut" style="margin-bottom:1.25rem"></div>
 
             <!-- Key zones -->
@@ -7144,6 +7145,7 @@ function slStructureContext() {
     const r = slApplySetup(grxApplyToGate(slRunGate(slTapeInputs(), S)));   // providers see the regime-gated read
     return {
         intraday_setup: r.setup,
+        scenario_library: window.ApexScenarios?.summary() || null,
         candle_detection: SL_CANDLE.mode === 'auto' ? slCandleSummary() : null,
         gamma_regime: r.gammaRegime || null,   // PIN/TREND/BREAK/MIXED day-type + walls; additive field
         verified: S.verified,
@@ -7254,6 +7256,10 @@ function slApplySetup(r) {
     } else if (out.setup.status === 'CAUTION' && out.gate === 'GO') {
         out.gate = 'CAUTION';
         out.reasons.push('Actual ET lunch window — manual time selection cannot remove lunch caution.');
+    }
+    if (window.ApexScenarios) {
+        try { return window.ApexScenarios.update(out, slCandleRead()); }
+        catch (e) { return window.ApexScenarios.fail(out, 'Scenario evaluation unavailable.'); }
     }
     return out;
 }
@@ -9605,5 +9611,13 @@ console.log('[APEX Live] Data engine initialized. Prices refresh every 5 min. CO
     </div>
 </div>
 
+<script type="module">
+import('./scenario-engine/apex-adapter.js').then(scenarios => {
+    window.ApexScenarios = scenarios;
+    slRenderLocalRead();
+}).catch(() => {
+    document.getElementById('slScenarioLibrary').textContent = 'Scenario library unavailable — refresh to retry.';
+});
+</script>
 </body>
 </html>

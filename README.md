@@ -1,5 +1,22 @@
 # Apex-terminal
 
+## Scenario library — 18 templates
+
+SPY Logic now includes the original five-minute scenario engine from the other
+project, with bullish/bearish templates plus neutral pin/chop/event-risk states.
+Expand **Scenario library** to see phase eligibility, individual checks,
+expected path, invalidation and successor. The live layer receives aggregated
+SPY candles, estimated VWAP, a labelled within-session volume ratio, prior-day
+OHLC and daily ATR. It does not invent value-profile, breadth, positioning or
+event-coverage inputs.
+
+The library is live scenario context by default. **Require scenario approval
+for new entries** makes it an additional downward-only gate; missing verified
+event coverage currently prevents that stricter gate from approving entries.
+The existing one-minute entry detector remains in place. See
+[integration details](scenario-engine/README.md) and run
+`node --test scenario-engine/test/*.test.js` for source and adapter checks.
+
 ## SPY automatic candle detection
 
 In **AI Analysis → SPY Logic**, Automatic mode polls the existing
