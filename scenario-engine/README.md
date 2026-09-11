@@ -40,3 +40,16 @@ still has its previously documented weekday/hour checks.
 Run `node --test scenario-engine/test/*.test.js`, followed by Apex's candle and
 setup regression fixtures. These are unbacktested classification rules, not
 claims of predictive accuracy.
+
+## Scenario data, checkpoint history and 0DTE screening (adapter 1.1.0)
+
+- `/api/scenario/calendars` transports fixed official New York Fed and Federal Reserve documents. Browser parsers retain server receipt times, require complete recognized layouts, and reject stale/partial calendars. Coverage is limited to the NY Fed indicator calendar plus verified FOMC decision/conference times. It excludes minutes, speeches, unscheduled news and headlines. Known upcoming events survive temporary feed failure.
+- QQQ/IWM completed minute candles provide cross-asset returns. They do not represent constituent breadth. Intraday breadth, value profile and positioning remain unavailable; the existing daily breadth endpoint is not relabeled intraday.
+- IndexedDB retains up to 500 checkpoint records, at most one per minute while the panel receives candles. Each includes the exact dataset, pre-evaluation engine state, resulting card, entry status and contract screen. Verify replay reproduces those decisions; it is not an options backtest. Export downloads the saved inputs. Storage failure is displayed, and no arrival times are backdated after reload.
+- `/api/scenario/spy-contracts` uses the existing Polygon account for same-day SPY option snapshots within $10 of the whole-dollar spot centre. Access depends on the account's options entitlement. No subscription is purchased. Missing/delayed quotes remain unavailable.
+- Screening requires a real-time quote no older than 30 seconds, standard 100-share contracts, matching direction/expiry, positive two-sided sizes, spread <=10% of midpoint, delta magnitude 0.35–0.65, and volume/prior-day OI >=100. These are research defaults, not performance-calibrated thresholds. Quotes never auto-fill confirmation or grant entry permission. Screening runs from 9:45 ET to 15 minutes before scheduled close.
+- API reference: https://massive.com/docs/rest/options/snapshots/option-chain-snapshot
+
+Validation: `node --test scenario-engine/test/*.test.js`; existing candle/setup and original Apex fixture scripts. Backend: `python -m pytest api/test_scenario_feeds.py data/test_intraday_cache.py utils/test_cache.py -q`.
+
+Live verification on 2026-09-10: deployed official calendar transport parsed 45 entries and passed the scoped coverage check. Browser saved checkpoints and replay reproduced 3/3. The deployed options snapshot endpoint returned unavailable; live contract qualification could not be validated with the current provider response. Automated fixtures verify quote-age, delay, spread, liquidity, direction and expiry rejection. Full intraday breadth/value-profile/positioning integration still requires suitable source data.

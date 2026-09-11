@@ -2,10 +2,13 @@ import {ScenarioEngine} from './engine.js';
 import {scenarioDefinitions} from './scenarios.js';
 import {sessionFor} from './calendar.js';
 import {eastern} from './time.js';
+import {CalendarEvidence,crossAsset} from './feeds.js';
+import {SessionHistory,engineState} from './history.js';
+import {screenContracts} from './contracts.js';
 
 const iso=t=>new Date(t).toISOString();
 const positive=n=>typeof n==='number'&&Number.isFinite(n)&&n>0;
-export const ADAPTER_VERSION='1.0.0';
+export const ADAPTER_VERSION='1.1.0';
 
 /** One-minute bars are already validated by Apex. Recheck the boundaries here. */
 export function aggregateFive(scan, session, receivedAt, receipts=new Map()) {
@@ -57,14 +60,17 @@ export function dailyLevels(payload,session,receivedAt) {
 
 export class ApexScenarioAdapter {
   constructor(){this.reset();}
-  reset(){this.engine=new ScenarioEngine({allowProvisionalWithoutEventCoverage:true});this.receipts=new Map();this.day=null;this.session=null;this.card=null;this.error='';}
-  update(scan,daily,now=Date.now()) {
+  reset(){this.engine=new ScenarioEngine({allowProvisionalWithoutEventCoverage:true});this.receipts=new Map();this.day=null;this.session=null;this.card=null;this.dataset=null;this.error='';}
+  update(scan,daily,now=Date.now(),supplement={}) {
     const at=iso(now),day=eastern(at).date;
     if(day!==this.day){this.reset();this.day=day;this.session=sessionFor(day,at);}
     try {
       const data=aggregateFive(scan,this.session,at,this.receipts);
       const supplied=daily?.receivedAt?dailyLevels(daily.payload,this.session,daily.receivedAt):[];
-      const dataset={symbol:'SPY',session:this.session,bars:data.bars,levels:[...data.levels,...supplied],observations:data.observations,events:[],eventCoverage:[]};
+      const extra=Object.entries(supplement.assets||{}).flatMap(([symbol,p])=>crossAsset(p.payload,symbol,this.session,p.receivedAt));
+      const dataset={symbol:'SPY',session:this.session,bars:data.bars,levels:[...data.levels,...supplied],observations:[...data.observations,...extra],events:supplement.events||[],eventCoverage:supplement.eventCoverage||[]};
+      this.dataset=dataset;
+      this.before=engineState(this.engine);
       this.card=this.engine.evaluate(dataset,at);this.error='';return this.card;
     } catch(e){this.card=null;this.error=e.message;return null;}
   }
@@ -88,8 +94,38 @@ export function libraryRows(card) {
 
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const runtime=new ApexScenarioAdapter();
+const history=new SessionHistory();
+let replayStatus='';
+let contractPayload=null,contractLoading=false,contractAttempt=0,contractScreen=null;
+const calendar=new CalendarEvidence();
+let feedLoading=false,feedAttempt=0,calendarAttempt=0,assets={},coverage=null;
 let required=false,daily=null,loading=false,lastAttempt=0;
 const BASE='https://nexus-terminal-production-9d34.up.railway.app';
+async function getJSON(path,timeout=15000) {
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),timeout);
+  try {const r=await fetch(BASE+path,{signal:controller.signal});if(!r.ok)throw Error('HTTP '+r.status);return await r.json();}
+  finally{clearTimeout(timer);}
+}
+async function loadContracts(spot) {
+  if(contractLoading||Date.now()-contractAttempt<30000)return;
+  contractLoading=true;contractAttempt=Date.now();
+  try{contractPayload=await getJSON('/api/scenario/spy-contracts?spot='+encodeURIComponent(spot));}
+  catch{contractPayload=null;}
+  finally{contractLoading=false;window.slRenderLocalRead?.();}
+}
+async function loadFeeds() {
+  if(feedLoading||Date.now()-feedAttempt<60000)return;
+  feedLoading=true;feedAttempt=Date.now();
+  const jobs=['QQQ','IWM'].map(async symbol=>{
+    try {assets[symbol]={payload:await getJSON('/api/stock/'+symbol+'/intraday?interval=1m'),receivedAt:iso(Date.now())};}
+    catch {delete assets[symbol];}
+  });
+  if(Date.now()-calendarAttempt>=300000) {
+    calendarAttempt=Date.now();
+    jobs.push((async()=>{try{calendar.receive(await getJSON('/api/scenario/calendars',45000),Date.now());}catch{calendar.receive(null,Date.now());calendarAttempt=Date.now()-240000;}})());
+  }
+  await Promise.allSettled(jobs);feedLoading=false;window.slRenderLocalRead?.();
+}
 async function loadDaily() {
   if(loading||Date.now()-lastAttempt<900000)return;
   loading=true;lastAttempt=Date.now();let timer;
@@ -105,12 +141,18 @@ async function loadDaily() {
 }
 
 export function update(read,scan) {
-  if(scan?.bars?.length)loadDaily();
-  const card=runtime.update(scan,daily);
+  if(scan?.bars?.length){loadDaily();loadFeeds();}
+  coverage=calendar.read(iso(Date.now()));
+  const card=runtime.update(scan,daily,Date.now(),{...coverage,assets});
+  const gated=applyScenarioGate(read,card,required);
+  const spot=scan?.valid?scan.bars?.at(-1)?.c:null;
+  if(spot)loadContracts(spot);
+  contractScreen=screenContracts(contractPayload,gated,spot);
+  if(card&&runtime.dataset)history.capture({at:card.timestamp,dataset:runtime.dataset,before:runtime.before,config:runtime.engine.config,card,entry:{gate:gated.gate,setup:read.setup?.status||null},contracts:contractScreen});
   render(card);
-  return applyScenarioGate(read,card,required);
+  return gated;
 }
-export function summary(){const c=runtime.card;return c?{scenario:c.active_scenario,direction:c.directional_bias,provisional:c.provisional,decision:c.decision,decision_reasons:c.decision_reasons,expected_path:c.expected_path,target_ladder:c.target_ladder,invalidation:c.invalidation,next_state:c.next_state_if_invalidated,required_for_entry:required}:null;}
+export function summary(){const c=runtime.card;return c?{scenario:c.active_scenario,direction:c.directional_bias,provisional:c.provisional,decision:c.decision,decision_reasons:c.decision_reasons,expected_path:c.expected_path,target_ladder:c.target_ladder,invalidation:c.invalidation,next_state:c.next_state_if_invalidated,required_for_entry:required,scheduled_coverage:coverage?.check||null,contract_screen:contractScreen}:null;}
 export function fail(read,message){runtime.card=null;runtime.error=message;render(null);return applyScenarioGate(read,null,required);}
 
 export function render(card) {
@@ -122,11 +164,16 @@ export function render(card) {
     '<div style="font-size:0.72rem;color:var(--text-muted)">Original five-minute scenario rules from your scenario engine. The one-minute entry detector remains separate. Levels become eligible only after Apex receives them; opening the panel mid-session does not invent earlier observations.</div>'+
     '<div style="margin:0.5rem 0;font-size:0.72rem;color:var(--warn)">Scenario permission: '+esc(card?.decision||'Unavailable')+'. '+esc(card?.decision_reasons?.join(' · ')||runtime.error)+'</div>'+
     '<label style="font-size:0.72rem"><input id="slRequireScenario" type="checkbox" '+(required?'checked':'')+'> Require scenario approval for new entries</label>'+
-    '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem">'+(loading?'Loading prior-day levels…':daily?'Prior-day OHLC and daily ATR connected.':'Prior-day levels unavailable.')+' Value profile, breadth history, positioning and verified event coverage are not connected to this adapter. Missing data never counts as confirmation.</div>'+
+    '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:0.5rem">'+(loading?'Loading prior-day levels…':daily?'Prior-day OHLC and daily ATR connected.':'Prior-day levels unavailable.')+' Value profile, intraday breadth and positioning remain unavailable. Missing data never counts as confirmation.</div>'+
+    '<div style="font-size:0.72rem;margin-top:0.6rem"><b>Scheduled events:</b> '+esc(coverage?.check.passed?'Verified within stated scope':coverage?.check.reasons.join(' · ')||'Loading official calendars')+'<br>'+esc(coverage?.check.exclusions||'')+'<br><b>Cross-asset:</b> '+esc(['QQQ','IWM'].map(s=>s+': '+(card?.context?.metrics?.[s.toLowerCase()+'ReturnPct']!==undefined?'connected':'unavailable')).join(' · '))+'</div>'+
     (card&&!closed?'<div style="font-size:0.72rem;margin-top:0.7rem"><b>Expected path:</b> '+card.expected_path.map(esc).join(' → ')+'<br><b>Invalidation:</b> '+card.invalidation.map(x=>esc(x.description)).join(' · ')+'<br><b>Next state:</b> '+esc(card.next_state_if_invalidated.scenario_id)+'</div>':'')+
+    '<details data-id="contracts" '+(expanded.has('contracts')?'open':'')+' style="margin-top:0.8rem"><summary>0DTE contract screen · '+esc(contractScreen?.status||'WAIT')+'</summary><div style="font-size:0.72rem;padding:0.5rem 0">'+esc(contractScreen?.reason||'Waiting for current SPY candles')+(contractLoading?' · Refreshing…':'')+'<br>Same-day standard contracts · real-time quote ≤30s · spread ≤10% · |delta| 0.35–0.65 · volume/OI ≥100. Sorted by spread, distance from 0.50 delta, then volume. Premium is ask ×100; entry checks still apply.'+(contractScreen?.partial?'<br>Partial provider result; ranking covers received contracts only.':'')+'<br>'+(contractScreen?.candidates||[]).map(c=>esc(c.symbol)+' · Bid/ask '+c.bid.toFixed(2)+' / '+c.ask.toFixed(2)+' · '+c.spreadPct.toFixed(1)+'% spread · Δ '+c.delta.toFixed(2)+' · Ask premium $'+c.premium.toFixed(0)+' · Quote '+esc(c.quoteAt)).join('<br>')+'<br>'+Object.entries(contractScreen?.rejected||{}).map(([reason,n])=>esc(reason)+': '+n).join(' · ')+'</div></details>'+
+    '<details data-id="history" '+(expanded.has('history')?'open':'')+' style="margin-top:0.8rem"><summary>Session history · '+history.rows.length+' checkpoints</summary><div style="font-size:0.72rem;padding:0.5rem 0">'+esc(history.status)+'. One checkpoint per minute while this panel receives data; up to 500 retained. Replay checks rule reproducibility, not trading performance.<br><button class="api-btn" style="margin:0.5rem 0" id="slReplayHistory">Verify replay</button> <button class="api-btn" style="margin:0.5rem 0" id="slExportHistory">Export inputs</button> '+esc(replayStatus)+'<br>'+history.rows.slice(-10).reverse().map(r=>esc(new Date(r.at).toLocaleTimeString('en-US',{timeZone:'America/New_York'}))+' ET · '+esc(r.card.active_scenario)+' · '+esc(r.card.decision)+' · Entry '+esc(r.entry.gate)).join('<br>')+'</div></details>'+
     '<details data-id="library" '+(expanded.has('library')?'open':'')+' style="margin-top:0.8rem"><summary style="cursor:pointer">Scenario library · 18 templates</summary>'+libraryRows(card).map(({rule,checks,status})=>
       '<details data-id="'+rule.id+'" '+(expanded.has(rule.id)?'open':'')+' style="border-top:1px solid var(--border-strong);padding:0.65rem 0"><summary style="cursor:pointer;font-size:0.8rem">'+esc(rule.scenario)+' · '+(rule.direction==='both'?'bullish / bearish':'neutral')+' <span style="font-size:0.6rem;color:var(--text-muted)">'+status+'</span></summary><div style="font-size:0.72rem;line-height:1.6;padding:0.5rem">'+
       '<b>Window:</b> '+rule.windows.map(esc).join(', ')+'<br><b>Path:</b> '+rule.expected_path.map(esc).join(' → ')+'<br><b>Expires:</b> '+rule.time_expiry.minutes+' minutes or phase end<br><b>Next state:</b> '+esc(rule.next_state_if_invalidated)+'<br>'+
       (checks.length?checks.map(c=>'<b>'+esc(c.direction)+'</b>: '+c.checks.map(x=>(x.pass?'✓ ':x.unavailable?'Missing: ':'Waiting: ')+esc(x.reason)).join(' · ')+(c.reference_price?'<br>Reference $'+c.reference_price.toFixed(2):'')).join('<br>'):'No live evaluation in the current time window.')+'</div></details>').join('')+'</details></div>';
+  document.getElementById('slReplayHistory').onclick=async()=>{try{const r=await history.verify();replayStatus=r.checked?r.matched+'/'+r.checked+' checkpoints reproduced':'No saved checkpoints yet';}catch{replayStatus='Replay failed: saved inputs could not be verified';}render(runtime.card);};
+  document.getElementById('slExportHistory').onclick=()=>history.download().catch(()=>{replayStatus='Export failed';render(runtime.card);});
   document.getElementById('slRequireScenario').onchange=e=>{required=e.target.checked;window.slRenderLocalRead?.();};
 }
