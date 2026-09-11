@@ -48,6 +48,15 @@ test('saved checkpoint reproduces from its original pre-evaluation state',()=>{
 });
 const payload=()=>({status:'received',expiry:'2026-09-10',receivedAt:at,results:[{details:{ticker:'O:SPY260910C00760000',contract_type:'call',shares_per_contract:100,strike_price:760,expiration_date:'2026-09-10'},last_quote:{bid:1,ask:1.05,bid_size:10,ask_size:10,last_updated:(now-1000)*1e6,timeframe:'REAL-TIME'},greeks:{delta:0.5},day:{volume:500},open_interest:1000}]});
 const read={bias:{dir:'LONG'},gate:'NO-GO'};
+test('coverage and adapter evaluate at exactly the same checkpoint',()=>{
+ const adapter=new ApexScenarioAdapter();
+ const coverage=scheduledCoverage(feeds(),at).coverage;
+ const card=adapter.update(null,null,now,{eventCoverage:coverage});
+ assert.equal(card.decision_reasons.includes('Event calendar coverage unavailable'),false);
+ // Point-only coverage must not be stretched to later timestamps.
+ const later=adapter.update(null,null,now+1,{eventCoverage:coverage});
+ assert.equal(later.decision_reasons.includes('Event calendar coverage unavailable'),true);
+});
 test('contract screening keeps entry permission separate from liquidity qualification',()=>{
  const out=screenContracts(payload(),read,760,now);assert.equal(out.candidates.length,1);assert.match(out.reason,/NO-GO/);assert.equal(read.gate,'NO-GO');
 });
