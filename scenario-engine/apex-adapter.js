@@ -8,7 +8,7 @@ import {screenContracts} from './contracts.js';
 
 const iso=t=>new Date(t).toISOString();
 const positive=n=>typeof n==='number'&&Number.isFinite(n)&&n>0;
-export const ADAPTER_VERSION='1.1.0';
+export const ADAPTER_VERSION='1.1.1';
 
 /** One-minute bars are already validated by Apex. Recheck the boundaries here. */
 export function aggregateFive(scan, session, receivedAt, receipts=new Map()) {
