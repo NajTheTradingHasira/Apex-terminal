@@ -1563,6 +1563,7 @@
 
 
 
+<script src="delayed-breadth.js?v=1.0.0"></script>
 <script>
 // ══════════════════════════════════════════════════════════════
 // TAB NAVIGATION
@@ -3344,7 +3345,8 @@ setTimeout(syncJournalFromBackend, 2000);
 // MARKET BREADTH
 // ══════════════════════════════════════════════════════════════
 const BD = {available:false, advancing:null, declining:null, unchanged:null, newHighs:null, newLows:null, upVol:null, downVol:null, trin:null, mcclellan:null, summation:null, ema19:null, ema39:null, aboveMA:[], sectorBreadth:[]};
-let breadthConnection='Not tested', breadthArchive='Checking archived scan', breadthChecked=null;
+const readDelayedBreadth=p=>globalThis.ApexDelayedBreadth?.read(p)||{status:'Unavailable',entryEligible:false,reason:'Delayed breadth adapter unavailable',snapshot:null};
+let breadthPayload=null, breadthConnection='Waiting for Massive', breadthChecked=null;
 const breadthEscape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function bdColor(val, good, warn) {
     // good = direction where val is bullish (high or low)
@@ -3412,22 +3414,27 @@ function renderSparkline(canvasId, datasets, opts = {}) {
 }
 
 function buildBreadthMetrics() {
-    const host=document.getElementById('breadth');
-    if(!host)return;
-    host.innerHTML=`<div data-breadth-version="2.0.0" style="padding:1.25rem;border:1px solid var(--border);border-radius:8px">
-      <h2>Market breadth · unavailable</h2>
-      <p>No verified current breadth observations. Missing readings are not zero and do not confirm a SPY entry.</p>
-      <p><b>Finviz export:</b> ${breadthEscape(breadthConnection)}</p>
-      <p><b>Last connection check:</b> ${breadthEscape(breadthChecked||'Not checked')}</p>
-      <p><b>Archived Finviz scan:</b> ${breadthEscape(breadthArchive)}</p>
-      <p>Daily moving-average breadth is separate from intraday participation. The existing daily endpoint does not provide the observation timestamps and constituent VWAP coverage required by SPY scenarios.</p>
-      <p>A/D, up/down volume, TRIN, McClellan and historical charts remain unavailable until validated source data is connected. No sample readings are displayed or sent to AI.</p>
-      <button class="api-btn" id="breadthRetry">Check Finviz connection</button>
+    const host=document.getElementById('breadth');if(!host)return;
+    const c=readDelayedBreadth(breadthPayload),p=c.snapshot;
+    const num=n=>n===null?'Unavailable':n.toFixed(2);
+    host.innerHTML=`<div data-breadth-version="3.0.0" style="padding:1.25rem;border:1px solid var(--border);border-radius:8px;line-height:1.6">
+      <h2>Delayed breadth · background only</h2>
+      <p><b>${breadthEscape(c.status)}</b> · ${breadthEscape(c.reason)}</p>
+      <p>${breadthEscape(breadthConnection)} · Last fetch: ${breadthEscape(breadthChecked||'Not checked')}</p>
+      ${p?`<p>Source period ends: <b>${breadthEscape(p.as_of)}</b> · age ${p.ageMinutes} minutes<br>Received: ${breadthEscape(p.available_at)}<br>Coverage: ${p.covered} / ${p.total} SPY equity holdings (${p.coveragePct.toFixed(1)}%) · holdings date ${breadthEscape(p.holdingsDate)}</p>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin:1rem 0">
+        <div>A/D ratio<br><b>${num(p.metrics.adRatio)}</b><br>${p.advancing} advancing / ${p.declining} declining / ${p.unchanged} unchanged</div>
+        <div>Advancing/declining stock volume<br><b>${num(p.metrics.upDownVolumeRatio)}</b></div>
+        <div>Holdings above RTH VWAP<br><b>${num(p.metrics.sp500AboveVwapPct)}%</b></div>
+      </div>`:''}
+      <p>Source: Massive minute aggregates and State Street SPY holdings. This is a holdings proxy, not NYSE-wide breadth. A/D compares with prior close; volume ratio sums regular-session volume of advancing versus declining stocks, not uptick/downtick volume. VWAP is derived from provider minute bars.</p>
+      <p>Used only as delayed AI background when its source age is 15–25 minutes in the same session. Historical or incomplete readings are excluded from current AI context. Live scenario breadth remains unavailable; entry checks are unchanged.</p>
+      <button class="api-btn" id="breadthRetry">Refresh delayed breadth</button>
     </div>`;
     document.getElementById('breadthRetry').onclick=()=>fetchBreadthData();
     const val=document.getElementById('dashBreadthVal'),sub=document.getElementById('dashBreadthSub');
-    if(val){val.textContent='Unavailable';val.className='metric-value';}
-    if(sub)sub.textContent='No verified current breadth';
+    if(val){val.textContent=c.status;val.className='metric-value';}
+    if(sub)sub.textContent='Background only · not entry confirmation';
 }
 function renderBreadthCharts() { /* No source history: do not synthesize chart lines. */ }
 
@@ -5775,6 +5782,7 @@ async function gatherIndexContext(ticker) {
 
     // 1. Breadth snapshot (from global BD object)
     ctx.breadth = {status:'unavailable',reason:'No verified current breadth observations'};
+    ctx.delayedBreadthContext = globalThis.ApexDelayedBreadth?.ai(breadthPayload)||{status:'unavailable',entryEligible:false};
 
     // 2. VIX reading
     const vix = PRICE_CACHE['^VIX'];
@@ -7947,8 +7955,8 @@ function updateDashboardCards() {
     // Market Breadth
     const breadthVal = document.getElementById('dashBreadthVal');
     const breadthSub = document.getElementById('dashBreadthSub');
-    if(breadthVal){breadthVal.textContent='Unavailable';breadthVal.className='metric-value';}
-    if(breadthSub)breadthSub.textContent='No verified current breadth';
+    if(breadthVal){breadthVal.textContent=readDelayedBreadth(breadthPayload).status;breadthVal.className='metric-value';}
+    if(breadthSub)breadthSub.textContent='Delayed background only';
 
     // Sector leader — best performing heatmap sector OR breadth leader
     const sectorVal = document.getElementById('dashSectorVal');
@@ -8988,30 +8996,20 @@ document.getElementById('newsTickerInput').addEventListener('keydown', (e) => {
 let breadthChecking=false;
 async function fetchBreadthData() {
     if(breadthChecking)return;
-    breadthChecking=true;breadthConnection='Checking login and CSV export…';buildBreadthMetrics();
-    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);
+    breadthChecking=true;breadthConnection='Refreshing Massive background data';buildBreadthMetrics();
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
     try {
-      const r=await fetch(`${NEXUS_API}/api/finviz/screener?preset=highrs&limit=1`,{signal:controller.signal});
-      const d=await r.json();
-      if(!r.ok)throw new Error(typeof d.detail==='string'?d.detail:`HTTP ${r.status}`);
-      if(!Array.isArray(d.results)||typeof d.count!=='number')throw new Error('Export response is incomplete');
-      breadthConnection='CSV export reachable. A filtered screener result is not a complete breadth feed; no breadth observations applied.';
+      const r=await fetch(`${NEXUS_API}/api/scenario/breadth`,{signal:controller.signal,cache:'no-store'});
+      if(!r.ok)throw new Error(`HTTP ${r.status}; stock-data access may be unavailable`);
+      breadthPayload=await r.json();
+      breadthConnection=breadthPayload.reason|| (breadthPayload.collecting?'Refreshing source collection':'Massive response received');
     } catch(e) {
-      breadthConnection=e.name==='AbortError'?'Connection check timed out; no data applied.':'Unavailable: '+e.message;
+      breadthPayload=null;breadthConnection=e.name==='AbortError'?'Feed timed out':e.message;
     } finally {
       clearTimeout(timer);breadthChecking=false;breadthChecked=new Date().toISOString();buildBreadthMetrics();
     }
 }
-async function fetchRegimeScan() {
-    try {
-      const r=await fetch('https://raw.githubusercontent.com/NajTheTradingHasira/stock-watchlist/main/breadth_data.json?t='+Date.now(),{signal:AbortSignal.timeout(15000)});
-      if(!r.ok)throw new Error('Archive request failed');
-      const d=await r.json();
-      const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-      breadthArchive=(d.date===day?'Unverified':'STALE')+' · source date '+(d.date||'missing')+' '+(d.time||'')+' ET · excluded from current readings and AI context.';
-    }catch{breadthArchive='Unavailable · no archived values applied';}
-    buildBreadthMetrics();
-}
+setInterval(()=>{buildBreadthMetrics();if(document.getElementById('breadth')?.classList.contains('active')||document.getElementById('ai')?.classList.contains('active'))fetchBreadthData();},60000);
 
 // ── 8. BOOT SEQUENCE ─────────────────────────────────────────
 // Initial load — stagger fetches to avoid hammering
@@ -9021,7 +9019,7 @@ setTimeout(() => {
     initCOT();
     fetchMacroData();
     fetchBreadthData();
-    setTimeout(fetchRegimeScan, 3000);
+
     setTimeout(ensureNewsStream, 2500); // warm the news stream so the tab opens hot + mentions populate
 }, 800);
 
