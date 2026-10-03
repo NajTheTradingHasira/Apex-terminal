@@ -30,7 +30,7 @@ vm.createContext(sandbox);
 vm.runInContext(block + `
 ;globalThis.T = { SL_DTE, slDteNcdf, slDteBS, slDteIv, slDteEtEpoch, slDteEtYmd, slDteSession,
   slDtePickExpiries, slDteEval, slDtePickStyles, slDteBuild, slDteHtml, slDteLots, slDteParitySpot,
-  slDteNormChain, slDteRowsExpiry, slDteEsc, slDteEligible, slDteFlags, slDteVarDays, slDteImpliedVol };`, sandbox);
+  slDteNormChain, slDteRowsExpiry, slDteEsc, slDteEligible, slDteFlags, slDteVarDays, slDteImpliedVol, slDteUwIv, slDteSourceInfo };`, sandbox);
 const T = sandbox.T;
 
 let pass = 0, fail = 0;
@@ -136,13 +136,20 @@ function chain(expiry, nowMs, opts = {}) {
             const iv = 0.14 + (cp === 'P' ? (SPOT - k) * 0.0015 : 0);
             const bs = T.slDteBS(cp, SPOT, k, Tyr, Math.max(0.08, iv), 0.04);
             const mid = Math.max(0.01, bs.price), half = opts.spread != null ? opts.spread / 2 : Math.max(0.01, mid * 0.01);
-            rows.push({ strike: k, bid: +(mid - half).toFixed(4), ask: +(mid + half).toFixed(4), lastPrice: mid,
+            const row = { strike: k, bid: +(mid - half).toFixed(4), ask: +(mid + half).toFixed(4), lastPrice: mid,
                         impliedVolatility: Math.max(0.08, iv) * 100, openInterest: opts.oi != null ? opts.oi : 5000, volume: 100,
-                        contractSymbol: 'SPY' + (opts.symExp || yymmdd) + cp + String(k * 1000).padStart(8, '0') });
+                        contractSymbol: 'SPY' + (opts.symExp || yymmdd) + cp + String(k * 1000).padStart(8, '0') };
+            if (opts.deltaShift != null) {   // vendor delta = model delta of the strike `deltaShift` below
+                const d = T.slDteBS(cp, SPOT, k - opts.deltaShift, Tyr, Math.max(0.08, iv), 0.04).delta;
+                row.delta = opts.putDeltaPositive ? Math.abs(d) : d;
+            }
+            if (opts.badDelta) row.delta = 1.7;
+            if (opts.theta != null) row.theta = opts.theta;
+            rows.push(row);
         }
         return rows;
     };
-    return { source: 'test', spot: opts.noSpot ? undefined : SPOT, expirations: EXPS, chain: { calls: mk('C'), puts: mk('P') } };
+    return { source: opts.source || 'test', _route: opts.route, spot: opts.noSpot ? undefined : SPOT, expirations: EXPS, chain: { calls: mk('C'), puts: mk('P') } };
 }
 const NOW = et('2026-09-30', 11, 0);
 const chains = { '2026-10-01': chain('2026-10-01', NOW), '2026-10-02': chain('2026-10-02', NOW), '2026-10-05': chain('2026-10-05', NOW) };
@@ -260,6 +267,55 @@ ok(T.slDteLots(null, 150) === 0 && T.slDteLots(1, 0) === 0, 'lots: bad input →
     ok(!m.session.live && m.bestSame === null && m.expiries[0].expiry === '2026-10-06', 'weekend: plan for Monday, 1DTE = Tuesday, no same-day pick', [m.session, m.expiries[0].expiry]);
     const html = T.slDteHtml(m);
     ok(html.includes('Market closed') && !html.includes('Same-day pts'), 'render: closed-market note, same-day column hidden');
+}
+
+// ── 7. UW data: quote source, IV percentile, vendor Greeks (both directions) ──
+{
+    const mk = o => ({ '2026-10-01': chain('2026-10-01', NOW, o), '2026-10-02': chain('2026-10-02', NOW, o), '2026-10-05': chain('2026-10-05', NOW, o) });
+    const uw = T.slDteBuild({ ...base, chains: mk({ source: 'unusual_whales' }), ctx: { dir: 'LONG', spot: SPOT } });
+    ok(!uw.delayed && uw.sources.join() === 'UW' && uw.spotSource === 'SPY Logic live', 'UW quotes: live, labelled UW, live spot used', [uw.sources, uw.spotSource]);
+    const cb = T.slDteBuild({ ...base, chains: mk({ source: 'cboe' }), ctx: { dir: 'LONG', spot: 770 } });   // live spot 5 pts away from the quotes
+    ok(cb.delayed && cb.sources.join() === 'CBOE 15m' && /parity/.test(cb.spotSource) && near(cb.spot, SPOT, 0.15), 'CBOE quotes: delayed, live spot ignored, parity spot used', [cb.spot, cb.spotSource]);
+    ok(T.slDteHtml(cb).includes('delayed: spot taken from the chain') && !T.slDteHtml(uw).includes('delayed: spot taken'), 'delayed warning renders only for delayed quotes');
+    const lg = T.slDteBuild({ ...base, chains: mk({ route: 'legacy' }), ctx: { dir: 'LONG', spot: SPOT } });
+    ok(lg.delayed && lg.sources.join() === 'legacy route (Yahoo)', 'legacy route: delayed and labelled', lg.sources);
+    ok(T.slDteSourceInfo(T.slDteNormChain({ source: 'unusual_whales', _route: 'unified' })).delayed === false, 'normChain carries source and route');
+    const ev = T.slDteBuild({ ...base, chains: mk({ source: '<img src=x>' }), ctx: { dir: 'LONG', spot: SPOT } });
+    ok(!T.slDteHtml(ev).includes('<img') , 'API source string is escaped');
+}
+{
+    const apexShape = { data: [{ days: 7, percentile: 0.9, volatility: 0.2 }, { days: 30, percentile: 0.13, volatility: 0.14, implied_move_perc: 0.04 }, { days: 60, percentile: 0.55, volatility: 0.16 }] };
+    const r1 = T.slDteUwIv(apexShape);
+    ok(r1 && near(r1.ivp, 13, 1e-9) && near(r1.iv, 0.14, 1e-12) && r1.days === 30, 'UW IV, APEX shape: 30-day record, percentile decimal → 13%', r1);
+    const r2 = T.slDteUwIv({ data: [{ iv_percentile: 10 }, { iv_percentile: 42, iv30: 0.14, hv30: 0.12 }] });
+    ok(r2 && r2.ivp === 42 && near(r2.hv, 0.12, 1e-12), 'UW IV, hashira shape: last record, iv_percentile in percent', r2);
+    ok(near(T.slDteUwIv({ data: [{ iv_rank: 0.37 }] }).ivp, 37, 1e-9), 'iv_rank as a decimal → 37%');
+    ok(T.slDteUwIv({ data: [{ foo: 1 }] }) === null && T.slDteUwIv(null) === null && T.slDteUwIv({ data: [] }) === null, 'no IV fields → null, never 0');
+    ok(T.slDteUwIv({ data: [{ percentile: 3.5, volatility: 0.14 }] }).ivp === null, 'out-of-range percentile → null');
+    const a = T.slDteBuild({ ...base, uwIv: apexShape, ctx: { dir: 'LONG', spot: SPOT, ivp: 80, hviv: 'ivgthv' } });
+    ok(near(a.ivp, 13, 1e-9) && a.ivpSource === 'UW 30d', 'UW IVP overrides the manual input', [a.ivp, a.ivpSource]);
+    ok(a.hviv === 'ivgthv' && a.hvivSource === 'manual', 'no UW HV → manual HV/IV kept');
+    const m = T.slDteBuild({ ...base, uwIv: null, uwIvError: 'HTTP 502', ctx: { dir: 'LONG', spot: SPOT, ivp: 55, hviv: 'inline' } });
+    ok(m.ivp === 55 && m.ivpSource === 'manual' && T.slDteHtml(m).includes('UW IV unavailable'), 'UW down → manual IVP, labelled');
+    const h = T.slDteBuild({ ...base, uwIv: { data: [{ iv_percentile: 20, iv30: 0.15, hv30: 0.12 }] }, ctx: { dir: 'LONG', spot: SPOT, hviv: 'hvgtiv' } });
+    ok(h.hviv === 'ivgthv' && h.hvivSource === 'UW' && near(h.hvRatio, 0.8, 1e-9), 'UW HV/IV 0.80 → IV > HV, overrides manual', [h.hviv, h.hvRatio]);
+    const h2 = T.slDteBuild({ ...base, uwIv: { data: [{ iv_percentile: 20, iv30: 0.12, hv30: 0.15 }] }, ctx: { dir: 'LONG', spot: SPOT } });
+    ok(h2.hviv === 'hvgtiv', 'UW HV/IV 1.25 → HV > IV');
+}
+{
+    const mk = o => ({ '2026-10-01': chain('2026-10-01', NOW, o), '2026-10-02': chain('2026-10-02', NOW, o), '2026-10-05': chain('2026-10-05', NOW, o) });
+    const plain = T.slDteBuild({ ...base, ctx: { dir: 'LONG', spot: SPOT } });
+    const ven = T.slDteBuild({ ...base, chains: mk({ deltaShift: 3 }), ctx: { dir: 'LONG', spot: SPOT } });
+    const atmP = plain.expiries[0].cands.find(c => c.style === 'ATM'), atmV = ven.expiries[0].cands.find(c => c.style === 'ATM');
+    ok(plain.deltaSrc === 'model' && ven.deltaSrc === 'UW' && atmV.deltaSrc === 'UW', 'vendor delta used when present, model otherwise');
+    ok(atmV.strike === atmP.strike + 3, 'strike picking follows the vendor delta', [atmP.strike, atmV.strike]);
+    const pv = T.slDteBuild({ ...base, chains: mk({ deltaShift: 0, putDeltaPositive: true }), ctx: { dir: 'SHORT', spot: SPOT } });
+    ok(pv.expiries[0].cands.every(c => c.delta < 0 && c.deltaSrc === 'UW'), 'positive vendor put delta normalised negative');
+    const bad = T.slDteBuild({ ...base, chains: mk({ badDelta: true }), ctx: { dir: 'LONG', spot: SPOT } });
+    ok(bad.deltaSrc === 'model', '|delta| > 1 from the vendor → ignored');
+    const th = T.slDteBuild({ ...base, chains: mk({ theta: -0.42 }), ctx: { dir: 'LONG', spot: SPOT } });
+    ok(th.hasTheta && th.expiries[0].cands[0].thetaUw === -42 && T.slDteHtml(th).includes('UW θ/day'), 'vendor theta shown per contract per day');
+    ok(!plain.hasTheta && !T.slDteHtml(plain).includes('UW θ/day'), 'no vendor theta → no column');
 }
 ok(T.slDteHtml(null).includes('Load 1–3 DTE'), 'render before load shows the Load button');
 
