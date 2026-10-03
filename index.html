@@ -1427,6 +1427,10 @@
             <div id="slScenarioLibrary" style="margin-bottom:1rem"></div>
             <div id="slGateOut" style="margin-bottom:1.25rem"></div>
 
+            <!-- Day Swing Planner · 1–3 DTE (shared SL_DTE block, 2026-10-03) -->
+            <div class="section-title">Day Swing Planner · 1–3 DTE (ITM / ATM / OTM · same-day + overnight)</div>
+            <div id="slDtePanel" style="margin-bottom:1.25rem"></div>
+
             <!-- Key zones -->
             <div class="section-title">Key Zones (auto-derived from 5-day range)</div>
             <div id="slZones" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:0.75rem;margin-bottom:1.25rem"></div>
@@ -7380,6 +7384,551 @@ function slStopCalc() {
         (qty >= 3 ? '<span style="color:var(--text-faint)"> · 3-lot cap</span>' : '');
 }
 
+// ── Day Swing Planner glue (APEX). The shared SL_DTE block below calls this.
+// Spot older than the hard staleness limit during RTH is withheld, so the
+// planner falls back to the chain's own spot instead of pricing off a stale one.
+function slDteContext() {
+    const last = SL_STATE.lastRead || {};
+    const live = SL_STATE.live, p = live ? Number(live.price) : NaN;
+    const age = slAgeMs(slSpotAt(), Date.now());
+    const stale = slIsRTH() && age != null && age >= SL_STALE.hard;
+    return {
+        apiBase: NEXUS_API, mountId: 'slDtePanel',
+        dir: last.dir || null, gate: last.gate || null,
+        spot: (isFinite(p) && p > 0 && !stale) ? p : null, spotAt: slSpotAt(),
+        ivp: SL_STATE.inputs.ivp, hviv: SL_STATE.inputs.hviv
+    };
+}
+
+// ══ SL_DTE BEGIN — Day Swing Planner · 1–3 DTE ══════════════════════════
+// Byte-identical in APEX and trading-hashira. sl-dte-parity.mjs fails the
+// build if the two copies differ. Terminal-specific glue lives OUTSIDE these
+// markers and supplies exactly one function:
+//
+//   slDteContext() -> { apiBase, mountId, dir, gate, spot, spotAt, ivp, hviv }
+//
+// What it does: for the next three SPY expiries after the current session it
+// picks an ITM / ATM / OTM contract on the side of the directional read and
+// prices what each one costs to hold, in SPY POINTS:
+//
+//   cost pts = (model decay over the hold + bid/ask spread) / |delta|
+//
+// = how far SPY must move in your favour just to get back to break-even.
+// Two holds are scored: SAME-DAY (now -> 16:00 today) and OVERNIGHT
+// (now -> 09:30 next session). Lower is better.
+//
+// Greeks are NOT in the chain payload, so delta and decay come from
+// Black-Scholes on a VARIANCE CLOCK, not on calendar time. Calendar-time BS
+// treats the 17.5 h from close to open like trading hours and makes a 1DTE
+// lose ~half its value overnight at an unchanged spot. On the clock:
+//   · each RTH minute               = 1/390 trading day
+//   · each close -> open gap         = ovnShare (0.25) trading day
+//   · each extra closed calendar day = + closedDay (0.05) — weekends, holidays
+// Volatility is implied per contract from its own market mid ON THAT CLOCK,
+// so the model reprices the entry exactly and decay is self-consistent with
+// the quote, whatever convention the vendor used for its IV column. Delta is
+// unchanged by the clock (price depends on sigma*sqrt(T) only). ovnShare and
+// closedDay are stated assumptions; change them here. It is still a model:
+// it ignores IV changes and skew moves. Use cost pts to RANK, not to forecast.
+//
+// House rules applied (from the review file, not invented here):
+//   · no weekend long premium (SOP 08/07)        -> overnight across a weekend is flagged
+//   · cheap premium loses (< $0.30 bucket)        -> flagged
+//   · liquidity: spread > 10% of mid or OI < 500 -> not eligible for "best"
+//   · delta gate 0.45+ for the "best" pick       -> OTM is shown, never recommended
+//   · size = premium-as-stop: lots = floor(risk / (mid x 100)), 3-lot cap
+
+const SL_DTE = {
+    styles: [['ITM', 0.65], ['ATM', 0.50], ['OTM', 0.30]],
+    rate: 0.04,               // flat risk-free; moves 1-3 DTE prices by < 0.1%
+    ovnShare: 0.25,           // close->open variance as a share of one trading day
+    closedDay: 0.05,          // extra variance per non-trading calendar day in a gap
+    tradingYear: 252,
+    maxSpreadPct: 10,
+    minOI: 500,
+    minDeltaBest: 0.45,
+    cheapPremium: 0.30,
+    lotCap: 3,
+    nExpiries: 3,
+    yearMs: 365 * 24 * 3600 * 1000,
+    state: { loading: false, error: null, loadedAt: null, raw: null, side: 'auto', risk: 500 }
+};
+
+function slDteEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+
+function slDteNum(x) {
+    const n = Number(x);
+    return isFinite(n) ? n : null;
+}
+
+// ── Normal CDF (Abramowitz-Stegun 7.1.26 on erf; |err| < 1.5e-7) ──────────
+function slDteNcdf(x) {
+    const z = Math.abs(x) / Math.SQRT2;
+    const t = 1 / (1 + 0.3275911 * z);
+    const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-z * z);
+    return x >= 0 ? 0.5 * (1 + y) : 0.5 * (1 - y);
+}
+
+// Black-Scholes price + delta. T in years. Returns null on unusable input;
+// at or past expiry returns intrinsic with a step delta.
+function slDteBS(cp, S, K, T, v, r) {
+    if (!(S > 0) || !(K > 0) || !(v > 0) || !isFinite(T)) return null;
+    const call = cp === 'C';
+    if (T <= 0) {
+        const intr = call ? Math.max(0, S - K) : Math.max(0, K - S);
+        return { price: intr, delta: call ? (S > K ? 1 : 0) : (S < K ? -1 : 0) };
+    }
+    const sq = v * Math.sqrt(T);
+    const d1 = (Math.log(S / K) + (r + 0.5 * v * v) * T) / sq;
+    const d2 = d1 - sq;
+    const df = Math.exp(-r * T);
+    if (call) return { price: S * slDteNcdf(d1) - K * df * slDteNcdf(d2), delta: slDteNcdf(d1) };
+    return { price: K * df * slDteNcdf(-d2) - S * slDteNcdf(-d1), delta: slDteNcdf(d1) - 1 };
+}
+
+// Chains report IV as a percent (15.3) or a decimal (0.153). Values below 3
+// are read as decimals: a 300% SPY IV is not a real print.
+function slDteIv(raw) {
+    const n = slDteNum(raw);
+    if (n == null || n <= 0) return null;
+    return n < 3 ? n : n / 100;
+}
+
+// ── Eastern-time clock, no libraries ────────────────────────────────────
+function slDteEtParts(ms) {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short' });
+    const p = Object.fromEntries(f.formatToParts(new Date(ms)).map(x => [x.type, x.value]));
+    return { Y: +p.year, M: +p.month, D: +p.day, h: (+p.hour) % 24, m: +p.minute, wd: p.weekday };
+}
+function slDteEtYmd(ms) {
+    const p = slDteEtParts(ms);
+    return p.Y + '-' + String(p.M).padStart(2, '0') + '-' + String(p.D).padStart(2, '0');
+}
+// Epoch ms of hh:mm America/New_York on a YYYY-MM-DD date (DST-correct).
+function slDteEtEpoch(ymd, h, m) {
+    const [Y, M, D] = ymd.split('-').map(Number);
+    const want = Date.UTC(Y, M - 1, D, h, m);
+    let guess = want;
+    for (let i = 0; i < 3; i++) {
+        const p = slDteEtParts(guess);
+        guess += want - Date.UTC(p.Y, p.M - 1, p.D, p.h, p.m);
+    }
+    return guess;
+}
+function slDteWeekday(ymd) {
+    const [Y, M, D] = ymd.split('-').map(Number);
+    return new Date(Date.UTC(Y, M - 1, D, 12)).getUTCDay();   // 0 Sun .. 6 Sat
+}
+function slDteCalDays(a, b) {
+    const [y1, m1, d1] = a.split('-').map(Number), [y2, m2, d2] = b.split('-').map(Number);
+    return Math.round((Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1)) / 86400000);
+}
+
+// Fallback when the chain gives no expiry list: weekdays only (no holiday
+// table — the UI says so). SPY lists an expiry every trading day.
+function slDteWeekdaysAfter(ymd, n) {
+    const out = [];
+    let [Y, M, D] = ymd.split('-').map(Number);
+    let t = Date.UTC(Y, M - 1, D, 12);
+    while (out.length < n) {
+        t += 86400000;
+        const d = new Date(t), wd = d.getUTCDay();
+        if (wd !== 0 && wd !== 6) out.push(d.toISOString().slice(0, 10));
+    }
+    return out;
+}
+
+// The session the plan is for. During RTH: today, priced now. Otherwise: the
+// next session, priced as of its 09:30 open (quotes are then last-close
+// quotes, and the UI says so). Trading dates come from the expiry list.
+function slDteSession(nowMs, expirations) {
+    const today = slDteEtYmd(nowMs);
+    const exps = (expirations || []).filter(e => /^\d{4}-\d{2}-\d{2}$/.test(e)).sort();
+    const open = slDteEtEpoch(today, 9, 30), close = slDteEtEpoch(today, 16, 0);
+    const isTradingDay = exps.length ? exps.includes(today) : (slDteWeekday(today) % 6 !== 0);
+    if (isTradingDay && nowMs >= open && nowMs < close) return { date: today, live: true, t0: nowMs };
+    let date;
+    if (isTradingDay && nowMs < open) date = today;
+    else date = exps.length ? (exps.find(e => e > today) || null) : slDteWeekdaysAfter(today, 1)[0];
+    if (!date) return null;
+    return { date, live: false, t0: slDteEtEpoch(date, 9, 30) };
+}
+
+// The first n expiries strictly after the session date, labelled by trading
+// day: 1DTE = next session's expiry. Calendar days are carried for weekends.
+function slDtePickExpiries(expirations, sessionDate, n) {
+    const exps = (expirations || []).filter(e => /^\d{4}-\d{2}-\d{2}$/.test(e)).sort();
+    const src = exps.length ? exps.filter(e => e > sessionDate) : slDteWeekdaysAfter(sessionDate, n);
+    return src.slice(0, n).map((e, i) => ({ expiry: e, dte: i + 1, calDays: slDteCalDays(sessionDate, e) }));
+}
+
+// ── Variance clock ───────────────────────────────────────────────────────
+// Effective TRADING DAYS between two instants, over the given trading dates.
+// RTH minutes count 1/390 each; each close->open gap counts
+// ovnShare + closedDay x (closed calendar days in it), spread evenly over the
+// gap. Time outside the listed sessions counts nothing.
+function slDteVarDays(tA, tB, tradingDates) {
+    if (!(tB > tA)) return 0;
+    const ds = [...new Set(tradingDates || [])].filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+    const ov = (a, b) => Math.max(0, Math.min(b, tB) - Math.max(a, tA));
+    let days = 0;
+    for (let i = 0; i < ds.length; i++) {
+        const o = slDteEtEpoch(ds[i], 9, 30), c = slDteEtEpoch(ds[i], 16, 0);
+        days += ov(o, c) / (c - o);
+        if (i + 1 < ds.length) {
+            const o2 = slDteEtEpoch(ds[i + 1], 9, 30);
+            const w = SL_DTE.ovnShare + SL_DTE.closedDay * Math.max(0, slDteCalDays(ds[i], ds[i + 1]) - 1);
+            days += w * ov(c, o2) / (o2 - c);
+        }
+    }
+    return days;
+}
+
+// Volatility that reprices `price` at time T (years), by bisection. Null when
+// the quote sits outside the no-arbitrage band (bad print, crossed market).
+function slDteImpliedVol(cp, S, K, T, price, r) {
+    if (!(T > 0) || !(price > 0)) return null;
+    let lo = 0.005, hi = 5;
+    const f = v => { const b = slDteBS(cp, S, K, T, v, r); return b ? b.price - price : NaN; };
+    const flo = f(lo), fhi = f(hi);
+    if (!(flo < 0) || !(fhi > 0)) return null;
+    for (let i = 0; i < 80; i++) {
+        const mid = 0.5 * (lo + hi);
+        if (f(mid) < 0) lo = mid; else hi = mid;
+    }
+    return 0.5 * (lo + hi);
+}
+
+// Spot fallback: put-call parity at the strike where |C - P| is smallest.
+function slDteParitySpot(calls, puts) {
+    const P = new Map();
+    for (const p of puts || []) { const m = slDteMid(p); if (m != null && slDteNum(p.strike) != null) P.set(+p.strike, m); }
+    let best = null;
+    for (const c of calls || []) {
+        const k = slDteNum(c.strike), mc = slDteMid(c);
+        if (k == null || mc == null || !P.has(k)) continue;
+        const diff = Math.abs(mc - P.get(k));
+        if (!best || diff < best.diff) best = { diff, spot: k + mc - P.get(k) };
+    }
+    return best ? best.spot : null;
+}
+
+function slDteMid(row) {
+    const b = slDteNum(row && row.bid), a = slDteNum(row && row.ask);
+    if (b != null && a != null && b > 0 && a >= b) return (a + b) / 2;
+    const l = slDteNum(row && row.lastPrice);
+    return l != null && l > 0 ? l : null;
+}
+
+// Expiry the rows actually belong to, read from the OCC symbol
+// (SPY261005C00765000 -> 2026-10-05). Null when no row carries a symbol.
+function slDteRowsExpiry(rows) {
+    for (const r of rows || []) {
+        const m = r && typeof r.contractSymbol === 'string' && /(\d{2})(\d{2})(\d{2})[CP]\d{8}$/.exec(r.contractSymbol);
+        if (m) return '20' + m[1] + '-' + m[2] + '-' + m[3];
+    }
+    return null;
+}
+
+function slDteNormChain(d) {
+    if (!d || typeof d !== 'object') return { calls: [], puts: [], spot: null, expirations: null, expiry: null };
+    const calls = (d.chain && Array.isArray(d.chain.calls)) ? d.chain.calls : (Array.isArray(d.calls) ? d.calls : []);
+    const puts  = (d.chain && Array.isArray(d.chain.puts))  ? d.chain.puts  : (Array.isArray(d.puts)  ? d.puts  : []);
+    const exps = Array.isArray(d.expirations) ? d.expirations.filter(e => typeof e === 'string') : null;
+    const field = typeof d.expiry === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.expiry) ? d.expiry : null;
+    return { calls, puts, spot: slDteNum(d.spot), expirations: exps, expiry: slDteRowsExpiry(calls) || slDteRowsExpiry(puts) || field };
+}
+
+// Price one row for both holds. Every field may be missing; never throws.
+//   clk = { now, same, over } — variance-clock TRADING DAYS left to expiry at
+//         entry, at the same-day exit and at the overnight exit (null = n/a);
+//         calYears = calendar years to expiry (only for the IV fallback).
+function slDteEval(row, cp, S, clk) {
+    if (!row || typeof row !== 'object' || !clk) return null;
+    const K = slDteNum(row.strike), mid = slDteMid(row), iv = slDteIv(row.impliedVolatility);
+    if (K == null || mid == null || !(S > 0) || !(clk.now > 0)) return null;
+    const Y = SL_DTE.tradingYear, T = clk.now / Y;
+    // Clock-implied vol from the quote; fallback: the chain IV rescaled to the
+    // same total variance (assumes the vendor quoted on calendar time).
+    let sig = slDteImpliedVol(cp, S, K, T, mid, SL_DTE.rate);
+    if (sig == null && iv != null && clk.calYears > 0) sig = iv * Math.sqrt(clk.calYears / T);
+    if (sig == null) return null;
+    const now = slDteBS(cp, S, K, T, sig, SL_DTE.rate);
+    if (!now || !(now.price > 0)) return null;
+    const decayTo = (left) => {
+        if (left == null || !(left < clk.now)) return null;
+        const later = slDteBS(cp, S, K, Math.max(0, left) / Y, sig, SL_DTE.rate);
+        return later ? mid * Math.max(0, 1 - later.price / now.price) : null;
+    };
+    const b = slDteNum(row.bid), a = slDteNum(row.ask);
+    const spread = (b != null && a != null && b > 0 && a >= b) ? a - b : null;
+    const ad = Math.abs(now.delta);
+    const decSame = decayTo(clk.same), decOver = decayTo(clk.over);
+    const pts = dec => (dec == null || spread == null || ad < 0.02) ? null : (dec + spread) / ad;
+    return {
+        strike: K, mid, iv, delta: now.delta, spread,
+        spreadPct: spread == null ? null : 100 * spread / mid,
+        oi: slDteNum(row.openInterest), vol: slDteNum(row.volume),
+        symbol: typeof row.contractSymbol === 'string' ? row.contractSymbol : null,
+        ivClock: sig, decaySame: decSame, decayOver: decOver,
+        decaySamePct: decSame == null ? null : 100 * decSame / mid,
+        decayOverPct: decOver == null ? null : 100 * decOver / mid,
+        costSame: pts(decSame), costOver: pts(decOver)
+    };
+}
+
+// ITM / ATM / OTM by |delta| target. Ties -> tighter spread. Never throws.
+function slDtePickStyles(rows, cp, S, clk) {
+    const ev = (rows || []).map(r => slDteEval(r, cp, S, clk)).filter(Boolean);
+    return SL_DTE.styles.map(([style, target]) => {
+        let best = null;
+        for (const e of ev) {
+            const err = Math.abs(Math.abs(e.delta) - target);
+            if (!best || err < best.err - 1e-9 || (Math.abs(err - best.err) <= 1e-9 && (e.spreadPct || 999) < (best.e.spreadPct || 999))) best = { err, e };
+        }
+        return best ? { style, target, ...best.e } : { style, target, missing: true };
+    });
+}
+
+function slDteFlags(c, ctx) {
+    const f = [];
+    if (c.missing) return f;
+    if (c.spreadPct != null && c.spreadPct > SL_DTE.maxSpreadPct) f.push('wide spread ' + c.spreadPct.toFixed(0) + '%');
+    if (c.oi != null && c.oi < SL_DTE.minOI) f.push('thin OI ' + c.oi);
+    if (c.mid < SL_DTE.cheapPremium) f.push('cheap premium < $' + SL_DTE.cheapPremium.toFixed(2));
+    if (Math.abs(c.delta) < SL_DTE.minDeltaBest) f.push('below delta gate');
+    if (ctx && ctx.overCal > 1) f.push('overnight spans ' + ctx.overCal + ' days');
+    return f;
+}
+
+function slDteEligible(c) {
+    return !c.missing && Math.abs(c.delta) >= SL_DTE.minDeltaBest &&
+        c.spreadPct != null && c.spreadPct <= SL_DTE.maxSpreadPct &&
+        (c.oi == null || c.oi >= SL_DTE.minOI) && c.mid >= SL_DTE.cheapPremium;
+}
+
+function slDteLots(mid, risk) {
+    if (!(mid > 0) || !(risk > 0)) return 0;
+    return Math.max(0, Math.min(SL_DTE.lotCap, Math.floor(risk / (mid * 100) + 1e-9)));
+}
+
+// Pure builder: raw chains + context -> view model. No DOM, no fetch.
+//   input: { nowMs, expirations, chains: { 'YYYY-MM-DD': chainPayload }, ctx, side, risk }
+function slDteBuild(input) {
+    const ctx = input.ctx || {};
+    const side = input.side === 'C' || input.side === 'P' ? input.side
+        : ctx.dir === 'LONG' ? 'C' : ctx.dir === 'SHORT' ? 'P' : 'C';
+    const sideSource = (input.side === 'C' || input.side === 'P') ? 'manual'
+        : (ctx.dir === 'LONG' || ctx.dir === 'SHORT') ? 'read' : 'default';
+    const session = slDteSession(input.nowMs, input.expirations);
+    if (!session) return { error: 'No upcoming session found in the expiry list.' };
+    const picks = slDtePickExpiries(input.expirations, session.date, SL_DTE.nExpiries);
+    const nextOpenDate = picks.length ? picks[0].expiry : null;     // 1DTE expiry date = next session
+    const tSame = slDteEtEpoch(session.date, 16, 0);
+    const tOver = nextOpenDate ? slDteEtEpoch(nextOpenDate, 9, 30) : null;
+    const overCal = nextOpenDate ? slDteCalDays(session.date, nextOpenDate) : null;
+    const weekendOver = overCal != null && overCal > 1;
+
+    let spot = slDteNum(ctx.spot), spotSource = 'SPY Logic live';
+    const expiries = picks.map(p => {
+        const raw = input.chains ? input.chains[p.expiry] : null;
+        if (!raw) return { ...p, error: 'chain not loaded', cands: [] };
+        if (raw.error) return { ...p, error: String(raw.error), cands: [] };
+        const ch = slDteNormChain(raw);
+        if (ch.expiry && ch.expiry !== p.expiry) return { ...p, error: 'server returned ' + ch.expiry + ' for ' + p.expiry, cands: [] };
+        return { ...p, chain: ch };
+    });
+    if (!(spot > 0)) {
+        for (const e of expiries) {
+            if (!e.chain) continue;
+            if (e.chain.spot > 0) { spot = e.chain.spot; spotSource = 'chain'; break; }
+            const ps = slDteParitySpot(e.chain.calls, e.chain.puts);
+            if (ps > 0) { spot = ps; spotSource = 'put-call parity'; break; }
+        }
+    }
+    if (!(spot > 0)) return { error: 'No SPY spot: SPY Logic has no live price and the chain gave none.' };
+
+    const lastExp = picks.length ? picks[picks.length - 1].expiry : session.date;
+    const listed = (input.expirations || []).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d));
+    const tradingDates = [...new Set((listed.length ? listed : slDteWeekdaysAfter(session.date, SL_DTE.nExpiries + 2)).concat([session.date]))]
+        .filter(d => d >= session.date && d <= lastExp).sort();
+    const out = expiries.map(e => {
+        if (!e.chain) return { ...e, cands: [] };
+        const tExp = slDteEtEpoch(e.expiry, 16, 0);
+        const clk = {
+            now: slDteVarDays(session.t0, tExp, tradingDates),
+            same: tSame > session.t0 ? slDteVarDays(tSame, tExp, tradingDates) : null,
+            over: tOver != null && tOver > session.t0 ? slDteVarDays(tOver, tExp, tradingDates) : null,
+            calYears: (tExp - session.t0) / SL_DTE.yearMs
+        };
+        const rows = side === 'C' ? e.chain.calls : e.chain.puts;
+        const cands = slDtePickStyles(rows, side, spot, clk).map(c => ({
+            ...c, expiry: e.expiry, dte: e.dte,
+            flags: slDteFlags(c, { overCal }),
+            eligible: slDteEligible(c),
+            lots: c.missing ? 0 : slDteLots(c.mid, input.risk)
+        }));
+        const atm = cands.find(c => c.style === 'ATM' && !c.missing);
+        const move1d = atm ? spot * atm.iv * Math.sqrt(1 / 252) : null;
+        return { ...e, chain: undefined, cands, atmIv: atm ? atm.iv : null, move1d };
+    });
+
+    const all = out.flatMap(e => e.cands).filter(c => c.eligible);
+    const pick = key => all.filter(c => c[key] != null).sort((a, b) => a[key] - b[key])[0] || null;
+    const ivs = out.filter(e => e.atmIv != null);
+    const inverted = ivs.length >= 2 && ivs[0].atmIv > ivs[ivs.length - 1].atmIv * 1.05;
+    return {
+        side, sideSource, spot, spotSource, session, weekendOver, overCal, nextOpenDate,
+        gate: ctx.gate || null, dir: ctx.dir || null, ivp: slDteNum(ctx.ivp), hviv: ctx.hviv || null,
+        expiries: out, bestSame: session.live ? pick('costSame') : null, bestOver: pick('costOver'),
+        inverted, fallbackCalendar: !(input.expirations && input.expirations.length)
+    };
+}
+
+// ── Render ───────────────────────────────────────────────────────────────
+const SL_DTE_C = {
+    bull: 'var(--bull, var(--green, #22c55e))', bear: 'var(--bear, var(--red, #ef4444))',
+    warn: 'var(--warn, var(--amber, #f59e0b))', faint: 'var(--text-faint, var(--text-dim, #888))',
+    muted: 'var(--text-muted, #aaa)', text: 'var(--text, #eee)',
+    surf: 'var(--surface-2, var(--card-bg, #1a1a1a))', border: 'var(--border, #333)'
+};
+
+function slDteFmt(x, d) { return x == null || !isFinite(x) ? '—' : Number(x).toFixed(d); }
+
+function slDteHtml(m) {
+    const C = SL_DTE_C, st = SL_DTE.state;
+    const btn = (label, on, js) => '<button onclick="' + js + '" style="padding:3px 10px;border-radius:4px;border:1px solid ' + (on ? C.text : C.border) + ';background:' + (on ? C.surf : 'transparent') + ';color:' + (on ? C.text : C.muted) + ';font-size:11px;font-family:inherit;cursor:pointer">' + label + '</button>';
+    let h = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:8px">' +
+        '<button onclick="slDteLoad(true)" style="padding:4px 12px;border-radius:4px;border:1px solid ' + C.text + ';background:' + C.surf + ';color:' + C.text + ';font-weight:700;font-size:11px;font-family:inherit;cursor:pointer">' + (st.loading ? 'Loading…' : (st.raw ? '↻ Refresh 1–3 DTE' : '▶ Load 1–3 DTE')) + '</button>' +
+        btn('AUTO', st.side === 'auto', "slDteSetSide('auto')") + btn('CALLS', st.side === 'C', "slDteSetSide('C')") + btn('PUTS', st.side === 'P', "slDteSetSide('P')") +
+        '<label style="font-size:11px;color:' + C.muted + ';margin-left:6px">Risk $ <input type="number" min="25" step="25" value="' + slDteEsc(st.risk) + '" onchange="slDteSetRisk(this.value)" style="width:64px;padding:2px 6px;background:transparent;color:' + C.text + ';border:1px solid ' + C.border + ';border-radius:4px;font-family:inherit;font-size:11px"></label>' +
+        (st.loadedAt ? '<span style="font-size:10px;color:' + C.faint + ';margin-left:auto">quotes ' + slDteEsc(new Date(st.loadedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })) + '</span>' : '') +
+        '</div>';
+    if (st.error) h += '<div style="font-size:11px;color:' + C.bear + ';margin-bottom:6px">✗ ' + slDteEsc(st.error) + '</div>';
+    if (!m) return h + '<div style="font-size:11px;color:' + C.faint + '">Press Load to price the next three expiries. Uses ' + slDteEsc('/api/chain/SPY') + ' — 4 requests.</div>';
+    if (m.error) return h + '<div style="font-size:11px;color:' + C.bear + '">✗ ' + slDteEsc(m.error) + '</div>';
+
+    const sideTxt = m.side === 'C' ? 'CALLS' : 'PUTS';
+    const sideWhy = m.sideSource === 'read' ? 'from the directional read (' + slDteEsc(m.dir) + ')' : m.sideSource === 'manual' ? 'manual' : 'no directional read — defaulted, pick a side';
+    const hvTxt = m.hviv === 'ivgthv' ? 'IV > HV — premium rich: size down or use a debit vertical'
+        : m.hviv === 'hvgtiv' ? 'HV > IV — realized beats implied: long premium favoured'
+        : m.hviv === 'inline' ? 'HV ≈ IV — fair premium' : 'HV/IV not set';
+    h += '<div style="font-size:11px;color:' + C.muted + ';margin-bottom:6px;line-height:1.5">' +
+        '<b style="color:' + (m.side === 'C' ? C.bull : C.bear) + '">' + sideTxt + '</b> ' + sideWhy +
+        ' · spot ' + slDteFmt(m.spot, 2) + ' (' + slDteEsc(m.spotSource) + ')' +
+        (m.gate ? ' · gate <b style="color:' + (m.gate === 'GO' ? C.bull : m.gate === 'CAUTION' ? C.warn : C.bear) + '">' + slDteEsc(m.gate) + '</b>' : '') +
+        '<br>IVP ' + (m.ivp == null ? '—' : slDteFmt(m.ivp, 0) + '%') + ' · ' + slDteEsc(hvTxt) +
+        (m.inverted ? ' · <span style="color:' + C.warn + '">front IV above back IV — an event may be priced in</span>' : '') +
+        (m.session.live ? '' : '<br><span style="color:' + C.warn + '">Market closed — planning for the ' + slDteEsc(m.session.date) + ' open on last-close quotes.</span>') +
+        (m.fallbackCalendar ? '<br><span style="color:' + C.warn + '">No expiry list from the chain — weekdays assumed, holidays not checked.</span>' : '') +
+        '</div>';
+    if (m.gate === 'NO-GO') h += '<div style="font-size:11px;font-weight:700;color:' + C.bear + ';margin-bottom:6px">Gate is NO-GO — plan only, no new entry.</div>';
+
+    const best = (label, c, key, note) => '<div style="flex:1;min-width:220px;background:' + C.surf + ';border:1px solid ' + C.border + ';border-radius:6px;padding:6px 10px">' +
+        '<div style="font-size:9px;text-transform:uppercase;letter-spacing:0.08em;color:' + C.faint + '">' + label + '</div>' +
+        (c ? '<div style="font-size:13px;font-weight:700;color:' + C.text + '">' + c.dte + 'DTE ' + slDteEsc(c.expiry.slice(5)) + ' ' + slDteFmt(c.strike, 0) + (m.side === 'C' ? 'C' : 'P') + ' · ' + c.style + '</div>' +
+             '<div style="font-size:11px;color:' + C.muted + '">mid $' + slDteFmt(c.mid, 2) + ' · Δ ' + slDteFmt(Math.abs(c.delta), 2) + ' · needs ' + slDteFmt(c[key], 2) + ' pts to break even · ' + (c.lots > 0 ? c.lots + ' lot' + (c.lots === 1 ? '' : 's') + ' at $' + slDteEsc(SL_DTE.state.risk) + ' risk' : '<span style="color:' + C.warn + '">over $' + slDteEsc(SL_DTE.state.risk) + ' risk — 1 lot risks $' + slDteFmt(c.mid * 100, 0) + '</span>') + (note || '') + '</div>'
+           : '<div style="font-size:11px;color:' + C.faint + '">No liquid contract passes the delta gate.</div>') + '</div>';
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">' +
+        (m.session.live ? best('Best same-day hold (exit by 16:00)', m.bestSame, 'costSame') : '') +
+        best('Best overnight hold (to ' + slDteEsc(m.nextOpenDate || '?') + ' 09:30)', m.bestOver, 'costOver',
+             m.weekendOver ? ' · <b style="color:' + C.warn + '">SOP: no weekend/holiday long premium (' + m.overCal + ' days of decay)</b>' : '') +
+        '</div>';
+
+    const th = s => '<th style="text-align:right;padding:3px 6px;font-weight:600;color:' + C.faint + ';font-size:10px">' + s + '</th>';
+    h += '<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums">' +
+        '<tr style="border-bottom:1px solid ' + C.border + '"><th style="text-align:left;padding:3px 6px;color:' + C.faint + ';font-size:10px">Expiry</th>' +
+        th('Style') + th('Strike') + th('Mid') + th('Δ') + th('IV') + th('Spread') + th('OI') +
+        (m.session.live ? th('Same-day decay') + th('Same-day pts') : '') +
+        th('Overnight decay') + th('Overnight pts') + th('Lots') + '<th style="text-align:left;padding:3px 6px;color:' + C.faint + ';font-size:10px">Flags</th></tr>';
+    for (const e of m.expiries) {
+        const head = '<td style="padding:3px 6px;white-space:nowrap;color:' + C.text + '"><b>' + e.dte + 'DTE</b> ' + slDteEsc(e.expiry.slice(5)) +
+            (e.calDays > e.dte ? ' <span style="color:' + C.warn + '" title="calendar days to expiry">(' + e.calDays + 'd)</span>' : '') +
+            (e.move1d != null ? '<div style="font-size:9px;color:' + C.faint + '">1-day implied ±' + slDteFmt(e.move1d, 2) + '</div>' : '') + '</td>';
+        if (e.error || !e.cands.length) {
+            h += '<tr style="border-bottom:1px solid ' + C.border + '">' + head + '<td colspan="13" style="padding:3px 6px;color:' + C.bear + '">' + slDteEsc(e.error || 'no chain') + '</td></tr>';
+            continue;
+        }
+        e.cands.forEach((c, i) => {
+            const isBest = c === m.bestSame || c === m.bestOver;
+            const td = (v, col) => '<td style="text-align:right;padding:3px 6px;color:' + (col || C.text) + '">' + v + '</td>';
+            h += '<tr style="border-bottom:1px solid ' + C.border + (isBest ? ';background:' + C.surf : '') + '">' + (i === 0 ? head : '<td></td>') +
+                (c.missing ? '<td colspan="13" style="padding:3px 6px;color:' + C.faint + '">' + c.style + ': no priced contract</td></tr>' :
+                td(c.style, c.style === 'OTM' ? C.faint : C.text) + td(slDteFmt(c.strike, 0)) + td('$' + slDteFmt(c.mid, 2)) +
+                td(slDteFmt(Math.abs(c.delta), 2)) + td(slDteFmt(c.iv * 100, 1) + '%') +
+                td(c.spreadPct == null ? '—' : slDteFmt(c.spreadPct, 1) + '%', c.spreadPct != null && c.spreadPct > SL_DTE.maxSpreadPct ? C.bear : null) +
+                td(c.oi == null ? '—' : String(c.oi), c.oi != null && c.oi < SL_DTE.minOI ? C.bear : null) +
+                (m.session.live ? td(c.decaySamePct == null ? '—' : slDteFmt(c.decaySamePct, 1) + '%') + td(slDteFmt(c.costSame, 2), c === m.bestSame ? C.bull : null) : '') +
+                td(c.decayOverPct == null ? '—' : slDteFmt(c.decayOverPct, 1) + '%', m.weekendOver ? C.warn : null) + td(slDteFmt(c.costOver, 2), c === m.bestOver ? C.bull : null) +
+                td(String(c.lots), c.lots === 0 ? C.bear : null) +
+                '<td style="padding:3px 6px;color:' + C.warn + ';font-size:10px">' + slDteEsc(c.flags.join(' · ')) + '</td></tr>');
+        });
+    }
+    h += '</table></div>' +
+        '<div style="font-size:10px;color:' + C.faint + ';margin-top:6px;line-height:1.45">pts = (model decay over the hold + bid/ask spread) ÷ |Δ| — how far SPY must move your way to break even. Lower is better. ' +
+        'Black-Scholes on a variance clock (RTH minute = 1/390 day; close→open = ' + SL_DTE.ovnShare + ' day; +' + SL_DTE.closedDay + ' per closed day), vol implied from each mid; ignores IV changes. Lots = premium-as-stop: whole premium ≤ risk $, ' + SL_DTE.lotCap + '-lot cap. ' +
+        'OTM and sub-$' + SL_DTE.cheapPremium.toFixed(2) + ' rows are shown, never recommended.</div>';
+    return h;
+}
+
+function slDteRender() {
+    try {
+        const ctx = slDteContext();
+        const el = typeof document !== 'undefined' ? document.getElementById(ctx.mountId) : null;
+        if (!el) return null;
+        const st = SL_DTE.state;
+        const model = st.raw ? slDteBuild({ nowMs: Date.now(), expirations: st.raw.expirations, chains: st.raw.chains, ctx, side: st.side, risk: st.risk }) : null;
+        el.innerHTML = slDteHtml(model);
+        return model;
+    } catch (e) {
+        try { console.warn('[SL_DTE] render failed', e); } catch (x) {}
+        return null;
+    }
+}
+
+function slDteSetSide(s) { SL_DTE.state.side = (s === 'C' || s === 'P') ? s : 'auto'; slDteRender(); }
+function slDteSetRisk(v) { const n = Number(v); if (isFinite(n) && n > 0) { SL_DTE.state.risk = n; slDteRender(); } }
+
+async function slDteGet(base, path) {
+    const r = await fetch(base + path, { headers: { 'Accept': 'application/json' } });
+    if (!r.ok) throw new Error(path + ' → HTTP ' + r.status);
+    return r.json();
+}
+// Unified route first, legacy route second — same order as the Options tab.
+async function slDteChain(base, expiry) {
+    const q = expiry ? '?expiry=' + encodeURIComponent(expiry) : '';
+    try { return await slDteGet(base, '/api/chain/SPY' + q); }
+    catch (e) { return slDteGet(base, expiry ? '/api/options/SPY/chain' + q : '/api/options/SPY'); }
+}
+
+async function slDteLoad(force) {
+    const st = SL_DTE.state;
+    if (st.loading) return;
+    if (!force && st.raw && st.loadedAt && Date.now() - st.loadedAt < 60000) { slDteRender(); return; }
+    st.loading = true; st.error = null; slDteRender();
+    try {
+        const ctx = slDteContext();
+        const head = slDteNormChain(await slDteChain(ctx.apiBase, null));
+        const exps = head.expirations && head.expirations.length ? head.expirations : null;
+        const ses = slDteSession(Date.now(), exps);
+        if (!ses) throw new Error('no upcoming session in the expiry list');
+        const picks = slDtePickExpiries(exps, ses.date, SL_DTE.nExpiries);
+        const got = await Promise.allSettled(picks.map(p => slDteChain(ctx.apiBase, p.expiry)));
+        const chains = {};
+        picks.forEach((p, i) => { chains[p.expiry] = got[i].status === 'fulfilled' ? got[i].value : { error: String(got[i].reason && got[i].reason.message || got[i].reason) }; });
+        st.raw = { expirations: exps, chains };
+        st.loadedAt = Date.now();
+    } catch (e) {
+        st.error = 'Chain load failed: ' + (e && e.message ? e.message : e);
+    } finally {
+        st.loading = false;
+        slDteRender();
+    }
+}
+// ══ SL_DTE END ═════════════════════════════════════════════════════════
+
 function slRenderCards() {
     const el = document.getElementById('slCards');
     if (!el) return;
@@ -7441,6 +7990,7 @@ function slRenderLocalRead() {
     // Gate first (untouched parity surface), then the gamma-regime overlay —
     // downward only. See grxApplyToGate.
     const r = slApplySetup(grxApplyToGate(slRunGate(slTapeInputs())));
+    SL_STATE.lastRead = { dir: r.bias.dir, gate: r.gate };   // read by slDteContext()
     const gateC = r.gate === 'GO' ? SL_COLORS.green : r.gate === 'CAUTION' ? SL_COLORS.amber : SL_COLORS.red;
     const dirC = r.bias.dir === 'LONG' ? SL_COLORS.green : r.bias.dir === 'SHORT' ? SL_COLORS.red : SL_COLORS.amber;
     const govC = SL_COLORS[r.governor.color] || SL_COLORS.amber;
@@ -7499,6 +8049,7 @@ function slRenderLocalRead() {
         '<div style="margin-top:0.7rem;font-size:0.65rem;color:var(--text-faint)">Logic is a framework, not a signal service. Final entry quality depends on tape, spread, option liquidity, and whether price is trading into a real inflection.</div>';
     slStopCalc();
     slRenderCandlePanel();
+    slDteRender();
 }
 
 function slRenderZones(values) {
